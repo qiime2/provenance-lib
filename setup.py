@@ -1,8 +1,8 @@
 from setuptools import setup, find_packages
 
-short_descr = ("Tools for parsing, manipulating, and replaying QIIME 2 analyses "
-              "leveraging the framework's decentralized provenance data "
-              "tracking.")
+short_descr = ("Tools for parsing, manipulating, and replaying QIIME 2 "
+               "analyses leveraging the framework's decentralized provenance "
+               "data tracking.")
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()

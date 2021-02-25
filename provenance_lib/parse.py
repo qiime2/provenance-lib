@@ -1,4 +1,4 @@
-import yaml
+# import yaml
 import zipfile
 
 
@@ -9,12 +9,14 @@ def _validate_fp(archive_fp):
     # Is it a valid zip archive?
     if zipfile.is_zipfile(archive_fp):
         print("Tada")
-    
+
     # is it a valid QIIME 2 archive (this probably can't be determined here)
     raise NotImplementedError
 
+
 def _get_relevant_files(archive_fp):
     pass
+
 
 def parse_archive(archive_fp):
     # _validate_fp(archive_fp)

@@ -27,20 +27,12 @@ def parse_archive(archive_fp):
     raise NotImplementedError
 
 
-class _ArchiveMetadata:
-    """Basic metadata about a single QIIME 2 Archive"""
-
-    def __init__(self, zf: zipfile, md_fp: str):
-        _md_dict = yaml.safe_load(zf.read(md_fp))
-        self.uuid = _md_dict['uuid']
-        self.type = _md_dict['type']
-        self.format = _md_dict['format']
-
-
 class Archive:
     """Lightly-processed contents of a single QIIME 2 Archive"""
 
     def __init__(self, archive_fp: str):
+        self._archive_md = None
+        self._archive_contents = None
         self._number_of_actions = 0
         with zipfile.ZipFile(archive_fp) as zf:
 
@@ -57,7 +49,9 @@ class Archive:
             except StopIteration:
                 pass
 
-            self._archive_md = _ArchiveMetadata(zf, root_metadata_fp)
+            # TODO: Should this be removed to reduce duplication?
+            # this will all be stored in the root Action's provenance anyway
+            self._archive_md = _ActionMetadata(zf, root_metadata_fp)
 
             # populate it with relevant uuid:file_contents pairs
             self._populate_archive(zf)
@@ -94,6 +88,7 @@ class Archive:
             self._archive_contents[uuid] = ProvNode(fps_for_this_action)
             self._number_of_actions += 1
 
+    # TODO: refactor as read-only @properties
     def get_root_uuid(self):
         return self._archive_md.uuid
 
@@ -110,6 +105,10 @@ class Archive:
         return self._file_contents[uuid]
 
     def _get_nonroot_uuid(self, fp: pathlib.Path):
+        """
+        For non-root provenance files, get the Action's uuid from the path
+        (avoiding the root Action's UUID which is in all paths)
+        """
         if fp.name == 'action.yaml':
             uuid = fp.parts[-3]
         else:
@@ -117,7 +116,10 @@ class Archive:
         return uuid
 
     def _check_nonroot_uuid(self, fp, uuid):
-        """ For non-root provenance files only, get the uuid from the path """
+        """
+        Helper for grouping files by uuid, returns True if file is from a
+        a non-root Action as specified by uuid
+        """
         fp_uuid = self._get_nonroot_uuid(fp)
         return fp_uuid == uuid
 
@@ -159,8 +161,16 @@ class ProvNode:
         # (this will probably effect what other things get read in)
         for fp in fps_for_this_action:
             print("A filepath: " + str(fp))
-        print("In ProvNode constructor")
-
-        # TODO: Read in metadata.yaml as medatadat object
+        # TODO: Read in metadata.yaml as medatadata object
         # TODO: Read in action.yaml
         # TODO: Read in citations.bib
+
+
+class _ActionMetadata:
+    """ Basic metadata about a single QIIME 2 Action from metadata.yaml """
+
+    def __init__(self, zf: zipfile, md_fp: str):
+        _md_dict = yaml.safe_load(zf.read(md_fp))
+        self.uuid = _md_dict['uuid']
+        self.type = _md_dict['type']
+        self.format = _md_dict['format']

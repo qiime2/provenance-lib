@@ -167,7 +167,7 @@ class ProvNode:
                 self._result_md = _ResultMetadata(zf, str(fp))
                 print(f"Metadata parsed for {self._result_md.uuid}")
             elif fp.name == 'action.yaml':
-                self._result = _Result(zf, str(fp))
+                self._result = _Action(zf, str(fp))
             elif fp.name == 'citations.bib':
                 # TODO: Read in citations.bib
                 pass
@@ -183,7 +183,7 @@ class _ResultMetadata:
         self.format = _md_dict['format']
 
 
-class _Result:
+class _Action:
     """ Provenance data for a single QIIME 2 Result from action.yaml """
 
     # TODO: Read in action.yaml
@@ -197,5 +197,5 @@ class _Result:
         #     how-to-parse-yaml-using-pyyaml-if-there-are-within-the-yaml
 
         # _action_dict = yaml.safe_load(zf.read(fp))
-        # print(f"In _Result {self._action_dict['execution']['uuid']}")
-        print("In _Result: constructors breaking parsing ")
+        # print(f"In _Action {self._action_dict['execution']['uuid']}")
+        print("In _Action: constructors breaking parsing ")

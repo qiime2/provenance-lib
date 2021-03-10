@@ -25,7 +25,7 @@ class ArchiveTests(unittest.TestCase):
 
     def test_number_of_actions(self):
         contents = Archive(self.v5_qza)
-        self.assertEqual(contents._number_of_actions, 15)
+        self.assertEqual(contents._number_of_results, 15)
 
     def test_nonexistent_fp(self):
         with self.assertRaisesRegex(FileNotFoundError, "not_a_filepath.qza"):

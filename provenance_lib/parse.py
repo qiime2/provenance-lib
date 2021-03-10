@@ -33,7 +33,7 @@ class Archive:
     def __init__(self, archive_fp: str):
         self._archive_md = None
         self._archive_contents = None
-        self._number_of_actions = 0
+        self._number_of_results = 0
         with zipfile.ZipFile(archive_fp) as zf:
 
             # Get archive metadata including root uuid
@@ -50,8 +50,8 @@ class Archive:
                 pass
 
             # TODO: Should this be removed to reduce duplication?
-            # this will all be stored in the root Action's provenance anyway
-            self._archive_md = _ActionMetadata(zf, root_metadata_fp)
+            # this will all be stored in the root Result's provenance anyway
+            self._archive_md = _ResultMetadata(zf, root_metadata_fp)
 
             # populate it with relevant uuid:file_contents pairs
             self._populate_archive(zf)
@@ -73,21 +73,21 @@ class Archive:
 
         # make a provnode for each UUID
         for uuid in all_uuids:
-            fps_for_this_action = Iterator
+            fps_for_this_result = Iterator
             if uuid == self.get_root_uuid():
-                fps_for_this_action = filter(self._is_root_prov_data,
+                fps_for_this_result = filter(self._is_root_prov_data,
                                              prov_data_fps)
                 #  TODO: remove?
-                # for fp in fps_for_this_action:
+                # for fp in fps_for_this_result:
                 #     print(fp)
             else:
-                fps_for_this_action = itertools.filterfalse(
+                fps_for_this_result = itertools.filterfalse(
                     self._is_root_prov_data, prov_data_fps)
-                fps_for_this_action = (fp for fp in fps_for_this_action if
+                fps_for_this_result = (fp for fp in fps_for_this_result if
                                        self._check_nonroot_uuid(fp, uuid))
 
-            self._archive_contents[uuid] = ProvNode(zf, fps_for_this_action)
-            self._number_of_actions += 1
+            self._archive_contents[uuid] = ProvNode(zf, fps_for_this_result)
+            self._number_of_results += 1
 
     # TODO: refactor as read-only @properties
     def get_root_uuid(self):
@@ -107,8 +107,8 @@ class Archive:
 
     def _get_nonroot_uuid(self, fp: pathlib.Path):
         """
-        For non-root provenance files, get the Action's uuid from the path
-        (avoiding the root Action's UUID which is in all paths)
+        For non-root provenance files, get the Result's uuid from the path
+        (avoiding the root Result's UUID which is in all paths)
         """
         if fp.name == 'action.yaml':
             uuid = fp.parts[-3]
@@ -119,7 +119,7 @@ class Archive:
     def _check_nonroot_uuid(self, fp, uuid):
         """
         Helper for grouping files by uuid, returns True if file is from a
-        a non-root Action as specified by uuid
+        a non-root Result as specified by uuid
         """
         fp_uuid = self._get_nonroot_uuid(fp)
         return fp_uuid == uuid
@@ -155,26 +155,26 @@ class Archive:
 
 
 class ProvNode:
-    """ One node of a provenance tree, describing one QIIME 2 Action """
+    """ One node of a provenance tree, describing one QIIME 2 Result """
 
     def __init__(self, zf: zipfile,
-                 fps_for_this_action: Iterator[pathlib.Path]):
+                 fps_for_this_result: Iterator[pathlib.Path]):
         # TODO: Read and check VERSION
         # (this will probably effect what other things get read in)
-        for fp in fps_for_this_action:
+        for fp in fps_for_this_result:
             # print("A filepath: " + str(fp))
             if fp.name == 'metadata.yaml':
-                self._action_md = _ActionMetadata(zf, str(fp))
-                print(f"Metadata parsed for {self._action_md.uuid}")
+                self._result_md = _ResultMetadata(zf, str(fp))
+                print(f"Metadata parsed for {self._result_md.uuid}")
             elif fp.name == 'action.yaml':
-                self._action = _Action(zf, str(fp))
+                self._result = _Result(zf, str(fp))
             elif fp.name == 'citations.bib':
                 # TODO: Read in citations.bib
                 pass
 
 
-class _ActionMetadata:
-    """ Basic metadata about a single QIIME 2 Action from metadata.yaml """
+class _ResultMetadata:
+    """ Basic metadata about a single QIIME 2 Result from metadata.yaml """
 
     def __init__(self, zf: zipfile, md_fp: str):
         _md_dict = yaml.safe_load(zf.read(md_fp))
@@ -183,17 +183,19 @@ class _ActionMetadata:
         self.format = _md_dict['format']
 
 
-class _Action:
-    """ Provenance data for a single QIIME 2 Action from action.yaml """
+class _Result:
+    """ Provenance data for a single QIIME 2 Result from action.yaml """
 
     # TODO: Read in action.yaml
     def __init__(self, zf: zipfile, fp: str):
         # TODO NEXT: deal with constructor error
         # (archive contains !ref, !metadata, !cite)
-        # First, search "Constructors" in https://pyyaml.org/wiki/PyYAMLDocumentation
+        # First, search "Constructors" in
+        # https://pyyaml.org/wiki/PyYAMLDocumentation
         # https://github.com/yaml/pyyaml/issues/266
-        # https://stackoverflow.com/questions/52240554/how-to-parse-yaml-using-pyyaml-if-there-are-within-the-yaml
+        # https://stackoverflow.com/questions/52240554/
+        #     how-to-parse-yaml-using-pyyaml-if-there-are-within-the-yaml
 
         # _action_dict = yaml.safe_load(zf.read(fp))
-        # print(f"In _Action {self._action_dict['execution']['uuid']}")
-        print(f"In _Action: constructors breaking parsing ")
+        # print(f"In _Result {self._action_dict['execution']['uuid']}")
+        print("In _Result: constructors breaking parsing ")

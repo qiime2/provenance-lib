@@ -77,15 +77,16 @@ class Archive:
             if uuid == self.get_root_uuid():
                 fps_for_this_action = filter(self._is_root_prov_data,
                                              prov_data_fps)
-                for fp in fps_for_this_action:
-                    print(fp)
+                #  TODO: remove?
+                # for fp in fps_for_this_action:
+                #     print(fp)
             else:
                 fps_for_this_action = itertools.filterfalse(
                     self._is_root_prov_data, prov_data_fps)
                 fps_for_this_action = (fp for fp in fps_for_this_action if
                                        self._check_nonroot_uuid(fp, uuid))
 
-            self._archive_contents[uuid] = ProvNode(fps_for_this_action)
+            self._archive_contents[uuid] = ProvNode(zf, fps_for_this_action)
             self._number_of_actions += 1
 
     # TODO: refactor as read-only @properties
@@ -156,14 +157,20 @@ class Archive:
 class ProvNode:
     """ One node of a provenance tree, describing one QIIME 2 Action """
 
-    def __init__(self, fps_for_this_action: Iterator[pathlib.Path]):
+    def __init__(self, zf: zipfile,
+                 fps_for_this_action: Iterator[pathlib.Path]):
         # TODO: Read and check VERSION
         # (this will probably effect what other things get read in)
         for fp in fps_for_this_action:
-            print("A filepath: " + str(fp))
-        # TODO: Read in metadata.yaml as medatadata object
-        # TODO: Read in action.yaml
-        # TODO: Read in citations.bib
+            # print("A filepath: " + str(fp))
+            if fp.name == 'metadata.yaml':
+                self._action_md = _ActionMetadata(zf, str(fp))
+                print(f"Metadata parsed for {self._action_md.uuid}")
+            elif fp.name == 'action.yaml':
+                self._action = _Action(zf, str(fp))
+            elif fp.name == 'citations.bib':
+                # TODO: Read in citations.bib
+                pass
 
 
 class _ActionMetadata:
@@ -174,3 +181,19 @@ class _ActionMetadata:
         self.uuid = _md_dict['uuid']
         self.type = _md_dict['type']
         self.format = _md_dict['format']
+
+
+class _Action:
+    """ Provenance data for a single QIIME 2 Action from action.yaml """
+
+    # TODO: Read in action.yaml
+    def __init__(self, zf: zipfile, fp: str):
+        # TODO NEXT: deal with constructor error
+        # (archive contains !ref, !metadata, !cite)
+        # First, search "Constructors" in https://pyyaml.org/wiki/PyYAMLDocumentation
+        # https://github.com/yaml/pyyaml/issues/266
+        # https://stackoverflow.com/questions/52240554/how-to-parse-yaml-using-pyyaml-if-there-are-within-the-yaml
+
+        # _action_dict = yaml.safe_load(zf.read(fp))
+        # print(f"In _Action {self._action_dict['execution']['uuid']}")
+        print(f"In _Action: constructors breaking parsing ")

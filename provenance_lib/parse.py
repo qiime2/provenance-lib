@@ -175,29 +175,6 @@ class Archive:
         return (self._is_root_prov_data(fp) and 'metadata.yaml' in fp)
 
 
-class ProvNode:
-    """ One node of a provenance tree, describing one QIIME 2 Result """
-
-    def __init__(self, zf: zipfile,
-                 fps_for_this_result: Iterator[pathlib.Path]):
-        # TODO: Read and check VERSION
-        # (this will probably effect what other things get read in)
-        for fp in fps_for_this_result:
-            # TODO: Should we be reading these zipfiles once here,
-            # and then passing them to the constructors below?
-            if fp.name == 'metadata.yaml':
-                self._result_md = _ResultMetadata(zf, str(fp))
-            elif fp.name == 'action.yaml':
-                self._action = _Action(zf, str(fp))
-            elif fp.name == 'citations.bib':
-                self._citations = _Citations(zf, str(fp))
-            else:
-                pass
-
-    def __repr__(self):
-        return repr(self._result_md)
-
-
 class _ResultMetadata:
     """ Basic metadata about a single QIIME 2 Result from metadata.yaml """
 
@@ -230,3 +207,27 @@ class _Citations:
     def __init__(self, zf: zipfile, fp: str):
         bib_db = bp.loads(zf.read(fp))
         self._citations = {entry['ID']: entry for entry in bib_db.entries}
+
+
+class ProvNode:
+    """ One node of a provenance tree, describing one QIIME 2 Result """
+
+    def __init__(self, zf: zipfile,
+                 fps_for_this_result: Iterator[pathlib.Path]):
+        # TODO: Read and check VERSION
+        # (this will probably effect what other things get read in)
+        for fp in fps_for_this_result:
+            # TODO: Should we be reading these zipfiles once here,
+            # and then passing them to the constructors below?
+            if fp.name == 'metadata.yaml':
+                self._result_md = _ResultMetadata(zf, str(fp))
+            elif fp.name == 'action.yaml':
+                self._action = _Action(zf, str(fp))
+            elif fp.name == 'citations.bib':
+                self._citations = _Citations(zf, str(fp))
+            else:
+                pass
+
+    def __repr__(self):
+        return repr(self._result_md)
+

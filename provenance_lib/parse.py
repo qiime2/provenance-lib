@@ -214,6 +214,9 @@ class ProvNode:
 
     def __init__(self, zf: zipfile,
                  fps_for_this_result: Iterator[pathlib.Path]):
+        # TODO: This should be a @property
+        self.parents = None
+
         # TODO: Read and check VERSION
         # (this will probably effect what other things get read in)
         for fp in fps_for_this_result:
@@ -231,3 +234,24 @@ class ProvNode:
     def __repr__(self):
         return repr(self._result_md)
 
+
+class ProvTree:
+    """
+    a single-rooted tree of ProvNode objects. the ProvenanceTree constructor
+    is responsible for assigning the parentage relationships between ProvNodes
+    """
+
+    def __init__(self, archive: Archive):
+        self.root_uuid = archive.get_root_uuid()
+        self.root = archive._archive_contents[self.root_uuid]
+
+        for node in archive._archive_contents.values():
+            try:
+                parents = [
+                    parnt for parnt in node._action._action_details['inputs']]
+            except KeyError:
+                pass
+
+            parent_uuids = [list(uuid.values())[0] for uuid in parents]
+            node.parents = [
+                archive._archive_contents[uuid] for uuid in parent_uuids]

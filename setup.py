@@ -17,5 +17,5 @@ setup(
    author_email='crk239@nau.edu',
    license='BSD-3-clause',
    packages=find_packages(),
-   install_requires=['pyyaml>=5.3'],
+   install_requires=['pyyaml>=5.3, bibtexparser>=1.0'],
 )

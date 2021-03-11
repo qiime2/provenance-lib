@@ -2,6 +2,8 @@ import itertools
 import pathlib
 from typing import Iterator
 
+import bibtexparser as bp
+
 import yaml
 import zipfile
 
@@ -188,6 +190,8 @@ class ProvNode:
         # TODO: Read and check VERSION
         # (this will probably effect what other things get read in)
         for fp in fps_for_this_result:
+            # TODO: Should we be reading these zipfiles once here,
+            # and then passing them to the constructors below?
             # print("A filepath: " + str(fp))
             if fp.name == 'metadata.yaml':
                 self._result_md = _ResultMetadata(zf, str(fp))
@@ -195,7 +199,7 @@ class ProvNode:
             elif fp.name == 'action.yaml':
                 self._action = _Action(zf, str(fp))
             elif fp.name == 'citations.bib':
-                # TODO: Read in citations.bib
+                self._citations = _Citations(zf, str(fp))
                 pass
 
 
@@ -224,3 +228,14 @@ class _Action:
         #     print(self._action_dict['action'])
 
 
+class _Citations:
+    """
+    citations for a single QIIME 2 Result, as a dict of dicts where each
+    inner dictionary represents one citation keyed on the citation's bibtex key
+    """
+    def __init__(self, zf: zipfile, fp: str):
+        bib_db = bp.loads(zf.read(fp))
+        self._citations = {entry['ID']: entry for entry in bib_db.entries}
+        # if 'f8788dfa-f50b-46d2-a59c-72fea3c05333' in fp:
+        #     for k in self._citations:
+        #         print(k)

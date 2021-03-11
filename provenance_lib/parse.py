@@ -1,6 +1,6 @@
 import itertools
 import pathlib
-from typing import Iterator
+from typing import Iterator, List
 
 import bibtexparser as bp
 
@@ -55,8 +55,8 @@ class Archive:
     """Lightly-processed contents of a single QIIME 2 Archive"""
 
     def __init__(self, archive_fp: str):
-        self._archive_md = None
-        self._archive_contents = None
+        self._archive_md: None
+        self._archive_contents: None
         self._number_of_results = 0
         with zipfile.ZipFile(archive_fp) as zf:
 
@@ -237,7 +237,7 @@ class ProvNode:
 
 class ProvTree:
     """
-    a single-rooted tree of ProvNode objects. the ProvenanceTree constructor
+    a single-rooted tree of ProvNode objects. The ProvenanceTree constructor
     is responsible for assigning the parentage relationships between ProvNodes
     """
 
@@ -255,3 +255,16 @@ class ProvTree:
             parent_uuids = [list(uuid.values())[0] for uuid in parents]
             node.parents = [
                 archive._archive_contents[uuid] for uuid in parent_uuids]
+
+
+class UnionedTree:
+    """
+    a many-rooted tree of ProvNode objects, created from a Union of ProvTrees
+    """
+
+    def __init__(self, trees: List[ProvTree]):
+        self.root_uuids = [tree.root_uuid for tree in trees]
+        self.root_nodes = [tree.root for tree in trees]
+
+        # TODO: implement
+        raise NotImplementedError

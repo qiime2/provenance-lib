@@ -5,6 +5,33 @@ from typing import Iterator
 import yaml
 import zipfile
 
+# TODO: Move constructors into a separate module
+# from yaml_constructors import (
+#     metadata_constructor, citation_constructor, ref_constructor)
+
+
+def citation_constructor(loader, node):
+    # TODO: The framework exposes many additional custom tags not yet handled
+    # here. Check qiime2/core/archive/provenance.py for everything
+    value = loader.construct_scalar(node)
+    return value
+
+
+def ref_constructor(loader, node):
+    value = loader.construct_scalar(node)
+    environment, plugins, plugin_name = value.split(':')
+    return plugin_name
+
+
+def metadata_constructor(loader, node):
+    value = loader.construct_scalar(node)
+    return value
+
+
+yaml.SafeLoader.add_constructor('!metadata', metadata_constructor)
+yaml.SafeLoader.add_constructor('!cite', citation_constructor)
+yaml.SafeLoader.add_constructor('!ref', ref_constructor)
+
 
 def _validate_fp(archive_fp):
     # This seems to be happening already
@@ -77,7 +104,6 @@ class Archive:
             if uuid == self.get_root_uuid():
                 fps_for_this_result = filter(self._is_root_prov_data,
                                              prov_data_fps)
-                #  TODO: remove?
                 # for fp in fps_for_this_result:
                 #     print(fp)
             else:
@@ -165,9 +191,9 @@ class ProvNode:
             # print("A filepath: " + str(fp))
             if fp.name == 'metadata.yaml':
                 self._result_md = _ResultMetadata(zf, str(fp))
-                print(f"Metadata parsed for {self._result_md.uuid}")
+                # print(f"Metadata parsed for {self._result_md.uuid}")
             elif fp.name == 'action.yaml':
-                self._result = _Action(zf, str(fp))
+                self._action = _Action(zf, str(fp))
             elif fp.name == 'citations.bib':
                 # TODO: Read in citations.bib
                 pass
@@ -186,16 +212,9 @@ class _ResultMetadata:
 class _Action:
     """ Provenance data for a single QIIME 2 Result from action.yaml """
 
-    # TODO: Read in action.yaml
     def __init__(self, zf: zipfile, fp: str):
-        # TODO NEXT: deal with constructor error
-        # (archive contains !ref, !metadata, !cite)
-        # First, search "Constructors" in
-        # https://pyyaml.org/wiki/PyYAMLDocumentation
-        # https://github.com/yaml/pyyaml/issues/266
-        # https://stackoverflow.com/questions/52240554/
-        #     how-to-parse-yaml-using-pyyaml-if-there-are-within-the-yaml
-
-        # _action_dict = yaml.safe_load(zf.read(fp))
+        self._action_dict = yaml.safe_load(zf.read(fp))
         # print(f"In _Action {self._action_dict['execution']['uuid']}")
-        print("In _Action: constructors breaking parsing ")
+        if (self._action_dict['execution']['uuid'] ==
+                '5bc4b090-abbc-46b0-a219-346c8026f7d7'):
+            print(self._action_dict)

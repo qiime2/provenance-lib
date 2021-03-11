@@ -214,7 +214,13 @@ class _Action:
 
     def __init__(self, zf: zipfile, fp: str):
         self._action_dict = yaml.safe_load(zf.read(fp))
+        self._action_details = self._action_dict['action']
+        self._execution_details = self._action_dict['execution']
+        self._env_details = self._action_dict['environment']
         # print(f"In _Action {self._action_dict['execution']['uuid']}")
-        if (self._action_dict['execution']['uuid'] ==
-                '5bc4b090-abbc-46b0-a219-346c8026f7d7'):
-            print(self._action_dict)
+        # if (self._action_dict['execution']['uuid'] ==
+        #         '5bc4b090-abbc-46b0-a219-346c8026f7d7'):
+        #     print(self._action_details)
+        #     print(self._action_dict['action'])
+
+

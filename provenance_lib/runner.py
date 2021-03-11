@@ -9,3 +9,6 @@ if __name__ == '__main__':
 
     archive_fp = sys.argv[1]
     dummy_archive = Archive(archive_fp)
+    print(dummy_archive._archive_md)
+    print(dummy_archive._number_of_results)
+    print(dummy_archive._archive_contents)

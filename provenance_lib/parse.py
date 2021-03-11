@@ -39,19 +39,14 @@ def _validate_fp(archive_fp):
     # This seems to be happening already
     # TODO: implement this, or more likely, integrate it elsewhere
     # Is it a filepath?
-
     # Is it a valid zip archive?
-
     # is it a valid QIIME 2 archive (this probably can't be determined here)
     raise NotImplementedError
 
 
+# TODO: remove - just a checklist at this point
 def parse_archive(archive_fp):
     # _validate_fp(archive_fp)
-    # Instantiate ArchiveContents
-
-    # save archive root id
-    # deserialize actions
     # build a tree
     raise NotImplementedError
 
@@ -78,8 +73,8 @@ class Archive:
             except StopIteration:
                 pass
 
-            # TODO: Should this be removed to reduce duplication?
-            # this will all be stored in the root Result's provenance anyway
+            # TODO: Should this be removed to reduce duplication? This root
+            # metadata will also be stored in the root Result's provenance
             self._archive_md = _ResultMetadata(zf, root_metadata_fp)
 
             # populate it with relevant uuid:file_contents pairs
@@ -106,8 +101,6 @@ class Archive:
             if uuid == self.get_root_uuid():
                 fps_for_this_result = filter(self._is_root_prov_data,
                                              prov_data_fps)
-                # for fp in fps_for_this_result:
-                #     print(fp)
             else:
                 fps_for_this_result = itertools.filterfalse(
                     self._is_root_prov_data, prov_data_fps)
@@ -153,7 +146,7 @@ class Archive:
         return fp_uuid == uuid
 
     def _is_version_file(self, fp, uuid):
-        # TODO: will not reliably find root version b/c root uuid in all names
+        # TODO: remove? matches all files if given root UUID; root in all fps
         if False:
             return ('VERSION' in fp and uuid in fp)
         raise NotImplementedError
@@ -192,15 +185,17 @@ class ProvNode:
         for fp in fps_for_this_result:
             # TODO: Should we be reading these zipfiles once here,
             # and then passing them to the constructors below?
-            # print("A filepath: " + str(fp))
             if fp.name == 'metadata.yaml':
                 self._result_md = _ResultMetadata(zf, str(fp))
-                # print(f"Metadata parsed for {self._result_md.uuid}")
             elif fp.name == 'action.yaml':
                 self._action = _Action(zf, str(fp))
             elif fp.name == 'citations.bib':
                 self._citations = _Citations(zf, str(fp))
+            else:
                 pass
+
+    def __repr__(self):
+        return repr(self._result_md)
 
 
 class _ResultMetadata:
@@ -212,6 +207,10 @@ class _ResultMetadata:
         self.type = _md_dict['type']
         self.format = _md_dict['format']
 
+    def __repr__(self):
+        return (f"[UUID: {self.uuid}, Semantic Type: {self.type}, "
+                f"Format: {self.format}]")
+
 
 class _Action:
     """ Provenance data for a single QIIME 2 Result from action.yaml """
@@ -221,11 +220,6 @@ class _Action:
         self._action_details = self._action_dict['action']
         self._execution_details = self._action_dict['execution']
         self._env_details = self._action_dict['environment']
-        # print(f"In _Action {self._action_dict['execution']['uuid']}")
-        # if (self._action_dict['execution']['uuid'] ==
-        #         '5bc4b090-abbc-46b0-a219-346c8026f7d7'):
-        #     print(self._action_details)
-        #     print(self._action_dict['action'])
 
 
 class _Citations:
@@ -236,6 +230,3 @@ class _Citations:
     def __init__(self, zf: zipfile, fp: str):
         bib_db = bp.loads(zf.read(fp))
         self._citations = {entry['ID']: entry for entry in bib_db.entries}
-        # if 'f8788dfa-f50b-46d2-a59c-72fea3c05333' in fp:
-        #     for k in self._citations:
-        #         print(k)

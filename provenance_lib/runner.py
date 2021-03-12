@@ -25,5 +25,7 @@ if __name__ == '__main__':
     print(f'- has parents: {dummy_tree.root.parents}')
     print('- which have parents:')
     for parent in dummy_tree.root.parents:
-        print(f'\t- par: {parent._result_md.uuid} gpar: {parent.parents}')
+        print(f'\t- par: {parent._result_md.uuid} gps: {parent.parents}')
     print('\t- etcetera, etcetera')
+
+    print(f'\nIts prov tree looks like {dummy_tree}')

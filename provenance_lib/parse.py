@@ -185,6 +185,10 @@ class _ResultMetadata:
         self.format = _md_dict['format']
 
     def __repr__(self):
+        return (f"_ResultMetadata(self.uuid={self.uuid}, "
+                f"self.type={self.type}, self.format={self.format}")
+
+    def __str__(self):
         return (f"[UUID: {self.uuid}, Semantic Type: {self.type}, "
                 f"Format: {self.format}]")
 
@@ -234,6 +238,25 @@ class ProvNode:
     def __repr__(self):
         return repr(self._result_md)
 
+    def __str__(self):
+        # TODO: convince this method to pretty-print (not use the repr)
+        return str(self._result_md)
+
+    def traverse_uuids(self):
+        local_uuid = self._result_md.uuid
+        local_parents = dict()
+        # print(local_uuid)
+        # print(self.parents)
+        if not self.parents:
+            local_parents = {local_uuid: None}
+        else:
+            subtree = dict()
+            for parent in self.parents:
+                subtree.update(parent.traverse_uuids())
+            local_parents[local_uuid] = subtree
+
+        return local_parents
+
 
 class ProvTree:
     """
@@ -247,14 +270,18 @@ class ProvTree:
 
         for node in archive._archive_contents.values():
             try:
-                parents = [
+                parent_dicts = [
                     parnt for parnt in node._action._action_details['inputs']]
+                parnt_uuids = [list(uuid.values())[0] for uuid in parent_dicts]
+                node.parents = [
+                    archive._archive_contents[uuid] for uuid in parnt_uuids]
             except KeyError:
-                pass
+                node.parents = None
 
-            parent_uuids = [list(uuid.values())[0] for uuid in parents]
-            node.parents = [
-                archive._archive_contents[uuid] for uuid in parent_uuids]
+    def __repr__(self):
+        # Traverse tree, printing nodes?
+        uuid_yaml = yaml.dump(self.root.traverse_uuids())
+        return f"\nRoot:\n{uuid_yaml}"
 
 
 class UnionedTree:

@@ -3,7 +3,6 @@ import pathlib
 from typing import Iterator, List
 
 import bibtexparser as bp
-
 import yaml
 import zipfile
 
@@ -165,6 +164,7 @@ class Archive:
         return 'provenance' in fp and ('metadata.yaml' in fp or
                                        'action.yaml' in fp or
                                        'citations.bib' in fp)
+        # TODO: add VERSION. Why does doing so increase _number_of_results?
 
     def _is_root_prov_data(self, fp):
         fp = self._normalize_path_iteration(fp)
@@ -215,10 +215,25 @@ class _Citations:
 
 class ProvNode:
     """ One node of a provenance tree, describing one QIIME 2 Result """
+    @property
+    def uuid(self):
+        self._uuid = self._result_md.uuid
+        return self._uuid
+
+    @property
+    def sem_type(self):
+        return self._result_md.type
+
+    @property
+    def format(self):
+        return self._result_md.format
 
     def __init__(self, zf: zipfile,
                  fps_for_this_result: Iterator[pathlib.Path]):
+
         # TODO: This should be a @property
+        # This can probably replace the assignment going on in Tree __init__
+        # finding and caching self._parents when called
         self.parents = None
 
         # TODO: Read and check VERSION
@@ -236,11 +251,14 @@ class ProvNode:
                 pass
 
     def __repr__(self):
-        return repr(self._result_md)
+        return f'ProvNode({self.uuid}, {self.sem_type}, fmt={self.format})'
 
     def __str__(self):
-        # TODO: convince this method to pretty-print (not use the repr)
-        return str(self._result_md)
+        return f'ProvNode({self.uuid})'
+
+    def __eq__(self, other):
+        # TODO: Should this offer more robust validation?
+        return self.uuid == other.uuid
 
     def traverse_uuids(self):
         local_uuid = self._result_md.uuid

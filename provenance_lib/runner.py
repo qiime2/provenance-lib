@@ -1,6 +1,6 @@
 import sys
 
-from parse import Archive, ProvTree
+import parse
 
 if __name__ == '__main__':
     # To begin, we'll read in exactly one fp
@@ -8,7 +8,7 @@ if __name__ == '__main__':
         raise ValueError('Please pass one filepath to a QIIME 2 Archive')
 
     archive_fp = sys.argv[1]
-    dummy_archive = Archive(archive_fp)
+    dummy_archive = parse.Archive(archive_fp)
 
     r_uuid = dummy_archive.get_root_uuid()
     deets = dummy_archive._archive_contents[r_uuid]._action._action_details
@@ -21,11 +21,11 @@ if __name__ == '__main__':
           ' QIIME 2 Results, mostly ancestors')
     # print(dummy_archive._archive_contents)
 
-    dummy_tree = ProvTree(dummy_archive)
+    dummy_tree = parse.ProvTree(dummy_archive)
     print(f'- has parents: {dummy_tree.root.parents}')
     print('- which have parents:')
     for parent in dummy_tree.root.parents:
-        print(f'\t- par: {parent._result_md.uuid} gps: {parent.parents}')
+        print(f'\t- par: {parent.uuid} gps: {parent.parents}')
     print('\t- etcetera, etcetera')
 
     print(f'\nIts prov tree looks like {dummy_tree}')

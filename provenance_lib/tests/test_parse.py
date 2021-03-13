@@ -20,7 +20,7 @@ class ArchiveTests(unittest.TestCase):
 
     def test_smoke(self):
         contents = Archive(self.v5_qza)
-        self.assertEqual(contents.get_root_uuid(),
+        self.assertEqual(contents.root_uuid,
                          "8854f06a-872f-4762-87b7-4541d0f283d4")
 
     def test_number_of_actions(self):
@@ -36,8 +36,25 @@ class ArchiveTests(unittest.TestCase):
                                     "File is not a zip file"):
             Archive(self.not_a_zip)
 
-    # Test does it check archive version?
+    # TODO: Test does it check archive version?
     # Does it recognize out-of-format archives?
+    def test_no_root_md(self):
+        pass
+
+    def test_multiple_root_md(self):
+        pass
+
+
+class ResultMetadataTests(unittest.TestCase):
+    pass
+
+
+class ActionTests(unittest.TestCase):
+    pass
+
+
+class CitationsTests(unittest.TestCase):
+    pass
 
 
 class ProvNodeTests(unittest.TestCase):
@@ -94,5 +111,10 @@ class ProvNodeTests(unittest.TestCase):
     def test_traverse_ids(self):
         pass
 
-# class ProvTreeTests(unittest.TestCase):
-#     pass
+
+class ProvTreeTests(unittest.TestCase):
+    pass
+
+
+class UnionedTreeTests(unittest.TestCase):
+    pass

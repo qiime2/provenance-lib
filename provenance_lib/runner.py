@@ -10,8 +10,8 @@ if __name__ == '__main__':
     archive_fp = sys.argv[1]
     dummy_archive = parse.Archive(archive_fp)
 
-    r_uuid = dummy_archive.get_root_uuid()
-    deets = dummy_archive._archive_contents[r_uuid]._action._action_details
+    r_uuid = dummy_archive.root_uuid
+    deets = dummy_archive.get_result(r_uuid)._action._action_details
     plurg = deets['plugin']
     ackshun = deets['action']
 

@@ -1,6 +1,6 @@
 import itertools
 import pathlib
-from typing import Iterator, List
+from typing import Iterator, List, Dict
 
 import bibtexparser as bp
 import yaml
@@ -53,16 +53,38 @@ def parse_archive(archive_fp):
 class Archive:
     """Lightly-processed contents of a single QIIME 2 Archive"""
 
+    # TODO: add property for archive version?
+    # TODO: UUID class with basic validation?
+    _number_of_results: int
+    # TODO: UUID class
+    _archive_contents: Dict
+
+    @property
+    def root_uuid(self):
+        return self._archive_md.uuid
+
+    @property
+    def archive_type(self):
+        return self._archive_md.type
+
+    @property
+    def archive_format(self):
+        return self._archive_md.format
+
+    def get_result(self, uuid):
+        return self._archive_contents[uuid]
+
     def __init__(self, archive_fp: str):
         self._archive_md: None
         self._archive_contents: None
         self._number_of_results = 0
-        with zipfile.ZipFile(archive_fp) as zf:
 
-            # Get archive metadata including root uuid
+        # Get archive metadata including root uuid
+        with zipfile.ZipFile(archive_fp) as zf:
             all_filenames = zf.namelist()
             root_metadata_fps = filter(self._is_root_metadata_file,
                                        all_filenames)
+            # TODO: protect this with a try/except and test it
             root_metadata_fp = next(root_metadata_fps)
 
             try:
@@ -72,11 +94,7 @@ class Archive:
             except StopIteration:
                 pass
 
-            # TODO: Should this be removed to reduce duplication? This root
-            # metadata will also be stored in the root Result's provenance
             self._archive_md = _ResultMetadata(zf, root_metadata_fp)
-
-            # populate it with relevant uuid:file_contents pairs
             self._populate_archive(zf)
 
     def _populate_archive(self, zf: zipfile):
@@ -97,7 +115,7 @@ class Archive:
         # make a provnode for each UUID
         for uuid in all_uuids:
             fps_for_this_result = Iterator
-            if uuid == self.get_root_uuid():
+            if uuid == self.root_uuid:
                 fps_for_this_result = filter(self._is_root_prov_data,
                                              prov_data_fps)
             else:
@@ -108,22 +126,6 @@ class Archive:
 
             self._archive_contents[uuid] = ProvNode(zf, fps_for_this_result)
             self._number_of_results += 1
-
-    # TODO: refactor as read-only @properties
-    def get_root_uuid(self):
-        return self._archive_md.uuid
-
-    def get_arch_type(self):
-        return self._archive_md.type
-
-    def get_arch_format(self):
-        return self._archive_md.format
-
-    def get_file_contents(self):
-        return self._file_contents
-
-    def get_contents_by_uuid(self, uuid: str):
-        return self._file_contents[uuid]
 
     def _get_nonroot_uuid(self, fp: pathlib.Path):
         """
@@ -263,8 +265,6 @@ class ProvNode:
     def traverse_uuids(self):
         local_uuid = self._result_md.uuid
         local_parents = dict()
-        # print(local_uuid)
-        # print(self.parents)
         if not self.parents:
             local_parents = {local_uuid: None}
         else:
@@ -283,7 +283,7 @@ class ProvTree:
     """
 
     def __init__(self, archive: Archive):
-        self.root_uuid = archive.get_root_uuid()
+        self.root_uuid = archive.root_uuid
         self.root = archive._archive_contents[self.root_uuid]
 
         for node in archive._archive_contents.values():
@@ -310,6 +310,4 @@ class UnionedTree:
     def __init__(self, trees: List[ProvTree]):
         self.root_uuids = [tree.root_uuid for tree in trees]
         self.root_nodes = [tree.root for tree in trees]
-
-        # TODO: implement
         raise NotImplementedError

@@ -50,14 +50,115 @@ def parse_archive(archive_fp):
     raise NotImplementedError
 
 
+class _Action:
+    """ Provenance data for a single QIIME 2 Result from action.yaml """
+
+    def __init__(self, zf: zipfile, fp: str):
+        self._action_dict = yaml.safe_load(zf.read(fp))
+        self._action_details = self._action_dict['action']
+        self._execution_details = self._action_dict['execution']
+        self._env_details = self._action_dict['environment']
+
+
+class _ResultMetadata:
+    """ Basic metadata about a single QIIME 2 Result from metadata.yaml """
+
+    def __init__(self, zf: zipfile, md_fp: str):
+        _md_dict = yaml.safe_load(zf.read(md_fp))
+        self.uuid = _md_dict['uuid']
+        self.type = _md_dict['type']
+        self.format = _md_dict['format']
+
+    def __repr__(self):
+        return (f"_ResultMetadata(self.uuid={self.uuid}, "
+                f"self.type={self.type}, self.format={self.format}")
+
+    def __str__(self):
+        return (f"[UUID: {self.uuid}, Semantic Type: {self.type}, "
+                f"Format: {self.format}]")
+
+
+class _Citations:
+    """
+    citations for a single QIIME 2 Result, as a dict of dicts where each
+    inner dictionary represents one citation keyed on the citation's bibtex key
+    """
+    def __init__(self, zf: zipfile, fp: str):
+        bib_db = bp.loads(zf.read(fp))
+        self._citations = {entry['ID']: entry for entry in bib_db.entries}
+
+
+class ProvNode:
+    """ One node of a provenance tree, describing one QIIME 2 Result """
+    @property
+    def uuid(self):
+        self._uuid = self._result_md.uuid
+        return self._uuid
+
+    @property
+    def sem_type(self):
+        return self._result_md.type
+
+    @property
+    def format(self):
+        return self._result_md.format
+
+    def __init__(self, zf: zipfile,
+                 fps_for_this_result: Iterator[pathlib.Path]):
+
+        # TODO: This should be a @property
+        # This can probably replace the assignment going on in Tree __init__
+        # finding and caching self._parents when called
+        self.parents = None
+
+        # TODO: Read and check VERSION
+        # (this will probably effect what other things get read in)
+        for fp in fps_for_this_result:
+            # TODO: Should we be reading these zipfiles once here,
+            # and then passing them to the constructors below?
+            if fp.name == 'metadata.yaml':
+                self._result_md = _ResultMetadata(zf, str(fp))
+            elif fp.name == 'action.yaml':
+                self._action = _Action(zf, str(fp))
+            elif fp.name == 'citations.bib':
+                self._citations = _Citations(zf, str(fp))
+            else:
+                pass
+
+    def __repr__(self):
+        return f'ProvNode({self.uuid}, {self.sem_type}, fmt={self.format})'
+
+    def __str__(self):
+        return f'ProvNode({self.uuid})'
+
+    def __eq__(self, other):
+        # TODO: Should this offer more robust validation?
+        return self.uuid == other.uuid
+
+    def traverse_uuids(self):
+        local_uuid = self._result_md.uuid
+        local_parents = dict()
+        if not self.parents:
+            local_parents = {local_uuid: None}
+        else:
+            subtree = dict()
+            for parent in self.parents:
+                subtree.update(parent.traverse_uuids())
+            local_parents[local_uuid] = subtree
+
+        return local_parents
+
+
 class Archive:
     """Lightly-processed contents of a single QIIME 2 Archive"""
 
     # TODO: add property for archive version?
     # TODO: UUID class with basic validation?
+    # TODO: static type declarations like this break testing unless the class
+    # is forward declared (ProvNode must be above Archive or NameError).
     _number_of_results: int
-    # TODO: UUID class
-    _archive_contents: Dict
+    _archive_contents: Dict[str, ProvNode]
+    _archive_md: _ResultMetadata
 
     @property
     def root_uuid(self):
@@ -175,105 +276,6 @@ class Archive:
     def _is_root_metadata_file(self, fp):
         fp = self._normalize_path_iteration(fp)
         return (self._is_root_prov_data(fp) and 'metadata.yaml' in fp)
-
-
-class _ResultMetadata:
-    """ Basic metadata about a single QIIME 2 Result from metadata.yaml """
-
-    def __init__(self, zf: zipfile, md_fp: str):
-        _md_dict = yaml.safe_load(zf.read(md_fp))
-        self.uuid = _md_dict['uuid']
-        self.type = _md_dict['type']
-        self.format = _md_dict['format']
-
-    def __repr__(self):
-        return (f"_ResultMetadata(self.uuid={self.uuid}, "
-                f"self.type={self.type}, self.format={self.format}")
-
-    def __str__(self):
-        return (f"[UUID: {self.uuid}, Semantic Type: {self.type}, "
-                f"Format: {self.format}]")
-
-
-class _Action:
-    """ Provenance data for a single QIIME 2 Result from action.yaml """
-
-    def __init__(self, zf: zipfile, fp: str):
-        self._action_dict = yaml.safe_load(zf.read(fp))
-        self._action_details = self._action_dict['action']
-        self._execution_details = self._action_dict['execution']
-        self._env_details = self._action_dict['environment']
-
-
-class _Citations:
-    """
-    citations for a single QIIME 2 Result, as a dict of dicts where each
-    inner dictionary represents one citation keyed on the citation's bibtex key
-    """
-    def __init__(self, zf: zipfile, fp: str):
-        bib_db = bp.loads(zf.read(fp))
-        self._citations = {entry['ID']: entry for entry in bib_db.entries}
-
-
-class ProvNode:
-    """ One node of a provenance tree, describing one QIIME 2 Result """
-    @property
-    def uuid(self):
-        self._uuid = self._result_md.uuid
-        return self._uuid
-
-    @property
-    def sem_type(self):
-        return self._result_md.type
-
-    @property
-    def format(self):
-        return self._result_md.format
-
-    def __init__(self, zf: zipfile,
-                 fps_for_this_result: Iterator[pathlib.Path]):
-
-        # TODO: This should be a @property
-        # This can probably replace the assignment going on in Tree __init__
-        # finding and caching self._parents when called
-        self.parents = None
-
-        # TODO: Read and check VERSION
-        # (this will probably effect what other things get read in)
-        for fp in fps_for_this_result:
-            # TODO: Should we be reading these zipfiles once here,
-            # and then passing them to the constructors below?
-            if fp.name == 'metadata.yaml':
-                self._result_md = _ResultMetadata(zf, str(fp))
-            elif fp.name == 'action.yaml':
-                self._action = _Action(zf, str(fp))
-            elif fp.name == 'citations.bib':
-                self._citations = _Citations(zf, str(fp))
-            else:
-                pass
-
-    def __repr__(self):
-        return f'ProvNode({self.uuid}, {self.sem_type}, fmt={self.format})'
-
-    def __str__(self):
-        return f'ProvNode({self.uuid})'
-
-    def __eq__(self, other):
-        # TODO: Should this offer more robust validation?
-        return self.uuid == other.uuid
-
-    def traverse_uuids(self):
-        local_uuid = self._result_md.uuid
-        local_parents = dict()
-        if not self.parents:
-            local_parents = {local_uuid: None}
-        else:
-            subtree = dict()
-            for parent in self.parents:
-                subtree.update(parent.traverse_uuids())
-            local_parents[local_uuid] = subtree
-
-        return local_parents
 
 
 class ProvTree:

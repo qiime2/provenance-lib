@@ -58,6 +58,11 @@ class CitationsTests(unittest.TestCase):
 
 
 class ProvNodeTests(unittest.TestCase):
+    # As implemented, ProvNodes must belong to an Archive
+    # 1281878510acdc42cb5ba3ee40c9ad8b62dacf0e shows another approach with
+    # ProvTrees responsible for assigning parentage to their ProvNodes
+    mock_archive = MagicMock()
+
     def setUp(self):
         self.v5_qza = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
         super().setUp()
@@ -67,7 +72,8 @@ class ProvNodeTests(unittest.TestCase):
             all_filenames = zf.namelist()
             self.root_md_fnames = filter(self._is_provnode_data, all_filenames)
             self.root_md_fps = [pathlib.Path(fp) for fp in self.root_md_fnames]
-            self.v5_ProvNode = ProvNode(zf, self.root_md_fps)
+            self.v5_ProvNode = ProvNode(self.mock_archive, zf,
+                                        self.root_md_fps)
 
     def _is_provnode_data(self, fp):
         """
@@ -88,7 +94,7 @@ class ProvNodeTests(unittest.TestCase):
         self.assertEqual(self.v5_ProvNode.uuid,
                          '8854f06a-872f-4762-87b7-4541d0f283d4')
         self.assertEqual(self.v5_ProvNode.sem_type, 'Visualization')
-        # TODO: Is it problematic that format is stored as a NoneType (not str)
+        # TODO: Is it problematic that format is loaded as a NoneType (not str)
         self.assertEqual(self.v5_ProvNode.format, None)
 
     def test_eq(self):
@@ -108,8 +114,35 @@ class ProvNodeTests(unittest.TestCase):
                          "ProvNode(8854f06a-872f-4762-87b7-4541d0f283d4, "
                          "Visualization, fmt=None)")
 
-    def test_traverse_ids(self):
+    def test_traverse_uuids(self):
         pass
+
+    # Building an archive for the following 2 tests b/c the alternative is to
+    # hand-build two to three more test nodes and mock an Archive to hold them.
+    def test_has_no_parents(self):
+        # qiime tools import node has no parents
+        parentless_node_id = 'f5d67104-9506-4373-96e2-97df9199a719'
+        archive = Archive(self.v5_qza)
+        repr(archive)
+        parentless_node = archive.get_result(parentless_node_id)
+        # _parents not initialized before call
+        self.assertEqual(parentless_node._parents, None)
+        # ProvNode.parents should get parents - here that's None
+        self.assertEqual(parentless_node.parents, None)
+        # _parents initialized now
+        self.assertEqual(parentless_node._parents, None)
+
+    def test_has_parents(self):
+        self.v5_ProvNode._origin_archive = Archive(self.v5_qza)
+        exp_nodes = [self.v5_ProvNode._origin_archive._archive_contents[id]
+                     for id in ['706b6bce-8f19-4ae9-b8f5-21b14a814a1b',
+                                'ad7e5b50-065c-4fdd-8d9b-991e92caad22']]
+        # _parents not initialized before call
+        self.assertEqual(self.v5_ProvNode._parents, None)
+        # ProvNode.parents should get parents
+        self.assertEqual(self.v5_ProvNode.parents, exp_nodes)
+        # _parents initialized now
+        self.assertEqual(self.v5_ProvNode._parents, exp_nodes)
 
 
 class ProvTreeTests(unittest.TestCase):

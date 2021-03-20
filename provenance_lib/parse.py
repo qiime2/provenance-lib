@@ -11,9 +11,9 @@ import zipfile
 #     metadata_constructor, citation_constructor, ref_constructor)
 
 
+# TODO: The framework exposes many additional custom tags not yet handled
+# here. Check qiime2/core/archive/provenance.py for everything
 def citation_constructor(loader, node):
-    # TODO: The framework exposes many additional custom tags not yet handled
-    # here. Check qiime2/core/archive/provenance.py for everything
     value = loader.construct_scalar(node)
     return value
 
@@ -52,6 +52,12 @@ def parse_archive(archive_fp):
 
 class _Action:
     """ Provenance data for a single QIIME 2 Result from action.yaml """
+    _action_details = None
+
+    @property
+    def inputs(self):
+        """ a dict containing the UUIDs of this action's inputs """
+        return self._action_details['inputs']
 
     def __init__(self, zf: zipfile, fp: str):
         self._action_dict = yaml.safe_load(zf.read(fp))
@@ -90,6 +96,25 @@ class _Citations:
 
 class ProvNode:
     """ One node of a provenance tree, describing one QIIME 2 Result """
+    _parents = None
+
+    @property
+    def parents(self):
+        """ The list of ProvNodes used as inputs in creating this ProvNode """
+        # NOTE: We must delay gathering parentage data until the Archive is
+        # fully populated (or risk KeyError). Caching this lazily allows us to
+        # delay until the first call (likely the first tree traversal)
+        if not self._parents:
+            try:
+                parent_dicts = [parent for parent in self._action.inputs]
+                parent_uuids = [
+                    list(uuid.values())[0] for uuid in parent_dicts]
+                self._parents = [self._origin_archive._archive_contents[uuid]
+                                 for uuid in parent_uuids]
+            except KeyError:
+                pass
+        return self._parents
+
     @property
     def uuid(self):
         self._uuid = self._result_md.uuid
@@ -103,14 +128,9 @@ class ProvNode:
     def format(self):
         return self._result_md.format
 
-    def __init__(self, zf: zipfile,
+    def __init__(self, origin_archive, zf: zipfile,
                  fps_for_this_result: Iterator[pathlib.Path]):
-
-        # TODO: This should be a @property
-        # This can probably replace the assignment going on in Tree __init__
-        # finding and caching self._parents when called
-        self.parents = None
-
+        self._origin_archive = origin_archive
         # TODO: Read and check VERSION
         # (this will probably effect what other things get read in)
         for fp in fps_for_this_result:
@@ -135,6 +155,7 @@ class ProvNode:
         # TODO: Should this offer more robust validation?
         return self.uuid == other.uuid
 
+    # TODO: Should this live in ProvTree?
     def traverse_uuids(self):
         local_uuid = self._result_md.uuid
         local_parents = dict()
@@ -150,7 +171,13 @@ class ProvNode:
 
 
 class Archive:
-    """Lightly-processed contents of a single QIIME 2 Archive"""
+    """
+    Lightly-processed contents of a single QIIME 2 Archive, an Archive
+    contains a non-hierarchical pool of unique ProvNodes
+    """
+
+    # TODO: Can we assume all Q2 archives contain only unique Results?
+    # If not, Archive should filter duplicates.
 
     # TODO: add property for archive version?
     # TODO: UUID class with basic validation?
@@ -225,7 +252,8 @@ class Archive:
                 fps_for_this_result = (fp for fp in fps_for_this_result if
                                        self._check_nonroot_uuid(fp, uuid))
 
-            self._archive_contents[uuid] = ProvNode(zf, fps_for_this_result)
+            self._archive_contents[uuid] = ProvNode(self, zf,
+                                                    fps_for_this_result)
             self._number_of_results += 1
 
     def _get_nonroot_uuid(self, fp: pathlib.Path):
@@ -280,26 +308,16 @@ class Archive:
 
 class ProvTree:
     """
-    a single-rooted tree of ProvNode objects. The ProvenanceTree constructor
-    is responsible for assigning the parentage relationships between ProvNodes
+    a single-rooted tree of ProvNode objects.
     """
 
     def __init__(self, archive: Archive):
         self.root_uuid = archive.root_uuid
         self.root = archive._archive_contents[self.root_uuid]
 
-        for node in archive._archive_contents.values():
-            try:
-                parent_dicts = [
-                    parnt for parnt in node._action._action_details['inputs']]
-                parnt_uuids = [list(uuid.values())[0] for uuid in parent_dicts]
-                node.parents = [
-                    archive._archive_contents[uuid] for uuid in parnt_uuids]
-            except KeyError:
-                node.parents = None
-
     def __repr__(self):
-        # Traverse tree, printing nodes?
+        # Traverse tree, printing UUIDs
+        # TODO: Improve this repr to remove duplication
         uuid_yaml = yaml.dump(self.root.traverse_uuids())
         return f"\nRoot:\n{uuid_yaml}"
 

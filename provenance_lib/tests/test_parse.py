@@ -13,15 +13,27 @@ DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 
 
 class ArchiveTests(unittest.TestCase):
+    # Removes the character limit when reporting failing tests for this class
+    maxDiff = None
 
     v5_qza = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
     fake_fp = os.path.join(DATA_DIR, 'not_a_filepath.qza')
     not_a_zip = os.path.join(DATA_DIR, 'not_a_zip.txt')
 
+    v5_archive = Archive(v5_qza)
+
     def test_smoke(self):
-        contents = Archive(self.v5_qza)
-        self.assertEqual(contents.root_uuid,
+        self.assertEqual(self.v5_archive.root_uuid,
                          "8854f06a-872f-4762-87b7-4541d0f283d4")
+
+    def test_str(self):
+        self.assertEqual(str(self.v5_archive),
+                         "Archive(Root: 8854f06a-872f-4762-87b7-4541d0f283d4)")
+
+    def test_repr(self):
+        repr(self.v5_archive)
+        self.assertRegex(repr(self.v5_archive),
+                         "Archive.*Root.*Semantic Type.*Format.*\nContains.*")
 
     def test_number_of_actions(self):
         contents = Archive(self.v5_qza)

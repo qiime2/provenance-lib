@@ -98,6 +98,9 @@ class ProvNode:
     """ One node of a provenance tree, describing one QIIME 2 Result """
     _parents = None
 
+    # TODO NEXT: ProvNode.parents captures an "origin_archive". This should be
+    # a list which can be appended to in Union
+
     @property
     def parents(self):
         """ The list of ProvNodes used as inputs in creating this ProvNode """
@@ -201,6 +204,18 @@ class Archive:
 
     def get_result(self, uuid):
         return self._archive_contents[uuid]
+
+    def __str__(self):
+        return f"Archive(Root: {self.root_uuid})"
+
+    def __repr__(self):
+        r_str = (f"Archive(Root: {self.root_uuid}, Semantic Type: "
+                 f"{self.archive_type}, Format: {self.archive_format})\n"
+                 "Contains Results:\n")
+        for uuid in self._archive_contents.keys():
+            r_str += str(uuid)
+            r_str += "\n"
+        return r_str
 
     def __init__(self, archive_fp: str):
         self._archive_md: None

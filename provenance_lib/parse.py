@@ -97,9 +97,12 @@ class _Citations:
 class ProvNode:
     """ One node of a provenance tree, describing one QIIME 2 Result """
     _parents = None
+    _origin_archives = []
 
-    # TODO NEXT: ProvNode.parents captures an "origin_archive". This should be
-    # a list which can be appended to in Union
+    # NOTE: ProvNodes capture their "origin_archive" in a list when
+    # initialized, and ProvNode.parents expects that origin_archive to be at
+    # index 0. Union (and similar operations) should not interfere with this
+    # convention.
 
     @property
     def parents(self):
@@ -112,8 +115,9 @@ class ProvNode:
                 parent_dicts = [parent for parent in self._action.inputs]
                 parent_uuids = [
                     list(uuid.values())[0] for uuid in parent_dicts]
-                self._parents = [self._origin_archive._archive_contents[uuid]
-                                 for uuid in parent_uuids]
+                self._parents = [
+                    self._origin_archives[0]._archive_contents[uuid]
+                    for uuid in parent_uuids]
             except KeyError:
                 pass
         return self._parents
@@ -133,7 +137,7 @@ class ProvNode:
 
     def __init__(self, origin_archive, zf: zipfile,
                  fps_for_this_result: Iterator[pathlib.Path]):
-        self._origin_archive = origin_archive
+        self._origin_archives.append(origin_archive)
         # TODO: Read and check VERSION
         # (this will probably effect what other things get read in)
         for fp in fps_for_this_result:
@@ -184,7 +188,7 @@ class Archive:
 
     # TODO: add property for archive version?
     # TODO: UUID class with basic validation?
-    # TODO: static type declarations like this break testing unless the class
+    # NOTE: static type declarations like this break testing unless the class
     # is forward declared (ProvNode must be above Archive or NameError).
     _number_of_results: int
     _archive_contents: Dict[str, ProvNode]

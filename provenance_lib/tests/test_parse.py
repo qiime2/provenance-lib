@@ -70,7 +70,7 @@ class CitationsTests(unittest.TestCase):
 
 
 class ProvNodeTests(unittest.TestCase):
-    # As implemented, ProvNodes must belong to an Archive
+    # As implemented, ProvNodes must belong to an Archive. Commit
     # 1281878510acdc42cb5ba3ee40c9ad8b62dacf0e shows another approach with
     # ProvTrees responsible for assigning parentage to their ProvNodes
     mock_archive = MagicMock()
@@ -131,7 +131,7 @@ class ProvNodeTests(unittest.TestCase):
 
     # Building an archive for the following 2 tests b/c the alternative is to
     # hand-build two to three more test nodes and mock an Archive to hold them.
-    def test_has_no_parents(self):
+    def test_parents_property_has_no_parents(self):
         # qiime tools import node has no parents
         parentless_node_id = 'f5d67104-9506-4373-96e2-97df9199a719'
         archive = Archive(self.v5_qza)
@@ -144,7 +144,7 @@ class ProvNodeTests(unittest.TestCase):
         # _parents initialized now
         self.assertEqual(parentless_node._parents, None)
 
-    def test_has_parents(self):
+    def test_parents_property_has_parents(self):
         self.v5_ProvNode._origin_archive = Archive(self.v5_qza)
         exp_nodes = [self.v5_ProvNode._origin_archive._archive_contents[id]
                      for id in ['706b6bce-8f19-4ae9-b8f5-21b14a814a1b',

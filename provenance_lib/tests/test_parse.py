@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import zipfile
 
 from ..parse import Archive, ProvNode
-# from ..parse import ProvTree
+from ..parse import ProvTree
 
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
@@ -126,8 +126,23 @@ class ProvNodeTests(unittest.TestCase):
                          "ProvNode(8854f06a-872f-4762-87b7-4541d0f283d4, "
                          "Visualization, fmt=None)")
 
+    maxDiff = None
+
+    # TODO: This should probably be reduced to a minimum example
     def test_traverse_uuids(self):
-        pass
+        # This is disgusting, but avoids a baffling syntax error raised
+        # whenever I attempted to define exp as a single literal
+        exp = {"8854f06a-872f-4762-87b7-4541d0f283d4":
+               {"706b6bce-8f19-4ae9-b8f5-21b14a814a1b":
+                {"4de0fc23-6462-43d3-8497-f55fc49f5db6":
+                 {"f5d67104-9506-4373-96e2-97df9199a719": None}}}}
+        second_half = {"ad7e5b50-065c-4fdd-8d9b-991e92caad22":
+                       {"b662f326-ac26-4047-8766-2288464d157d":
+                        {"4de0fc23-6462-43d3-8497-f55fc49f5db6":
+                         {"f5d67104-9506-4373-96e2-97df9199a719": None}}}}
+        exp["8854f06a-872f-4762-87b7-4541d0f283d4"].update(second_half)
+        actual = self.v5_ProvNode.traverse_uuids()
+        self.assertEqual(actual, exp)
 
     # Building an archive for the following 2 tests b/c the alternative is to
     # hand-build two to three more test nodes and mock an Archive to hold them.
@@ -158,7 +173,43 @@ class ProvNodeTests(unittest.TestCase):
 
 
 class ProvTreeTests(unittest.TestCase):
-    pass
+    v5_qza = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
+    v5_archive = Archive(v5_qza)
+
+    def test_smoke(self):
+        ProvTree(self.v5_archive)
+        self.assertTrue(True)
+
+    def test_root_uuid(self):
+        exp = "8854f06a-872f-4762-87b7-4541d0f283d4"
+        actual_uuid = ProvTree(self.v5_archive).root_uuid
+        self.assertEqual(exp, actual_uuid)
+
+    def test_root_node(self):
+        # TODO: Construct a root node as above, check equality with self.root
+        pass
+
+    def test_str(self):
+        dag = ProvTree(self.v5_archive)
+        self.assertEqual(str(dag),
+                         ("ProvTree("
+                          "Root: 8854f06a-872f-4762-87b7-4541d0f283d4)"))
+
+    def test_repr(self):
+        dag = ProvTree(self.v5_archive)
+        repr(dag)
+        self.assertEqual(repr(dag),
+                         ("Root:\n"
+                          "8854f06a-872f-4762-87b7-4541d0f283d4:\n"
+                          "  706b6bce-8f19-4ae9-b8f5-21b14a814a1b:\n"
+                          "    4de0fc23-6462-43d3-8497-f55fc49f5db6:\n"
+                          "      f5d67104-9506-4373-96e2-97df9199a719: null\n"
+                          "  ad7e5b50-065c-4fdd-8d9b-991e92caad22:\n"
+                          "    b662f326-ac26-4047-8766-2288464d157d:\n"
+                          "      4de0fc23-6462-43d3-8497-f55fc49f5db6:\n"
+                          "        f5d67104-9506-4373-96e2-97df9199a719: null"
+                          "\n")
+                         )
 
 
 class UnionedTreeTests(unittest.TestCase):

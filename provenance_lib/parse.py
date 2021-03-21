@@ -124,8 +124,7 @@ class ProvNode:
 
     @property
     def uuid(self):
-        self._uuid = self._result_md.uuid
-        return self._uuid
+        return self._result_md.uuid
 
     @property
     def sem_type(self):
@@ -164,16 +163,15 @@ class ProvNode:
 
     # TODO: Should this live in ProvTree?
     def traverse_uuids(self):
-        local_uuid = self._result_md.uuid
+        """ depth-first traversal of this ProvNode's ancestors """
         local_parents = dict()
         if not self.parents:
-            local_parents = {local_uuid: None}
+            local_parents = {self.uuid: None}
         else:
             subtree = dict()
             for parent in self.parents:
                 subtree.update(parent.traverse_uuids())
-            local_parents[local_uuid] = subtree
-
+            local_parents[self.uuid] = subtree
         return local_parents
 
 
@@ -332,13 +330,19 @@ class ProvTree:
 
     def __init__(self, archive: Archive):
         self.root_uuid = archive.root_uuid
-        self.root = archive._archive_contents[self.root_uuid]
+        self.root = archive.get_result(self.root_uuid)
 
     def __repr__(self):
         # Traverse tree, printing UUIDs
-        # TODO: Improve this repr to remove duplication
-        uuid_yaml = yaml.dump(self.root.traverse_uuids())
-        return f"\nRoot:\n{uuid_yaml}"
+        # TODO: Improve this repr to remove duplication?
+        uuid_yaml = yaml.dump(self.traverse_uuids_from_root())
+        return f"Root:\n{uuid_yaml}"
+
+    def __str__(self):
+        return f"ProvTree(Root: {self.root_uuid})"
+
+    def traverse_uuids_from_root(self):
+        return self.root.traverse_uuids()
 
 
 class UnionedTree:

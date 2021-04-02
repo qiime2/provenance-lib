@@ -83,11 +83,18 @@ class _ResultMetadata:
 class _Citations:
     """
     citations for a single QIIME 2 Result, as a dict of dicts where each
-    inner dictionary represents one citation keyed on the citation's bibtex key
+    inner dictionary represents one citation keyed on the citation's bibtex ID
     """
+    # TODO: What does the framework do with when 0 citations are registered?
+    # Do we get an empty citations.bib? no citations.bib?
+    # impossible because framework always cited?
     def __init__(self, zf: zipfile, fp: str):
         bib_db = bp.loads(zf.read(fp))
         self._citations = {entry['ID']: entry for entry in bib_db.entries}
+
+    def __repr__(self):
+        keys = [entry for entry in self._citations.keys()]
+        return (f"Citations({keys})")
 
 
 class ProvNode:

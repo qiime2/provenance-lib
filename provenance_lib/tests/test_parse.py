@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import zipfile
 
 from ..parse import Archive, ProvNode, ProvTree
-from ..parse import _ResultMetadata
+from ..parse import _Citations, _ResultMetadata
 
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
@@ -83,7 +83,39 @@ class ActionTests(unittest.TestCase):
 
 
 class CitationsTests(unittest.TestCase):
-    pass
+    cite_strs = ['cite_none', 'cite_one', 'cite_many']
+    bibs = [bib+".bib" for bib in cite_strs]
+    zips = [os.path.join(DATA_DIR, bib+".zip") for bib in cite_strs]
+
+    def test_empty_bib(self):
+        with zipfile.ZipFile(self.zips[0]) as zf:
+            citations = _Citations(zf, self.bibs[0])
+            # Is the _citations dict empty?
+            self.assertFalse(len(citations._citations))
+
+    def test_citation(self):
+        with zipfile.ZipFile(self.zips[1]) as zf:
+            exp = "framework"
+            citations = _Citations(zf, self.bibs[1])
+            for key in citations._citations.keys():
+                self.assertRegex(key, exp)
+
+    def test_many_citations(self):
+        with zipfile.ZipFile(self.zips[2]) as zf:
+            exp = ["2020.6.0.dev0", "unweighted_unifrac.+0",
+                   "unweighted_unifrac.+1", "unweighted_unifrac.+2",
+                   "unweighted_unifrac.+3", "unweighted_unifrac.+4",
+                   "BIOMV210DirFmt", "BIOMV210Format"]
+            citations = _Citations(zf, self.bibs[2])
+            for i, key in enumerate(citations._citations.keys()):
+                print(key, exp[i])
+                self.assertRegex(key, exp[i])
+
+    def test_repr(self):
+        exp = ("Citations(['framework|qiime2:2020.6.0.dev0|0'])")
+        with zipfile.ZipFile(self.zips[1]) as zf:
+            citations = _Citations(zf, self.bibs[1])
+            self.assertEqual(repr(citations), exp)
 
 
 def _is_provnode_data(fp):

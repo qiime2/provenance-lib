@@ -5,8 +5,8 @@ from unittest.mock import MagicMock
 
 import zipfile
 
-from ..parse import Archive, ProvNode
-from ..parse import ProvTree
+from ..parse import Archive, ProvNode, ProvTree
+from ..parse import _ResultMetadata
 
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
@@ -60,7 +60,22 @@ class ArchiveTests(unittest.TestCase):
 
 
 class ResultMetadataTests(unittest.TestCase):
-    pass
+    v5_qza = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
+    md_fp = "8854f06a-872f-4762-87b7-4541d0f283d4/provenance/metadata.yaml"
+    with zipfile.ZipFile(v5_qza) as zf:
+        v5_root_md = _ResultMetadata(zf, md_fp)
+
+    def test_smoke(self):
+        self.assertEqual(self.v5_root_md.uuid,
+                         "8854f06a-872f-4762-87b7-4541d0f283d4")
+        self.assertEqual(self.v5_root_md.type, "Visualization")
+        self.assertEqual(self.v5_root_md.format, None)
+
+    def test_repr(self):
+        exp = ("_ResultMetadata(UUID: "
+               "8854f06a-872f-4762-87b7-4541d0f283d4, "
+               "Semantic Type: Visualization, Format: None)")
+        self.assertEqual(repr(self.v5_root_md), exp)
 
 
 class ActionTests(unittest.TestCase):

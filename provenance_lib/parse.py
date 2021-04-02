@@ -76,12 +76,8 @@ class _ResultMetadata:
         self.format = _md_dict['format']
 
     def __repr__(self):
-        return (f"_ResultMetadata(self.uuid={self.uuid}, "
-                f"self.type={self.type}, self.format={self.format}")
-
-    def __str__(self):
-        return (f"[UUID: {self.uuid}, Semantic Type: {self.type}, "
-                f"Format: {self.format}]")
+        return (f"_ResultMetadata(UUID: {self.uuid}, "
+                f"Semantic Type: {self.type}, Format: {self.format})")
 
 
 class _Citations:

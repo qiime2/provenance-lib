@@ -10,4 +10,4 @@ test: lint
 	py.test
 
 test-cov: lint
-	pytest --cov=provenance_lib
+	pytest --cov-report=term-missing --cov=provenance_lib

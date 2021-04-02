@@ -51,9 +51,11 @@ class ArchiveTests(unittest.TestCase):
     # TODO: Test does it check archive version?
     # Does it recognize out-of-format archives?
     def test_no_root_md(self):
+        # TODO: See parse.py l.232
         pass
 
     def test_multiple_root_md(self):
+        # TODO: See parse.py l.232
         pass
 
 
@@ -69,6 +71,18 @@ class CitationsTests(unittest.TestCase):
     pass
 
 
+def _is_provnode_data(fp):
+    """
+    a filter predicate which returns metadata, action, citation,
+    and VERSION fps with which we can construct a ProvNode
+    """
+    # TODO: add VERSION.
+    return 'provenance' in fp and 'artifacts' not in fp and (
+        'metadata.yaml' in fp or
+        'action.yaml' in fp or
+        'citations.bib' in fp)
+
+
 class ProvNodeTests(unittest.TestCase):
     # As implemented, ProvNodes must belong to an Archive. Commit
     # 1281878510acdc42cb5ba3ee40c9ad8b62dacf0e shows another approach with
@@ -82,21 +96,10 @@ class ProvNodeTests(unittest.TestCase):
 
         with zipfile.ZipFile(self.v5_qza) as zf:
             all_filenames = zf.namelist()
-            self.root_md_fnames = filter(self._is_provnode_data, all_filenames)
+            self.root_md_fnames = filter(_is_provnode_data, all_filenames)
             self.root_md_fps = [pathlib.Path(fp) for fp in self.root_md_fnames]
             self.v5_ProvNode = ProvNode(self.mock_archive, zf,
                                         self.root_md_fps)
-
-    def _is_provnode_data(self, fp):
-        """
-        a filter predicate which returns metadata, action, citation,
-        and VERSION fps with which we can construct a ProvNode
-        """
-        # TODO: add VERSION.
-        return 'provenance' in fp and 'artifacts' not in fp and (
-            'metadata.yaml' in fp or
-            'action.yaml' in fp or
-            'citations.bib' in fp)
 
     def test_smoke(self):
         self.assertIs(type(self.v5_ProvNode), ProvNode)
@@ -173,8 +176,20 @@ class ProvNodeTests(unittest.TestCase):
 
 
 class ProvTreeTests(unittest.TestCase):
+    mock_archive = MagicMock()
     v5_qza = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
     v5_archive = Archive(v5_qza)
+
+    def setUp(self):
+        super().setUp()
+        self.root_metadata_fps = None
+
+        with zipfile.ZipFile(self.v5_qza) as zf:
+            all_filenames = zf.namelist()
+            self.root_md_fnames = filter(_is_provnode_data, all_filenames)
+            self.root_md_fps = [pathlib.Path(fp) for fp in self.root_md_fnames]
+            self.v5_ProvNode = ProvNode(self.mock_archive, zf,
+                                        self.root_md_fps)
 
     def test_smoke(self):
         ProvTree(self.v5_archive)
@@ -185,9 +200,8 @@ class ProvTreeTests(unittest.TestCase):
         actual_uuid = ProvTree(self.v5_archive).root_uuid
         self.assertEqual(exp, actual_uuid)
 
-    def test_root_node(self):
-        # TODO: Construct a root node as above, check equality with self.root
-        pass
+    def test_root_node_is_archive_root(self):
+        self.assertEqual(self.v5_ProvNode, ProvTree(self.v5_archive).root)
 
     def test_str(self):
         dag = ProvTree(self.v5_archive)

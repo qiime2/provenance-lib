@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import zipfile
 
-from ..parse import Archive, ProvNode, ProvTree, UnionedTree
+from ..parse import Archive, ProvNode, ProvDAG, UnionedDAG
 from ..parse import _Action, _Citations, _ResultMetadata
 
 
@@ -164,7 +164,7 @@ def _is_provnode_data(fp):
 class ProvNodeTests(unittest.TestCase):
     # As implemented, ProvNodes must belong to an Archive. Commit
     # 1281878510acdc42cb5ba3ee40c9ad8b62dacf0e shows another approach with
-    # ProvTrees responsible for assigning parentage to their ProvNodes
+    # ProvDAGs responsible for assigning parentage to their ProvNodes
     mock_archive = MagicMock()
 
     def setUp(self):
@@ -253,7 +253,7 @@ class ProvNodeTests(unittest.TestCase):
         self.assertEqual(self.v5_ProvNode._parents, exp_nodes)
 
 
-class ProvTreeTests(unittest.TestCase):
+class ProvDAGTests(unittest.TestCase):
     mock_archive = MagicMock()
     v5_qza = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
     v5_archive = Archive(v5_qza)
@@ -270,25 +270,25 @@ class ProvTreeTests(unittest.TestCase):
                                         self.root_md_fps)
 
     def test_smoke(self):
-        ProvTree(self.v5_archive)
+        ProvDAG(self.v5_archive)
         self.assertTrue(True)
 
     def test_root_uuid(self):
         exp = "8854f06a-872f-4762-87b7-4541d0f283d4"
-        actual_uuid = ProvTree(self.v5_archive).root_uuid
+        actual_uuid = ProvDAG(self.v5_archive).root_uuid
         self.assertEqual(exp, actual_uuid)
 
     def test_root_node_is_archive_root(self):
-        self.assertEqual(self.v5_ProvNode, ProvTree(self.v5_archive).root)
+        self.assertEqual(self.v5_ProvNode, ProvDAG(self.v5_archive).root)
 
     def test_str(self):
-        dag = ProvTree(self.v5_archive)
+        dag = ProvDAG(self.v5_archive)
         self.assertEqual(str(dag),
-                         ("ProvTree("
+                         ("ProvDAG("
                           "Root: 8854f06a-872f-4762-87b7-4541d0f283d4)"))
 
     def test_repr(self):
-        dag = ProvTree(self.v5_archive)
+        dag = ProvDAG(self.v5_archive)
         repr(dag)
         self.assertEqual(repr(dag),
                          ("Root:\n"
@@ -304,14 +304,14 @@ class ProvTreeTests(unittest.TestCase):
                          )
 
 
-class UnionedTreeTests(unittest.TestCase):
+class UnionedDAGTests(unittest.TestCase):
     v5_qza = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
     v5_archive = Archive(v5_qza)
-    v5_dag = ProvTree(v5_archive)
+    v5_dag = ProvDAG(v5_archive)
     dag_list = [v5_dag]
 
     def test_union_one_dag(self):
-        tree = UnionedTree(self.dag_list)
-        self.assertEqual(tree.root_uuids,
+        dag = UnionedDAG(self.dag_list)
+        self.assertEqual(dag.root_uuids,
                          ["8854f06a-872f-4762-87b7-4541d0f283d4"])
-        self.assertEqual(tree.root_nodes, [self.v5_dag.root])
+        self.assertEqual(dag.root_nodes, [self.v5_dag.root])

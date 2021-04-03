@@ -109,7 +109,7 @@ class _Citations:
 
 
 class ProvNode:
-    """ One node of a provenance tree, describing one QIIME 2 Result """
+    """ One node of a provenance DAG, describing one QIIME 2 Result """
     _parents = None
     _origin_archives = []
 
@@ -123,7 +123,7 @@ class ProvNode:
         """ The list of ProvNodes used as inputs in creating this ProvNode """
         # NOTE: We must delay gathering parentage data until the Archive is
         # fully populated (or risk KeyError). Caching this lazily allows us to
-        # delay until the first call (likely the first tree traversal)
+        # delay until the first call (likely the first DAG traversal)
         if not self._parents:
             try:
                 parent_dicts = [parent for parent in self._action.inputs]
@@ -173,17 +173,17 @@ class ProvNode:
         # TODO: Should this offer more robust validation?
         return self.uuid == other.uuid
 
-    # TODO: Should this live in ProvTree?
+    # TODO: Should this live in ProvDAG?
     def traverse_uuids(self):
         """ depth-first traversal of this ProvNode's ancestors """
         local_parents = dict()
         if not self.parents:
             local_parents = {self.uuid: None}
         else:
-            subtree = dict()
+            sub_dag = dict()
             for parent in self.parents:
-                subtree.update(parent.traverse_uuids())
-            local_parents[self.uuid] = subtree
+                sub_dag.update(parent.traverse_uuids())
+            local_parents[self.uuid] = sub_dag
         return local_parents
 
 
@@ -329,9 +329,9 @@ class Archive:
         return (self._is_root_prov_data(fp) and 'metadata.yaml' in fp)
 
 
-class ProvTree:
+class ProvDAG:
     """
-    a single-rooted tree of ProvNode objects.
+    a single-rooted DAG of ProvNode objects.
     """
 
     def __init__(self, archive: Archive):
@@ -339,24 +339,24 @@ class ProvTree:
         self.root = archive.get_result(self.root_uuid)
 
     def __repr__(self):
-        # Traverse tree, printing UUIDs
+        # Traverse DAG, printing UUIDs
         # TODO: Improve this repr to remove duplication?
         uuid_yaml = yaml.dump(self.traverse_uuids_from_root())
         return f"Root:\n{uuid_yaml}"
 
     def __str__(self):
-        return f"ProvTree(Root: {self.root_uuid})"
+        return f"ProvDAG(Root: {self.root_uuid})"
 
     def traverse_uuids_from_root(self):
         return self.root.traverse_uuids()
 
 
-class UnionedTree:
+class UnionedDAG:
     """
-    a many-rooted tree of ProvNode objects, created from a Union of ProvTrees
+    a many-rooted DAG of ProvNode objects, created from a Union of ProvDAGs
     """
 
     # TODO: Implement
-    def __init__(self, trees: List[ProvTree]):
-        self.root_uuids = [tree.root_uuid for tree in trees]
-        self.root_nodes = [tree.root for tree in trees]
+    def __init__(self, dags: List[ProvDAG]):
+        self.root_uuids = [dag.root_uuid for dag in dags]
+        self.root_nodes = [dag.root for dag in dags]

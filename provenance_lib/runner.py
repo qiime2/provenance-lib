@@ -21,11 +21,11 @@ if __name__ == '__main__':
           ' QIIME 2 Results, mostly ancestors')
     # print(dummy_archive._archive_contents)
 
-    dummy_tree = parse.ProvTree(dummy_archive)
-    print(f'- has parents: {dummy_tree.root.parents}')
+    dummy_DAG = parse.ProvDAG(dummy_archive)
+    print(f'- has parents: {dummy_DAG.root.parents}')
     print('- which have parents:')
-    for parent in dummy_tree.root.parents:
+    for parent in dummy_DAG.root.parents:
         print(f'\t- par: {parent.uuid} gps: {parent.parents}')
     print('\t- etcetera, etcetera')
 
-    print(f'\nIts prov tree looks like {dummy_tree}')
+    print(f'\nIts prov DAG looks like {dummy_DAG}')

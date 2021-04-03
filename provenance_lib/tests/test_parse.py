@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import zipfile
 
 from ..parse import Archive, ProvNode, ProvTree
-from ..parse import _Citations, _ResultMetadata
+from ..parse import _Action, _Citations, _ResultMetadata
 
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
@@ -79,7 +79,36 @@ class ResultMetadataTests(unittest.TestCase):
 
 
 class ActionTests(unittest.TestCase):
-    pass
+    action_fp = os.path.join(DATA_DIR, 'action.zip')
+    with zipfile.ZipFile(action_fp) as zf:
+        act = _Action(zf, 'action.yaml')
+
+    def test_action_id(self):
+        exp = "5bc4b090-abbc-46b0-a219-346c8026f7d7"
+        self.assertEqual(self.act.action_id, exp)
+
+    def test_action_type(self):
+        exp = "pipeline"
+        self.assertEqual(self.act.action_type, exp)
+
+    def test_action(self):
+        exp = "core_metrics_phylogenetic"
+        self.assertEqual(self.act.action, exp)
+
+    def test_plugin(self):
+        exp = "diversity"
+        self.assertEqual(self.act.plugin, exp)
+
+    def test_inputs(self):
+        exp = [{"table": "706b6bce-8f19-4ae9-b8f5-21b14a814a1b"},
+               {"phylogeny": "ad7e5b50-065c-4fdd-8d9b-991e92caad22"}]
+        self.assertEqual(self.act.inputs, exp)
+
+    def test_repr(self):
+        exp = ("_Action(action_id=5bc4b090-abbc-46b0-a219-346c8026f7d7, "
+               "type=pipeline, plugin=diversity, "
+               "action=core_metrics_phylogenetic)")
+        self.assertEqual(repr(self.act), exp)
 
 
 class CitationsTests(unittest.TestCase):
@@ -101,11 +130,11 @@ class CitationsTests(unittest.TestCase):
                 self.assertRegex(key, exp)
 
     def test_many_citations(self):
+        exp = ["2020.6.0.dev0", "unweighted_unifrac.+0",
+               "unweighted_unifrac.+1", "unweighted_unifrac.+2",
+               "unweighted_unifrac.+3", "unweighted_unifrac.+4",
+               "BIOMV210DirFmt", "BIOMV210Format"]
         with zipfile.ZipFile(self.zips[2]) as zf:
-            exp = ["2020.6.0.dev0", "unweighted_unifrac.+0",
-                   "unweighted_unifrac.+1", "unweighted_unifrac.+2",
-                   "unweighted_unifrac.+3", "unweighted_unifrac.+4",
-                   "BIOMV210DirFmt", "BIOMV210Format"]
             citations = _Citations(zf, self.bibs[2])
             for i, key in enumerate(citations._citations.keys()):
                 print(key, exp[i])

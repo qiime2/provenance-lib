@@ -55,8 +55,31 @@ class _Action:
     _action_details = None
 
     @property
+    def action_id(self):
+        """ the UUID assigned to this Action (not its Results) """
+        return self._execution_details['uuid']
+
+    @property
+    def action_type(self):
+        """ the type of Action represented (e.g. Method, Pipeline, etc. ) """
+        return self._action_details['type']
+
+    @property
+    def action(self):
+        """ the action executed by this Action """
+        return self._action_details['action']
+
+    @property
+    def plugin(self):
+        """ the plugin which executed this Action """
+        return self._action_details['plugin']
+
+    @property
     def inputs(self):
-        """ a dict containing the UUIDs of this action's inputs """
+        """
+        a list of single-item dicts containing the types and UUIDs of this
+        action's inputs
+        """
         return self._action_details['inputs']
 
     def __init__(self, zf: zipfile, fp: str):
@@ -64,6 +87,10 @@ class _Action:
         self._action_details = self._action_dict['action']
         self._execution_details = self._action_dict['execution']
         self._env_details = self._action_dict['environment']
+
+    def __repr__(self):
+        return (f"_Action(action_id={self.action_id}, type={self.action_type},"
+                f" plugin={self.plugin}, action={self.action})")
 
 
 class _ResultMetadata:

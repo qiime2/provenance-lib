@@ -17,6 +17,8 @@ class ArchiveTests(unittest.TestCase):
     maxDiff = None
 
     v5_qza = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
+    v5_qza_no_root_md = os.path.join(DATA_DIR, 'no_root_md_yaml.qzv')
+    v5_qza_two_root_mds = os.path.join(DATA_DIR, 'two_root_md_yamls.qzv')
     fake_fp = os.path.join(DATA_DIR, 'not_a_filepath.qza')
     not_a_zip = os.path.join(DATA_DIR, 'not_a_zip.txt')
 
@@ -51,12 +53,12 @@ class ArchiveTests(unittest.TestCase):
     # TODO: Test does it check archive version?
     # Does it recognize out-of-format archives?
     def test_no_root_md(self):
-        # TODO: See parse.py l.232
-        pass
+        with self.assertRaisesRegex(ValueError, "no top-level metadata"):
+            Archive(self.v5_qza_no_root_md)
 
     def test_multiple_root_md(self):
-        # TODO: See parse.py l.232
-        pass
+        with self.assertRaisesRegex(ValueError, "multiple top-level metadata"):
+            Archive(self.v5_qza_two_root_mds)
 
 
 class ResultMetadataTests(unittest.TestCase):

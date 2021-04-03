@@ -259,8 +259,12 @@ class Archive:
             all_filenames = zf.namelist()
             root_metadata_fps = filter(self._is_root_metadata_file,
                                        all_filenames)
-            # TODO: protect this with a try/except and test it
-            root_metadata_fp = next(root_metadata_fps)
+
+            try:
+                root_metadata_fp = next(root_metadata_fps)
+            except StopIteration:
+                raise ValueError("Malformed Archive: "
+                                 "no top-level metadata.yaml file")
 
             try:
                 next(root_metadata_fps)

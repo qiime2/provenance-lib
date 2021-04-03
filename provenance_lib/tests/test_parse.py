@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import zipfile
 
-from ..parse import Archive, ProvNode, ProvTree
+from ..parse import Archive, ProvNode, ProvTree, UnionedTree
 from ..parse import _Action, _Citations, _ResultMetadata
 
 
@@ -305,4 +305,13 @@ class ProvTreeTests(unittest.TestCase):
 
 
 class UnionedTreeTests(unittest.TestCase):
-    pass
+    v5_qza = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
+    v5_archive = Archive(v5_qza)
+    v5_dag = ProvTree(v5_archive)
+    dag_list = [v5_dag]
+
+    def test_union_one_dag(self):
+        tree = UnionedTree(self.dag_list)
+        self.assertEqual(tree.root_uuids,
+                         ["8854f06a-872f-4762-87b7-4541d0f283d4"])
+        self.assertEqual(tree.root_nodes, [self.v5_dag.root])

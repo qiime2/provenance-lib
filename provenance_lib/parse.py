@@ -34,22 +34,6 @@ yaml.SafeLoader.add_constructor('!cite', citation_constructor)
 yaml.SafeLoader.add_constructor('!ref', ref_constructor)
 
 
-def _validate_fp(archive_fp):
-    # This seems to be happening already
-    # TODO: implement this, or more likely, integrate it elsewhere
-    # Is it a filepath?
-    # Is it a valid zip archive?
-    # is it a valid QIIME 2 archive (this probably can't be determined here)
-    raise NotImplementedError
-
-
-# TODO: remove - just a checklist at this point
-def parse_archive(archive_fp):
-    # _validate_fp(archive_fp)
-    # build a tree
-    raise NotImplementedError
-
-
 class _Action:
     """ Provenance data for a single QIIME 2 Result from action.yaml """
     _action_details = None
@@ -178,8 +162,6 @@ class ProvNode:
                 self._action = _Action(zf, str(fp))
             elif fp.name == 'citations.bib':
                 self._citations = _Citations(zf, str(fp))
-            else:
-                pass
 
     def __repr__(self):
         return f'ProvNode({self.uuid}, {self.sem_type}, fmt={self.format})'
@@ -326,20 +308,10 @@ class Archive:
         fp_uuid = self._get_nonroot_uuid(fp)
         return fp_uuid == uuid
 
-    def _is_version_file(self, fp, uuid):
-        # TODO: remove? matches all files if given root UUID; root in all fps
-        if False:
-            return ('VERSION' in fp and uuid in fp)
-        raise NotImplementedError
-
     def _normalize_path_iteration(self, fp):
         if isinstance(fp, pathlib.PurePath):
             fp = fp.parts
         return fp
-
-    def _is_root_file(self, fp):
-        fp = self._normalize_path_iteration(fp)
-        return ('provenance' not in fp and '/data' not in fp)
 
     def _is_prov_data(self, fp):
         fp = self._normalize_path_iteration(fp)
@@ -384,7 +356,7 @@ class UnionedTree:
     a many-rooted tree of ProvNode objects, created from a Union of ProvTrees
     """
 
+    # TODO: Implement
     def __init__(self, trees: List[ProvTree]):
         self.root_uuids = [tree.root_uuid for tree in trees]
         self.root_nodes = [tree.root for tree in trees]
-        raise NotImplementedError

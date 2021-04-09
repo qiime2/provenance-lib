@@ -236,27 +236,24 @@ class Archive:
         self._archive_contents: None
         self._number_of_results = 0
 
-        # Get archive metadata including root uuid
         with zipfile.ZipFile(archive_fp) as zf:
-            all_filenames = zf.namelist()
-            root_metadata_fps = filter(self._is_root_metadata_file,
-                                       all_filenames)
-
-            try:
-                root_metadata_fp = next(root_metadata_fps)
-            except StopIteration:
-                raise ValueError("Malformed Archive: "
-                                 "no top-level metadata.yaml file")
-
-            try:
-                next(root_metadata_fps)
-                raise ValueError("Malformed Archive: "
-                                 "multiple top-level metadata.yaml files")
-            except StopIteration:
-                pass
-
-            self._archive_md = _ResultMetadata(zf, root_metadata_fp)
+            self._get_root_metadata(zf, archive_fp)
             self._populate_archive(zf)
+
+    def _get_root_metadata(self, zf: zipfile, archive_fp: str):
+        """ Get archive metadata including root uuid """
+        all_filenames = zf.namelist()
+        root_metadata_fps = list(filter(self._is_root_metadata_file,
+                                        all_filenames))
+        if len(root_metadata_fps) < 1:
+            raise ValueError("Malformed Archive: "
+                             "no top-level metadata.yaml file")
+
+        if len(root_metadata_fps) > 1:
+            raise ValueError("Malformed Archive: "
+                             "multiple top-level metadata.yaml files")
+
+        self._archive_md = _ResultMetadata(zf, root_metadata_fps[0])
 
     def _populate_archive(self, zf: zipfile):
         self._archive_contents = {}
@@ -326,7 +323,9 @@ class Archive:
 
     def _is_root_metadata_file(self, fp):
         fp = self._normalize_path_iteration(fp)
-        return (self._is_root_prov_data(fp) and 'metadata.yaml' in fp)
+        return ('provenance' in fp and
+                'artifacts' not in fp and
+                'metadata.yaml' in fp)
 
 
 class ProvDAG:

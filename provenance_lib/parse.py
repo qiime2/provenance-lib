@@ -1,6 +1,5 @@
-import itertools
 import pathlib
-from typing import Iterator, List, Dict
+from typing import List, Dict
 
 import bibtexparser as bp
 import yaml
@@ -149,7 +148,7 @@ class ProvNode:
         return self._result_md.format
 
     def __init__(self, origin_archive, zf: zipfile,
-                 fps_for_this_result: Iterator[pathlib.Path]):
+                 fps_for_this_result: List[pathlib.Path]):
         self._origin_archives.append(origin_archive)
         # TODO: Read and check VERSION
         # (this will probably effect what other things get read in)
@@ -271,35 +270,27 @@ class Archive:
 
         prov_data_filenames = filter(self._is_prov_data, zf.namelist())
         prov_data_fps = list(map(pathlib.Path, prov_data_filenames))
-
-        all_uuids = set()
-
-        for fp in prov_data_fps:
-            print(fp)
-            uuid = ""
-            # no 'artifacts' -> archive root...
-            if 'artifacts' not in fp.parts:
-                # ...so get the root UUID
-                uuid = fp.parts[0]
-            else:
-                uuid = self._get_nonroot_uuid(fp)
-            all_uuids.add(uuid)
+        non_root_fps = [fp for fp in prov_data_fps if not
+                        self._is_root_prov_data(fp)]
 
         # make a provnode for each UUID
-        for uuid in all_uuids:
-            fps_for_this_result = Iterator
-            if uuid == self.root_uuid:
-                fps_for_this_result = filter(self._is_root_prov_data,
-                                             prov_data_fps)
+        for fp in prov_data_fps:
+            # no 'artifacts' -> archive root
+            if 'artifacts' not in fp.parts:
+                uuid = fp.parts[0]
+                if uuid not in self._archive_contents:
+                    fps_for_this_result = [fp for fp in prov_data_fps if
+                                           self._is_root_prov_data(fp)]
+                    self._number_of_results += 1
             else:
-                fps_for_this_result = itertools.filterfalse(
-                    self._is_root_prov_data, prov_data_fps)
-                fps_for_this_result = (fp for fp in fps_for_this_result if
-                                       self._check_nonroot_uuid(fp, uuid))
+                uuid = self._get_nonroot_uuid(fp)
+                if uuid not in self._archive_contents:
+                    fps_for_this_result = [fp for fp in non_root_fps if
+                                           self._check_nonroot_uuid(fp, uuid)]
+                    self._number_of_results += 1
 
             self._archive_contents[uuid] = ProvNode(self, zf,
                                                     fps_for_this_result)
-            self._number_of_results += 1
 
     def _get_nonroot_uuid(self, fp: pathlib.Path):
         """

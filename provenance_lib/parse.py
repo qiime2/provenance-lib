@@ -256,15 +256,30 @@ class Archive:
         self._archive_md = _ResultMetadata(zf, root_metadata_fps[0])
 
     def _populate_archive(self, zf: zipfile):
+        """
+        Populates an _Archive with all relevant provenance data
+        Takes an Archive (as a zipfile) as input.
+
+        By convention, the filepaths within these Archives begin with:
+        <archive_root_uuid>/provenance/...
+        archive-root provenance files live directly inside 'provenance'
+        e.g: <archive_root_uuid>/provenance/metadata.yaml
+        non-root provenance files live inside 'artifacts/<uuid>'
+        e.g: <archive_root_uuid>/provenance/artifacts/<uuid>/metadata.yaml
+        """
         self._archive_contents = {}
 
         prov_data_filenames = filter(self._is_prov_data, zf.namelist())
         prov_data_fps = list(map(pathlib.Path, prov_data_filenames))
 
         all_uuids = set()
+
         for fp in prov_data_fps:
+            print(fp)
             uuid = ""
+            # no 'artifacts' -> archive root...
             if 'artifacts' not in fp.parts:
+                # ...so get the root UUID
                 uuid = fp.parts[0]
             else:
                 uuid = self._get_nonroot_uuid(fp)

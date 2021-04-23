@@ -56,10 +56,6 @@ class ArchiveTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "no top-level metadata"):
             Archive(self.v5_qza_no_root_md)
 
-    def test_multiple_root_md(self):
-        with self.assertRaisesRegex(ValueError, "multiple top-level metadata"):
-            Archive(self.v5_qza_two_root_mds)
-
 
 class ResultMetadataTests(unittest.TestCase):
     v5_qza = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')

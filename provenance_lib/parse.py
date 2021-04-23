@@ -241,18 +241,13 @@ class Archive:
 
     def _get_root_metadata(self, zf: zipfile, archive_fp: str):
         """ Get archive metadata including root uuid """
-        all_filenames = zf.namelist()
-        root_metadata_fps = list(filter(self._is_root_metadata_file,
-                                        all_filenames))
-        if len(root_metadata_fps) < 1:
+        # All files in zf start with root uuid, so we can grab it from any file
+        root_md_fp = pathlib.Path(zf.namelist()[0]).parts[0] + '/metadata.yaml'
+        try:
+            self._archive_md = _ResultMetadata(zf, root_md_fp)
+        except KeyError:
             raise ValueError("Malformed Archive: "
                              "no top-level metadata.yaml file")
-
-        if len(root_metadata_fps) > 1:
-            raise ValueError("Malformed Archive: "
-                             "multiple top-level metadata.yaml files")
-
-        self._archive_md = _ResultMetadata(zf, root_metadata_fps[0])
 
     def _populate_archive(self, zf: zipfile):
         """

@@ -263,29 +263,29 @@ class Archive:
         """
         self._archive_contents = {}
 
-        prov_data_filenames = filter(self._is_prov_data, zf.namelist())
-        prov_data_fps = list(map(pathlib.Path, prov_data_filenames))
-        non_root_fps = [fp for fp in prov_data_fps if not
-                        self._is_root_prov_data(fp)]
+        filenames = ['metadata.yaml', 'action/action.yaml', 'citations.bib']
+        prov_data_fps = [
+            pathlib.Path(fp) for fp in zf.namelist()
+            if 'provenance' in fp
+            # and any of the filenames above show up in the filepath
+            and any(map(lambda x: x in fp, filenames))
+        ]
 
         # make a provnode for each UUID
         for fp in prov_data_fps:
-            # no 'artifacts' -> archive root
+            # if no 'artifacts' -> this is provenance for the archive root
             if 'artifacts' not in fp.parts:
                 uuid = fp.parts[0]
-                if uuid not in self._archive_contents:
-                    fps_for_this_result = [fp for fp in prov_data_fps if
-                                           self._is_root_prov_data(fp)]
-                    self._number_of_results += 1
+                prefix = pathlib.Path(uuid) / 'provenance'
             else:
                 uuid = self._get_nonroot_uuid(fp)
-                if uuid not in self._archive_contents:
-                    fps_for_this_result = [fp for fp in non_root_fps if
-                                           self._check_nonroot_uuid(fp, uuid)]
-                    self._number_of_results += 1
+                prefix = pathlib.Path(*fp.parts[0:4])
 
-            self._archive_contents[uuid] = ProvNode(self, zf,
-                                                    fps_for_this_result)
+            if uuid not in self._archive_contents:
+                fps_for_this_result = [prefix / name for name in filenames]
+                self._number_of_results += 1
+                self._archive_contents[uuid] = ProvNode(self, zf,
+                                                        fps_for_this_result)
 
     def _get_nonroot_uuid(self, fp: pathlib.Path):
         """
@@ -297,36 +297,6 @@ class Archive:
         else:
             uuid = fp.parts[-2]
         return uuid
-
-    def _check_nonroot_uuid(self, fp, uuid):
-        """
-        Helper for grouping files by uuid, returns True if file is from a
-        a non-root Result as specified by uuid
-        """
-        fp_uuid = self._get_nonroot_uuid(fp)
-        return fp_uuid == uuid
-
-    def _normalize_path_iteration(self, fp):
-        if isinstance(fp, pathlib.PurePath):
-            fp = fp.parts
-        return fp
-
-    def _is_prov_data(self, fp):
-        fp = self._normalize_path_iteration(fp)
-        return 'provenance' in fp and ('metadata.yaml' in fp or
-                                       'action.yaml' in fp or
-                                       'citations.bib' in fp)
-        # TODO: add VERSION. Why does doing so increase _number_of_results?
-
-    def _is_root_prov_data(self, fp):
-        fp = self._normalize_path_iteration(fp)
-        return (self._is_prov_data(fp) and 'artifacts' not in fp)
-
-    def _is_root_metadata_file(self, fp):
-        fp = self._normalize_path_iteration(fp)
-        return ('provenance' in fp and
-                'artifacts' not in fp and
-                'metadata.yaml' in fp)
 
 
 class ProvDAG:

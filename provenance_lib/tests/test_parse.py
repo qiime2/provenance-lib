@@ -16,13 +16,17 @@ class ArchiveTests(unittest.TestCase):
     # Removes the character limit when reporting failing tests for this class
     maxDiff = None
 
-    v5_qza = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
-    v5_qza_no_root_md = os.path.join(DATA_DIR, 'no_root_md_yaml.qzv')
-    v5_qza_two_root_mds = os.path.join(DATA_DIR, 'two_root_md_yamls.qzv')
+    v5_qzv = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
+    v5_qzv_no_root_md = os.path.join(DATA_DIR, 'no_root_md_yaml.qzv')
+    v5_qzv_version_gone = os.path.join(DATA_DIR, 'VERSION_missing.qzv')
+    v5_qzv_version_bad = os.path.join(DATA_DIR, 'VERSION_bad.qzv')
+    v5_qzv_version_short = os.path.join(DATA_DIR, 'VERSION_short.qzv')
+    v5_qzv_version_long = os.path.join(DATA_DIR, 'VERSION_long.qzv')
+    v5_qzv_two_root_mds = os.path.join(DATA_DIR, 'two_root_md_yamls.qzv')
     fake_fp = os.path.join(DATA_DIR, 'not_a_filepath.qza')
     not_a_zip = os.path.join(DATA_DIR, 'not_a_zip.txt')
 
-    v5_archive = Archive(v5_qza)
+    v5_archive = Archive(v5_qzv)
 
     def test_smoke(self):
         self.assertEqual(self.v5_archive.root_uuid,
@@ -38,7 +42,7 @@ class ArchiveTests(unittest.TestCase):
                          "Archive.*Root.*Semantic Type.*Format.*\nContains.*")
 
     def test_number_of_actions(self):
-        contents = Archive(self.v5_qza)
+        contents = Archive(self.v5_qzv)
         self.assertEqual(contents._number_of_results, 15)
 
     def test_nonexistent_fp(self):
@@ -50,17 +54,35 @@ class ArchiveTests(unittest.TestCase):
                                     "File is not a zip file"):
             Archive(self.not_a_zip)
 
-    # TODO: Test does it check archive version?
     # Does it recognize out-of-format archives?
+    # TODO: Mock these. Not sure I need to add a million qzvs to test this.
+    def test_no_VERSION(self):
+        with self.assertRaisesRegex(ValueError, "VERSION.*nonexistent"):
+            Archive(self.v5_qzv_version_gone)
+
+    def test_bad_VERSION(self):
+        with self.assertRaisesRegex(ValueError, "VERSION.*out of spec"):
+            Archive(self.v5_qzv_version_bad)
+
+    def test_short_VERSION(self):
+        with self.assertRaisesRegex(ValueError, "VERSION.*out of spec"):
+            Archive(self.v5_qzv_version_short)
+
+    def test_long_VERSION(self):
+        with self.assertRaisesRegex(ValueError,
+                                    "VERSION.*out of spec"):
+            Archive(self.v5_qzv_version_long)
+
+    # TODO: Test does it check archive version?
     def test_no_root_md(self):
         with self.assertRaisesRegex(ValueError, "no top-level metadata"):
-            Archive(self.v5_qza_no_root_md)
+            Archive(self.v5_qzv_no_root_md)
 
 
 class ResultMetadataTests(unittest.TestCase):
-    v5_qza = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
+    v5_qzv = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
     md_fp = "8854f06a-872f-4762-87b7-4541d0f283d4/provenance/metadata.yaml"
-    with zipfile.ZipFile(v5_qza) as zf:
+    with zipfile.ZipFile(v5_qzv) as zf:
         v5_root_md = _ResultMetadata(zf, md_fp)
 
     def test_smoke(self):
@@ -164,11 +186,11 @@ class ProvNodeTests(unittest.TestCase):
     mock_archive = MagicMock()
 
     def setUp(self):
-        self.v5_qza = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
+        self.v5_qzv = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
         super().setUp()
         self.root_metadata_fps = None
 
-        with zipfile.ZipFile(self.v5_qza) as zf:
+        with zipfile.ZipFile(self.v5_qzv) as zf:
             all_filenames = zf.namelist()
             self.root_md_fnames = filter(_is_provnode_data, all_filenames)
             self.root_md_fps = [pathlib.Path(fp) for fp in self.root_md_fnames]
@@ -226,7 +248,7 @@ class ProvNodeTests(unittest.TestCase):
     def test_parents_property_has_no_parents(self):
         # qiime tools import node has no parents
         parentless_node_id = 'f5d67104-9506-4373-96e2-97df9199a719'
-        archive = Archive(self.v5_qza)
+        archive = Archive(self.v5_qzv)
         repr(archive)
         parentless_node = archive.get_result(parentless_node_id)
         # _parents not initialized before call
@@ -237,7 +259,7 @@ class ProvNodeTests(unittest.TestCase):
         self.assertEqual(parentless_node._parents, None)
 
     def test_parents_property_has_parents(self):
-        self.v5_ProvNode._origin_archives.append(Archive(self.v5_qza))
+        self.v5_ProvNode._origin_archives.append(Archive(self.v5_qzv))
         exp_nodes = [self.v5_ProvNode._origin_archives[0]._archive_contents[id]
                      for id in ['706b6bce-8f19-4ae9-b8f5-21b14a814a1b',
                                 'ad7e5b50-065c-4fdd-8d9b-991e92caad22']]
@@ -251,14 +273,14 @@ class ProvNodeTests(unittest.TestCase):
 
 class ProvDAGTests(unittest.TestCase):
     mock_archive = MagicMock()
-    v5_qza = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
-    v5_archive = Archive(v5_qza)
+    v5_qzv = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
+    v5_archive = Archive(v5_qzv)
 
     def setUp(self):
         super().setUp()
         self.root_metadata_fps = None
 
-        with zipfile.ZipFile(self.v5_qza) as zf:
+        with zipfile.ZipFile(self.v5_qzv) as zf:
             all_filenames = zf.namelist()
             self.root_md_fnames = filter(_is_provnode_data, all_filenames)
             self.root_md_fps = [pathlib.Path(fp) for fp in self.root_md_fnames]
@@ -301,8 +323,8 @@ class ProvDAGTests(unittest.TestCase):
 
 
 class UnionedDAGTests(unittest.TestCase):
-    v5_qza = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
-    v5_archive = Archive(v5_qza)
+    v5_qzv = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
+    v5_archive = Archive(v5_qzv)
     v5_dag = ProvDAG(v5_archive)
     dag_list = [v5_dag]
 

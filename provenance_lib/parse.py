@@ -1,4 +1,6 @@
+import codecs
 import pathlib
+import re
 from typing import List, Dict
 
 import bibtexparser as bp
@@ -150,8 +152,7 @@ class ProvNode:
     def __init__(self, origin_archive, zf: zipfile,
                  fps_for_this_result: List[pathlib.Path]):
         self._origin_archives.append(origin_archive)
-        # TODO: Read and check VERSION
-        # (this will probably effect what other things get read in)
+        # TODO: Does VERSION effect what other things get read in?
         for fp in fps_for_this_result:
             # TODO: Should we be reading these zipfiles once here,
             # and then passing them to the constructors below?
@@ -195,6 +196,7 @@ class Archive:
     # TODO: Can we assume all Q2 archives contain only unique Results?
     # If not, Archive should filter duplicates.
 
+    # TODO: Read and check VERSION # first
     # TODO: add property for archive version?
     # TODO: UUID class with basic validation?
     # NOTE: static type declarations like this break testing unless the class
@@ -236,8 +238,48 @@ class Archive:
         self._number_of_results = 0
 
         with zipfile.ZipFile(archive_fp) as zf:
+            self._get_version_info(zf)
             self._get_root_metadata(zf, archive_fp)
             self._populate_archive(zf)
+
+    def _get_version_info(self, zf: zipfile):
+        """Parse Archive VERSION file"""
+        # This very permissive RE allows 1 to 2-digit integer archive versions,
+        # and any framework version string containing 1 or more non-newline
+        # characters. The final `$` catches VERSION files with too many lines.
+        # _VERSION_MATCHER = r"QIIME 2\narchive: [0-9]{1,2}\nframework: .+$"
+
+        # This stricter version should match all framework versions to date,
+        # handling both old semver and newer yyyy.mm?.patch strings,
+        # and .dev variants. It blows a deprecation warning when decoding the
+        # RE for later pretty-printing, but seems to work properly.
+        # TODO: Test the RE directly
+        _VERSION_MATCHER = (
+            r"QIIME 2\n"
+            r"archive: [0-9]{1,2}\n"
+            r"framework: "
+            r"(?:20[0-9]{2}|2)\.(?:[0-9]{1,2}|0)\.[0-9](?:\.dev[0-9]?)?$")
+        _REPR_VERSION_MATCHER = codecs.decode(
+            _VERSION_MATCHER, 'unicode-escape')
+
+        # TODO: This copypasta should be factored out.
+        # All files in zf start with root uuid, so we can grab it from any file
+        version_fp = pathlib.Path(zf.namelist()[0]).parts[0] + '/VERSION'
+        try:
+            with zf.open(version_fp) as vfp:
+                _read = str(vfp.read(), 'utf-8')
+        except KeyError:
+            raise ValueError(
+                "Malformed Archive: VERSION file misplaced or nonexistent")
+
+        if not re.match(_VERSION_MATCHER, _read):
+            raise ValueError(
+                "Malformed Archive: VERSION file out of spec\n\n"
+                f"Should match this RE:\n{_REPR_VERSION_MATCHER}\n\n"
+                f"Actually looks like:\n{_read}\n")
+
+        _, self._archive_version, self._framework_version =\
+            [line.strip() for line in _read.split(sep="\n") if line]
 
     def _get_root_metadata(self, zf: zipfile, archive_fp: str):
         """ Get archive metadata including root uuid """

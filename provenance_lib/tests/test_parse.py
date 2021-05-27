@@ -1,3 +1,4 @@
+import codecs
 import os
 import pathlib
 import unittest
@@ -5,6 +6,7 @@ from unittest.mock import MagicMock
 
 import zipfile
 
+from ..parse import _VERSION_MATCHER
 from ..parse import Archive, ProvNode, ProvDAG, UnionedDAG
 from ..parse import _Action, _Citations, _ResultMetadata
 
@@ -54,8 +56,9 @@ class ArchiveTests(unittest.TestCase):
                                     "File is not a zip file"):
             Archive(self.not_a_zip)
 
-    # Does it recognize out-of-format archives?
-    # TODO: Mock these. Not sure I need to add a million qzvs to test this.
+    # Smoke testing major VERSION file issues is easier and more reliable with
+    # "real" archives (here). Detailed tests of the VERSION regex are in
+    # VersionMatcherTests, so we can test with less overhead
     def test_no_VERSION(self):
         with self.assertRaisesRegex(ValueError, "VERSION.*nonexistent"):
             Archive(self.v5_qzv_version_gone)
@@ -73,10 +76,81 @@ class ArchiveTests(unittest.TestCase):
                                     "VERSION.*out of spec"):
             Archive(self.v5_qzv_version_long)
 
-    # TODO: Test does it check archive version?
     def test_no_root_md(self):
         with self.assertRaisesRegex(ValueError, "no top-level metadata"):
             Archive(self.v5_qzv_no_root_md)
+
+
+class ArchiveVersionMatcherTests(unittest.TestCase):
+    """Testing for the _VERSION_MATCHER regex in parse.py"""
+
+    def test_version_too_short(self):
+        shorty = (
+            r"QIIME 2\n"
+            r"archive: 4"
+        )
+        self.assertNotRegex(shorty, _VERSION_MATCHER)
+
+    def test_version_too_long(self):
+        longy = (
+            r"QIIME 2\n"
+            r"archive: 4\n"
+            r"framework: 2019.8.1.dev0\n"
+            r"This line should not be here"
+        )
+        self.assertNotRegex(longy, _VERSION_MATCHER)
+
+    splitvm = codecs.decode(_VERSION_MATCHER, 'unicode-escape').split(sep="\n")
+    print(splitvm)
+    re_l1, re_l2, re_l3 = splitvm
+
+    def test_l1_good(self):
+        self.assertRegex("QIIME 2\n", self.re_l1)
+
+    def test_l1_bad(self):
+        self.assertNotRegex("SHIMMY 2\n", self.re_l1)
+
+    def test_archive_version_1d_numeric(self):
+        self.assertRegex("archive: 1\n", self.re_l2)
+
+    def test_archive_version_2d_numeric(self):
+        self.assertRegex("archive: 12\n", self.re_l2)
+
+    def test_archive_version_bad(self):
+        self.assertNotRegex("agama agama\n", self.re_l2)
+
+    def test_archive_version_3d_numeric(self):
+        self.assertNotRegex("archive: 123\n", self.re_l2)
+
+    def test_archive_version_nonnumeric(self):
+        self.assertNotRegex("archive: 1a\n", self.re_l2)
+
+    def test_fmwk_version_good_semver(self):
+        self.assertRegex("framework: 2.0.6", self.re_l3)
+
+    def test_fmwk_version_good_semver_dev(self):
+        self.assertRegex("framework: 2.0.6.dev0", self.re_l3)
+
+    def test_fmwk_version_good_ymp(self):
+        self.assertRegex("framework: 2020.2.0", self.re_l3)
+
+    def test_fmwk_version_good_ymp_2dmo(self):
+        self.assertRegex("framework: 2020.12.0", self.re_l3)
+
+    def test_fmwk_version_good_ymp_dev(self):
+        self.assertRegex("framework: 2020.2.0.dev1", self.re_l3)
+
+    def test_fmwk_version_good_ymp_2dmo_dev(self):
+        self.assertRegex("framework: 2020.11.0.dev0", self.re_l3)
+
+    def test_fmwk_version_invalid_mo(self):
+        self.assertNotRegex("framework: 2020.13.0", self.re_l3)
+
+    def test_fmwk_version_invalid_mo_leading_zero(self):
+        self.assertNotRegex("framework: 2020.03.0", self.re_l3)
+
+    def test_fmwk_version_invalid_yr(self):
+        self.assertNotRegex("framework: 1953.3.0", self.re_l3)
 
 
 class ResultMetadataTests(unittest.TestCase):

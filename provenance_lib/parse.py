@@ -7,6 +7,14 @@ import bibtexparser as bp
 import yaml
 import zipfile
 
+# TODO: Test RE Match of v1_uu_emperor.qzv
+
+_VERSION_MATCHER = (
+    r"QIIME 2\n"
+    r"archive: [0-9]{1,2}$\n"
+    r"framework: "
+    r"(?:20[0-9][0-2]|2)\.(?:[1-9][0-2]?|0)\.[0-9](?:\.dev[0-9]?)?\Z")
+
 # TODO: Move constructors into a separate module
 # from yaml_constructors import (
 #     metadata_constructor, citation_constructor, ref_constructor)
@@ -244,46 +252,28 @@ class Archive:
 
     def _get_version_info(self, zf: zipfile):
         """Parse Archive VERSION file"""
-        # This very permissive RE allows 1 to 2-digit integer archive versions,
-        # and any framework version string containing 1 or more non-newline
-        # characters. The final `$` catches VERSION files with too many lines.
-        # _VERSION_MATCHER = r"QIIME 2\narchive: [0-9]{1,2}\nframework: .+$"
-
-        # This stricter version should match all framework versions to date,
-        # handling both old semver and newer yyyy.mm?.patch strings,
-        # and .dev variants. It blows a deprecation warning when decoding the
-        # RE for later pretty-printing, but seems to work properly.
-        # TODO: Test the RE directly
-        _VERSION_MATCHER = (
-            r"QIIME 2\n"
-            r"archive: [0-9]{1,2}\n"
-            r"framework: "
-            r"(?:20[0-9]{2}|2)\.(?:[0-9]{1,2}|0)\.[0-9](?:\.dev[0-9]?)?$")
-        _REPR_VERSION_MATCHER = codecs.decode(
-            _VERSION_MATCHER, 'unicode-escape')
-
-        # TODO: This copypasta should be factored out.
-        # All files in zf start with root uuid, so we can grab it from any file
+        # All files in zf start with root uuid, so we'll grab it from the first
         version_fp = pathlib.Path(zf.namelist()[0]).parts[0] + '/VERSION'
         try:
-            with zf.open(version_fp) as vfp:
-                _read = str(vfp.read(), 'utf-8')
+            with zf.open(version_fp) as v_fp:
+                version_contents = str(v_fp.read().strip(), 'utf-8')
         except KeyError:
             raise ValueError(
                 "Malformed Archive: VERSION file misplaced or nonexistent")
 
-        if not re.match(_VERSION_MATCHER, _read):
+        if not re.match(_VERSION_MATCHER, version_contents, re.MULTILINE):
+            _vrsn_mtch_repr = codecs.decode(_VERSION_MATCHER, 'unicode-escape')
             raise ValueError(
                 "Malformed Archive: VERSION file out of spec\n\n"
-                f"Should match this RE:\n{_REPR_VERSION_MATCHER}\n\n"
-                f"Actually looks like:\n{_read}\n")
+                f"Should match this RE:\n{_vrsn_mtch_repr}\n\n"
+                f"Actually looks like:\n{version_contents}\n")
 
         _, self._archive_version, self._framework_version =\
-            [line.strip() for line in _read.split(sep="\n") if line]
+            [line.strip() for line in version_contents.split(sep="\n") if line]
 
     def _get_root_metadata(self, zf: zipfile, archive_fp: str):
         """ Get archive metadata including root uuid """
-        # All files in zf start with root uuid, so we can grab it from any file
+        # All files in zf start with root uuid, so we'll grab it from the first
         root_md_fp = pathlib.Path(zf.namelist()[0]).parts[0] + '/metadata.yaml'
         try:
             self._archive_md = _ResultMetadata(zf, root_md_fp)

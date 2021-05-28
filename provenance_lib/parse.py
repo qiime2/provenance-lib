@@ -96,8 +96,9 @@ class _ResultMetadata:
         self.format = _md_dict['format']
 
     def __repr__(self):
-        return (f"_ResultMetadata(UUID: {self.uuid}, "
-                f"Semantic Type: {self.type}, Format: {self.format})")
+        return (f"UUID:\t\t{self.uuid}\n"
+                f"Type:\t\t{self.type}\n"
+                f"Data Format:\t{self.format}")
 
 
 class _Citations:
@@ -231,12 +232,10 @@ class Archive:
         return self._archive_contents[uuid]
 
     def __str__(self):
-        return f"Archive(Root: {self.root_uuid})"
+        return repr(self._archive_md)
 
     def __repr__(self):
-        r_str = (f"Archive(Root: {self.root_uuid}, Semantic Type: "
-                 f"{self.archive_type}, Format: {self.archive_format})\n"
-                 "Contains Results:\n")
+        r_str = repr(self._archive_md) + "\nContains Results:\n"
         for uuid in self._archive_contents.keys():
             r_str += str(uuid)
             r_str += "\n"

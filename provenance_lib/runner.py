@@ -15,7 +15,8 @@ if __name__ == '__main__':
     plurg = deets['plugin']
     ackshun = deets['action']
 
-    print(f'\n{dummy_archive._archive_md}')
+    print(f'{repr(dummy_archive)}')
+    print(f'{dummy_archive._archive_md}')
     print(f'- was made by q2-{plurg} {ackshun}')
     print(f'- contains prov. data from {dummy_archive._number_of_results}'
           ' QIIME 2 Results, mostly ancestors')

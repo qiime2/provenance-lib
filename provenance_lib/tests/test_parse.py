@@ -35,13 +35,14 @@ class ArchiveTests(unittest.TestCase):
                          "8854f06a-872f-4762-87b7-4541d0f283d4")
 
     def test_str(self):
-        self.assertEqual(str(self.v5_archive),
-                         "Archive(Root: 8854f06a-872f-4762-87b7-4541d0f283d4)")
+        self.assertRegex(str(self.v5_archive),
+                         "(?s)UUID:\t\t8854f06a.*Type.*Data Format")
 
     def test_repr(self):
         repr(self.v5_archive)
-        self.assertRegex(repr(self.v5_archive),
-                         "Archive.*Root.*Semantic Type.*Format.*\nContains.*")
+        self.assertRegex(
+            repr(self.v5_archive),
+            "(?s)UUID:\t\t8854f06a.*Type.*Data Format.*Contains")
 
     def test_number_of_actions(self):
         contents = Archive(self.v5_qzv)
@@ -166,9 +167,9 @@ class ResultMetadataTests(unittest.TestCase):
         self.assertEqual(self.v5_root_md.format, None)
 
     def test_repr(self):
-        exp = ("_ResultMetadata(UUID: "
-               "8854f06a-872f-4762-87b7-4541d0f283d4, "
-               "Semantic Type: Visualization, Format: None)")
+        exp = ("UUID:\t\t8854f06a-872f-4762-87b7-4541d0f283d4\n"
+               "Type:\t\tVisualization\n"
+               "Data Format:\tNone")
         self.assertEqual(repr(self.v5_root_md), exp)
 
 

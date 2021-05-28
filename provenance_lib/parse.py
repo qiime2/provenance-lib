@@ -204,14 +204,16 @@ class Archive:
     # TODO: Can we assume all Q2 archives contain only unique Results?
     # If not, Archive should filter duplicates.
 
-    # TODO: Read and check VERSION # first
-    # TODO: add property for archive version?
     # TODO: UUID class with basic validation?
     # NOTE: static type declarations like this break testing unless the class
     # is forward declared (ProvNode must be above Archive or NameError).
     _number_of_results: int
     _archive_contents: Dict[str, ProvNode]
     _archive_md: _ResultMetadata
+
+    @property
+    def archive_version(self):
+        return self._archive_version
 
     @property
     def root_uuid(self):

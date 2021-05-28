@@ -18,7 +18,7 @@ class ArchiveTests(unittest.TestCase):
     # Removes the character limit when reporting failing tests for this class
     maxDiff = None
 
-    v5_qzv = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
+    v5_qzv = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
     v5_qzv_no_root_md = os.path.join(DATA_DIR, 'no_root_md_yaml.qzv')
     v5_qzv_version_gone = os.path.join(DATA_DIR, 'VERSION_missing.qzv')
     v5_qzv_version_bad = os.path.join(DATA_DIR, 'VERSION_bad.qzv')
@@ -32,17 +32,17 @@ class ArchiveTests(unittest.TestCase):
 
     def test_smoke(self):
         self.assertEqual(self.v5_archive.root_uuid,
-                         "8854f06a-872f-4762-87b7-4541d0f283d4")
+                         "ffb7cee3-2f1f-4988-90cc-efd5184ef003")
 
     def test_str(self):
         self.assertRegex(str(self.v5_archive),
-                         "(?s)UUID:\t\t8854f06a.*Type.*Data Format")
+                         "(?s)UUID:\t\tffb7cee3.*Type.*Data Format")
 
     def test_repr(self):
         repr(self.v5_archive)
         self.assertRegex(
             repr(self.v5_archive),
-            "(?s)UUID:\t\t8854f06a.*Type.*Data Format.*Contains")
+            "(?s)UUID:\t\tffb7cee3.*Type.*Data Format.*Contains")
 
     def test_number_of_actions(self):
         contents = Archive(self.v5_qzv)
@@ -136,7 +136,7 @@ class ArchiveVersionMatcherTests(unittest.TestCase):
         self.assertRegex("framework: 2020.2.0", self.re_l3)
 
     def test_fmwk_version_good_ymp_2dmo(self):
-        self.assertRegex("framework: 2020.12.0", self.re_l3)
+        self.assertRegex("framework: 2018.11.0", self.re_l3)
 
     def test_fmwk_version_good_ymp_dev(self):
         self.assertRegex("framework: 2020.2.0.dev1", self.re_l3)
@@ -155,19 +155,19 @@ class ArchiveVersionMatcherTests(unittest.TestCase):
 
 
 class ResultMetadataTests(unittest.TestCase):
-    v5_qzv = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
-    md_fp = "8854f06a-872f-4762-87b7-4541d0f283d4/provenance/metadata.yaml"
+    v5_qzv = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
+    md_fp = "ffb7cee3-2f1f-4988-90cc-efd5184ef003/provenance/metadata.yaml"
     with zipfile.ZipFile(v5_qzv) as zf:
         v5_root_md = _ResultMetadata(zf, md_fp)
 
     def test_smoke(self):
         self.assertEqual(self.v5_root_md.uuid,
-                         "8854f06a-872f-4762-87b7-4541d0f283d4")
+                         "ffb7cee3-2f1f-4988-90cc-efd5184ef003")
         self.assertEqual(self.v5_root_md.type, "Visualization")
         self.assertEqual(self.v5_root_md.format, None)
 
     def test_repr(self):
-        exp = ("UUID:\t\t8854f06a-872f-4762-87b7-4541d0f283d4\n"
+        exp = ("UUID:\t\tffb7cee3-2f1f-4988-90cc-efd5184ef003\n"
                "Type:\t\tVisualization\n"
                "Data Format:\tNone")
         self.assertEqual(repr(self.v5_root_md), exp)
@@ -261,7 +261,7 @@ class ProvNodeTests(unittest.TestCase):
     mock_archive = MagicMock()
 
     def setUp(self):
-        self.v5_qzv = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
+        self.v5_qzv = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
         super().setUp()
         self.root_metadata_fps = None
 
@@ -278,7 +278,7 @@ class ProvNodeTests(unittest.TestCase):
     def test_v5_viz_md(self):
         print(self.v5_ProvNode)
         self.assertEqual(self.v5_ProvNode.uuid,
-                         '8854f06a-872f-4762-87b7-4541d0f283d4')
+                         'ffb7cee3-2f1f-4988-90cc-efd5184ef003')
         self.assertEqual(self.v5_ProvNode.sem_type, 'Visualization')
         # TODO: Is it problematic that format is loaded as a NoneType (not str)
         self.assertEqual(self.v5_ProvNode.format, None)
@@ -286,18 +286,18 @@ class ProvNodeTests(unittest.TestCase):
     def test_eq(self):
         self.assertEqual(self.v5_ProvNode, self.v5_ProvNode)
         mock_node = MagicMock()
-        mock_node.uuid = '8854f06a-872f-4762-87b7-4541d0f283d4'
+        mock_node.uuid = 'ffb7cee3-2f1f-4988-90cc-efd5184ef003'
         self.assertEqual(self.v5_ProvNode, mock_node)
         mock_node.uuid = 'gerbil'
         self.assertNotEqual(self.v5_ProvNode, mock_node)
 
     def test_str(self):
         self.assertEqual(str(self.v5_ProvNode),
-                         "ProvNode(8854f06a-872f-4762-87b7-4541d0f283d4)")
+                         "ProvNode(ffb7cee3-2f1f-4988-90cc-efd5184ef003)")
 
     def test_repr(self):
         self.assertEqual(repr(self.v5_ProvNode),
-                         "ProvNode(8854f06a-872f-4762-87b7-4541d0f283d4, "
+                         "ProvNode(ffb7cee3-2f1f-4988-90cc-efd5184ef003, "
                          "Visualization, fmt=None)")
 
     maxDiff = None
@@ -306,15 +306,15 @@ class ProvNodeTests(unittest.TestCase):
     def test_traverse_uuids(self):
         # This is disgusting, but avoids a baffling syntax error raised
         # whenever I attempted to define exp as a single literal
-        exp = {"8854f06a-872f-4762-87b7-4541d0f283d4":
-               {"706b6bce-8f19-4ae9-b8f5-21b14a814a1b":
-                {"4de0fc23-6462-43d3-8497-f55fc49f5db6":
-                 {"f5d67104-9506-4373-96e2-97df9199a719": None}}}}
-        second_half = {"ad7e5b50-065c-4fdd-8d9b-991e92caad22":
-                       {"b662f326-ac26-4047-8766-2288464d157d":
-                        {"4de0fc23-6462-43d3-8497-f55fc49f5db6":
-                         {"f5d67104-9506-4373-96e2-97df9199a719": None}}}}
-        exp["8854f06a-872f-4762-87b7-4541d0f283d4"].update(second_half)
+        exp = {"ffb7cee3-2f1f-4988-90cc-efd5184ef003":
+               {"89af91c0-033d-4e30-8ac4-f29a3b407dc1":
+                {"99fa3670-aa1a-45f6-ba8e-803c976a1163":
+                 {"a35830e1-4535-47c6-aa23-be295a57ee1c": None}}}}
+        second_half = {"bce3d09b-e296-4f2b-9af4-834db6412429":
+                       {"7ecf8954-e49a-4605-992e-99fcee397935":
+                        {"99fa3670-aa1a-45f6-ba8e-803c976a1163":
+                         {"a35830e1-4535-47c6-aa23-be295a57ee1c": None}}}}
+        exp["ffb7cee3-2f1f-4988-90cc-efd5184ef003"].update(second_half)
         actual = self.v5_ProvNode.traverse_uuids()
         self.assertEqual(actual, exp)
 
@@ -322,7 +322,7 @@ class ProvNodeTests(unittest.TestCase):
     # hand-build two to three more test nodes and mock an Archive to hold them.
     def test_parents_property_has_no_parents(self):
         # qiime tools import node has no parents
-        parentless_node_id = 'f5d67104-9506-4373-96e2-97df9199a719'
+        parentless_node_id = 'a35830e1-4535-47c6-aa23-be295a57ee1c'
         archive = Archive(self.v5_qzv)
         repr(archive)
         parentless_node = archive.get_result(parentless_node_id)
@@ -336,8 +336,8 @@ class ProvNodeTests(unittest.TestCase):
     def test_parents_property_has_parents(self):
         self.v5_ProvNode._origin_archives.append(Archive(self.v5_qzv))
         exp_nodes = [self.v5_ProvNode._origin_archives[0]._archive_contents[id]
-                     for id in ['706b6bce-8f19-4ae9-b8f5-21b14a814a1b',
-                                'ad7e5b50-065c-4fdd-8d9b-991e92caad22']]
+                     for id in ['89af91c0-033d-4e30-8ac4-f29a3b407dc1',
+                                'bce3d09b-e296-4f2b-9af4-834db6412429']]
         # _parents not initialized before call
         self.assertEqual(self.v5_ProvNode._parents, None)
         # ProvNode.parents should get parents
@@ -348,7 +348,7 @@ class ProvNodeTests(unittest.TestCase):
 
 class ProvDAGTests(unittest.TestCase):
     mock_archive = MagicMock()
-    v5_qzv = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
+    v5_qzv = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
     v5_archive = Archive(v5_qzv)
 
     def setUp(self):
@@ -367,7 +367,7 @@ class ProvDAGTests(unittest.TestCase):
         self.assertTrue(True)
 
     def test_root_uuid(self):
-        exp = "8854f06a-872f-4762-87b7-4541d0f283d4"
+        exp = "ffb7cee3-2f1f-4988-90cc-efd5184ef003"
         actual_uuid = ProvDAG(self.v5_archive).root_uuid
         self.assertEqual(exp, actual_uuid)
 
@@ -378,27 +378,27 @@ class ProvDAGTests(unittest.TestCase):
         dag = ProvDAG(self.v5_archive)
         self.assertEqual(str(dag),
                          ("ProvDAG("
-                          "Root: 8854f06a-872f-4762-87b7-4541d0f283d4)"))
+                          "Root: ffb7cee3-2f1f-4988-90cc-efd5184ef003)"))
 
     def test_repr(self):
         dag = ProvDAG(self.v5_archive)
         repr(dag)
         self.assertEqual(repr(dag),
                          ("Root:\n"
-                          "8854f06a-872f-4762-87b7-4541d0f283d4:\n"
-                          "  706b6bce-8f19-4ae9-b8f5-21b14a814a1b:\n"
-                          "    4de0fc23-6462-43d3-8497-f55fc49f5db6:\n"
-                          "      f5d67104-9506-4373-96e2-97df9199a719: null\n"
-                          "  ad7e5b50-065c-4fdd-8d9b-991e92caad22:\n"
-                          "    b662f326-ac26-4047-8766-2288464d157d:\n"
-                          "      4de0fc23-6462-43d3-8497-f55fc49f5db6:\n"
-                          "        f5d67104-9506-4373-96e2-97df9199a719: null"
+                          "ffb7cee3-2f1f-4988-90cc-efd5184ef003:\n"
+                          "  89af91c0-033d-4e30-8ac4-f29a3b407dc1:\n"
+                          "    99fa3670-aa1a-45f6-ba8e-803c976a1163:\n"
+                          "      a35830e1-4535-47c6-aa23-be295a57ee1c: null\n"
+                          "  bce3d09b-e296-4f2b-9af4-834db6412429:\n"
+                          "    7ecf8954-e49a-4605-992e-99fcee397935:\n"
+                          "      99fa3670-aa1a-45f6-ba8e-803c976a1163:\n"
+                          "        a35830e1-4535-47c6-aa23-be295a57ee1c: null"
                           "\n")
                          )
 
 
 class UnionedDAGTests(unittest.TestCase):
-    v5_qzv = os.path.join(DATA_DIR, 'unweighted_unifrac_emperor.qzv')
+    v5_qzv = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
     v5_archive = Archive(v5_qzv)
     v5_dag = ProvDAG(v5_archive)
     dag_list = [v5_dag]
@@ -406,5 +406,5 @@ class UnionedDAGTests(unittest.TestCase):
     def test_union_one_dag(self):
         dag = UnionedDAG(self.dag_list)
         self.assertEqual(dag.root_uuids,
-                         ["8854f06a-872f-4762-87b7-4541d0f283d4"])
+                         ["ffb7cee3-2f1f-4988-90cc-efd5184ef003"])
         self.assertEqual(dag.root_nodes, [self.v5_dag.root])

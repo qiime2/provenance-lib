@@ -7,8 +7,6 @@ import bibtexparser as bp
 import yaml
 import zipfile
 
-# TODO: Test RE Match of v1_uu_emperor.qzv
-
 _VERSION_MATCHER = (
     r"QIIME 2\n"
     r"archive: [0-9]{1,2}$\n"
@@ -106,9 +104,6 @@ class _Citations:
     citations for a single QIIME 2 Result, as a dict of dicts where each
     inner dictionary represents one citation keyed on the citation's bibtex ID
     """
-    # TODO: What does the framework do with when 0 citations are registered?
-    # Do we get an empty citations.bib? no citations.bib?
-    # impossible because framework always cited?
     def __init__(self, zf: zipfile, fp: str):
         bib_db = bp.loads(zf.read(fp))
         self._citations = {entry['ID']: entry for entry in bib_db.entries}
@@ -131,7 +126,7 @@ class ProvNode:
     @property
     def parents(self):
         """ The list of ProvNodes used as inputs in creating this ProvNode """
-        # NOTE: We must delay gathering parentage data until the Archive is
+        # NOTE: We must delay gathering parentage data until the ProvDAG is
         # fully populated (or risk KeyError). Caching this lazily allows us to
         # delay until the first call (likely the first DAG traversal)
         if not self._parents:
@@ -196,18 +191,14 @@ class ProvNode:
         return local_parents
 
 
-class Archive:
+class ProvDAG:
     """
-    Lightly-processed contents of a single QIIME 2 Archive, an Archive
-    contains a non-hierarchical pool of unique ProvNodes
+    A single-rooted DAG of ProvNode objects, representing a single QIIME 2
+    Archive.
+    TODO: May also contain a non-hierarchical pool of unique ProvNodes?
     """
-
-    # TODO: Can we assume all Q2 archives contain only unique Results?
-    # If not, Archive should filter duplicates.
-
-    # TODO: UUID class with basic validation?
     # NOTE: static type declarations like this break testing unless the class
-    # is forward declared (ProvNode must be above Archive or NameError).
+    # is forward declared (ProvNode must be above ProvDAG or NameError).
     _number_of_results: int
     _archive_contents: Dict[str, ProvNode]
     _archive_md: _ResultMetadata
@@ -221,6 +212,10 @@ class Archive:
         return self._archive_md.uuid
 
     @property
+    def root_node(self):
+        return self.get_result(self.root_uuid)
+
+    @property
     def archive_type(self):
         return self._archive_md.type
 
@@ -231,14 +226,18 @@ class Archive:
     def get_result(self, uuid):
         return self._archive_contents[uuid]
 
+    def _traverse_uuids_from_root(self):
+        return self.root_node.traverse_uuids()
+
     def __str__(self):
         return repr(self._archive_md)
 
     def __repr__(self):
-        r_str = repr(self._archive_md) + "\nContains Results:\n"
-        for uuid in self._archive_contents.keys():
-            r_str += str(uuid)
-            r_str += "\n"
+        # Traverse DAG, printing UUIDs
+        # TODO: Improve this repr to remove id duplication
+        r_str = self.__str__() + "\nContains Results:\n"
+        uuid_yaml = yaml.dump(self._traverse_uuids_from_root())
+        r_str += uuid_yaml
         return r_str
 
     def __init__(self, archive_fp: str):
@@ -270,7 +269,8 @@ class Archive:
                 f"Actually looks like:\n{version_contents}\n")
 
         _, self._archive_version, self._framework_version =\
-            [line.strip() for line in version_contents.split(sep="\n") if line]
+            [line.strip().split()[-1]
+                for line in version_contents.split(sep="\n") if line]
 
     def _get_root_metadata(self, zf: zipfile, archive_fp: str):
         """ Get archive metadata including root uuid """
@@ -332,28 +332,6 @@ class Archive:
         return uuid
 
 
-class ProvDAG:
-    """
-    a single-rooted DAG of ProvNode objects.
-    """
-
-    def __init__(self, archive: Archive):
-        self.root_uuid = archive.root_uuid
-        self.root = archive.get_result(self.root_uuid)
-
-    def __repr__(self):
-        # Traverse DAG, printing UUIDs
-        # TODO: Improve this repr to remove duplication?
-        uuid_yaml = yaml.dump(self.traverse_uuids_from_root())
-        return f"Root:\n{uuid_yaml}"
-
-    def __str__(self):
-        return f"ProvDAG(Root: {self.root_uuid})"
-
-    def traverse_uuids_from_root(self):
-        return self.root.traverse_uuids()
-
-
 class UnionedDAG:
     """
     a many-rooted DAG of ProvNode objects, created from a Union of ProvDAGs
@@ -362,4 +340,4 @@ class UnionedDAG:
     # TODO: Implement
     def __init__(self, dags: List[ProvDAG]):
         self.root_uuids = [dag.root_uuid for dag in dags]
-        self.root_nodes = [dag.root for dag in dags]
+        self.root_nodes = [dag.root_node for dag in dags]

@@ -7,15 +7,15 @@ from unittest.mock import MagicMock
 import zipfile
 
 from ..parse import _VERSION_MATCHER
-from ..parse import Archive, ProvNode, ProvDAG, UnionedDAG
+from ..parse import ProvNode, ProvDAG, UnionedDAG
 from ..parse import _Action, _Citations, _ResultMetadata
 
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 
 
-class ArchiveTests(unittest.TestCase):
-    # Removes the character limit when reporting failing tests for this class
+class ProvDAGTests(unittest.TestCase):
+    # Remove the character limit when reporting failing tests for this class
     maxDiff = None
 
     v5_qzv = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
@@ -28,58 +28,91 @@ class ArchiveTests(unittest.TestCase):
     fake_fp = os.path.join(DATA_DIR, 'not_a_filepath.qza')
     not_a_zip = os.path.join(DATA_DIR, 'not_a_zip.txt')
 
-    v5_archive = Archive(v5_qzv)
+    v5_provDag = ProvDAG(v5_qzv)
 
+    # This should only trigger if something fails in setup or above
+    # e.g. if v5_provDag fails to initialize
     def test_smoke(self):
-        self.assertEqual(self.v5_archive.root_uuid,
+        self.assertTrue(True)
+
+    def test_root_uuid_correct(self):
+        self.assertEqual(self.v5_provDag.root_uuid,
                          "ffb7cee3-2f1f-4988-90cc-efd5184ef003")
 
+    def test_root_node_is_archive_root(self):
+        mock_archive = MagicMock()
+        self.root_metadata_fps = None
+        with zipfile.ZipFile(self.v5_qzv) as zf:
+            all_filenames = zf.namelist()
+            self.root_md_fnames = filter(_is_provnode_data, all_filenames)
+            self.root_md_fps = [pathlib.Path(fp) for fp in self.root_md_fnames]
+            self.v5_ProvNode = ProvNode(mock_archive, zf,
+                                        self.root_md_fps)
+        self.assertEqual(self.v5_ProvNode, self.v5_provDag.root_node)
+
     def test_str(self):
-        self.assertRegex(str(self.v5_archive),
+        self.assertRegex(str(self.v5_provDag),
                          "(?s)UUID:\t\tffb7cee3.*Type.*Data Format")
 
     def test_repr(self):
-        repr(self.v5_archive)
         self.assertRegex(
-            repr(self.v5_archive),
+            repr(self.v5_provDag),
             "(?s)UUID:\t\tffb7cee3.*Type.*Data Format.*Contains")
 
+    def test_repr_contains(self):
+        self.assertRegex(repr(self.v5_provDag),
+                         ("ffb7cee3-2f1f-4988-90cc-efd5184ef003:\n"
+                          "  89af91c0-033d-4e30-8ac4-f29a3b407dc1:\n"
+                          "    99fa3670-aa1a-45f6-ba8e-803c976a1163:\n"
+                          "      a35830e1-4535-47c6-aa23-be295a57ee1c: null\n"
+                          "  bce3d09b-e296-4f2b-9af4-834db6412429:\n"
+                          "    7ecf8954-e49a-4605-992e-99fcee397935:\n"
+                          "      99fa3670-aa1a-45f6-ba8e-803c976a1163:\n"
+                          "        a35830e1-4535-47c6-aa23-be295a57ee1c: null"
+                          "\n")
+                         )
+
     def test_number_of_actions(self):
-        contents = Archive(self.v5_qzv)
-        self.assertEqual(contents._number_of_results, 15)
+        self.assertEqual(self.v5_provDag._number_of_results, 15)
 
     def test_nonexistent_fp(self):
         with self.assertRaisesRegex(FileNotFoundError, "not_a_filepath.qza"):
-            Archive(self.fake_fp)
+            ProvDAG(self.fake_fp)
 
     def test_not_a_zip_archive(self):
         with self.assertRaisesRegex(zipfile.BadZipFile,
                                     "File is not a zip file"):
-            Archive(self.not_a_zip)
+            ProvDAG(self.not_a_zip)
 
-    # Smoke testing major VERSION file issues is easier and more reliable with
+    # Testing major VERSION file issues is easier and more reliable with
     # "real" archives (here). Detailed tests of the VERSION regex are in
     # VersionMatcherTests, so we can test with less overhead
+    def test_archive_version_correct(self):
+        self.assertEqual(self.v5_provDag.archive_version, '5')
+
+    def test_framework_version_correct(self):
+        self.assertEqual(self.v5_provDag._framework_version, '2018.11.0')
+
     def test_no_VERSION(self):
         with self.assertRaisesRegex(ValueError, "VERSION.*nonexistent"):
-            Archive(self.v5_qzv_version_gone)
+            ProvDAG(self.v5_qzv_version_gone)
 
     def test_bad_VERSION(self):
         with self.assertRaisesRegex(ValueError, "VERSION.*out of spec"):
-            Archive(self.v5_qzv_version_bad)
+            ProvDAG(self.v5_qzv_version_bad)
 
     def test_short_VERSION(self):
         with self.assertRaisesRegex(ValueError, "VERSION.*out of spec"):
-            Archive(self.v5_qzv_version_short)
+            ProvDAG(self.v5_qzv_version_short)
 
     def test_long_VERSION(self):
         with self.assertRaisesRegex(ValueError,
                                     "VERSION.*out of spec"):
-            Archive(self.v5_qzv_version_long)
+            ProvDAG(self.v5_qzv_version_long)
 
     def test_no_root_md(self):
         with self.assertRaisesRegex(ValueError, "no top-level metadata"):
-            Archive(self.v5_qzv_no_root_md)
+            ProvDAG(self.v5_qzv_no_root_md)
 
 
 class ArchiveVersionMatcherTests(unittest.TestCase):
@@ -255,7 +288,7 @@ def _is_provnode_data(fp):
 
 
 class ProvNodeTests(unittest.TestCase):
-    # As implemented, ProvNodes must belong to an Archive. Commit
+    # As implemented, ProvNodes must belong to an ProvDAG. Commit
     # 1281878510acdc42cb5ba3ee40c9ad8b62dacf0e shows another approach with
     # ProvDAGs responsible for assigning parentage to their ProvNodes
     mock_archive = MagicMock()
@@ -319,11 +352,11 @@ class ProvNodeTests(unittest.TestCase):
         self.assertEqual(actual, exp)
 
     # Building an archive for the following 2 tests b/c the alternative is to
-    # hand-build two to three more test nodes and mock an Archive to hold them.
+    # hand-build two to three more test nodes and mock a ProvDAG to hold them.
     def test_parents_property_has_no_parents(self):
         # qiime tools import node has no parents
         parentless_node_id = 'a35830e1-4535-47c6-aa23-be295a57ee1c'
-        archive = Archive(self.v5_qzv)
+        archive = ProvDAG(self.v5_qzv)
         repr(archive)
         parentless_node = archive.get_result(parentless_node_id)
         # _parents not initialized before call
@@ -334,7 +367,7 @@ class ProvNodeTests(unittest.TestCase):
         self.assertEqual(parentless_node._parents, None)
 
     def test_parents_property_has_parents(self):
-        self.v5_ProvNode._origin_archives.append(Archive(self.v5_qzv))
+        self.v5_ProvNode._origin_archives.append(ProvDAG(self.v5_qzv))
         exp_nodes = [self.v5_ProvNode._origin_archives[0]._archive_contents[id]
                      for id in ['89af91c0-033d-4e30-8ac4-f29a3b407dc1',
                                 'bce3d09b-e296-4f2b-9af4-834db6412429']]
@@ -346,65 +379,13 @@ class ProvNodeTests(unittest.TestCase):
         self.assertEqual(self.v5_ProvNode._parents, exp_nodes)
 
 
-class ProvDAGTests(unittest.TestCase):
-    mock_archive = MagicMock()
-    v5_qzv = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
-    v5_archive = Archive(v5_qzv)
-
-    def setUp(self):
-        super().setUp()
-        self.root_metadata_fps = None
-
-        with zipfile.ZipFile(self.v5_qzv) as zf:
-            all_filenames = zf.namelist()
-            self.root_md_fnames = filter(_is_provnode_data, all_filenames)
-            self.root_md_fps = [pathlib.Path(fp) for fp in self.root_md_fnames]
-            self.v5_ProvNode = ProvNode(self.mock_archive, zf,
-                                        self.root_md_fps)
-
-    def test_smoke(self):
-        ProvDAG(self.v5_archive)
-        self.assertTrue(True)
-
-    def test_root_uuid(self):
-        exp = "ffb7cee3-2f1f-4988-90cc-efd5184ef003"
-        actual_uuid = ProvDAG(self.v5_archive).root_uuid
-        self.assertEqual(exp, actual_uuid)
-
-    def test_root_node_is_archive_root(self):
-        self.assertEqual(self.v5_ProvNode, ProvDAG(self.v5_archive).root)
-
-    def test_str(self):
-        dag = ProvDAG(self.v5_archive)
-        self.assertEqual(str(dag),
-                         ("ProvDAG("
-                          "Root: ffb7cee3-2f1f-4988-90cc-efd5184ef003)"))
-
-    def test_repr(self):
-        dag = ProvDAG(self.v5_archive)
-        repr(dag)
-        self.assertEqual(repr(dag),
-                         ("Root:\n"
-                          "ffb7cee3-2f1f-4988-90cc-efd5184ef003:\n"
-                          "  89af91c0-033d-4e30-8ac4-f29a3b407dc1:\n"
-                          "    99fa3670-aa1a-45f6-ba8e-803c976a1163:\n"
-                          "      a35830e1-4535-47c6-aa23-be295a57ee1c: null\n"
-                          "  bce3d09b-e296-4f2b-9af4-834db6412429:\n"
-                          "    7ecf8954-e49a-4605-992e-99fcee397935:\n"
-                          "      99fa3670-aa1a-45f6-ba8e-803c976a1163:\n"
-                          "        a35830e1-4535-47c6-aa23-be295a57ee1c: null"
-                          "\n")
-                         )
-
-
 class UnionedDAGTests(unittest.TestCase):
     v5_qzv = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
-    v5_archive = Archive(v5_qzv)
-    v5_dag = ProvDAG(v5_archive)
+    v5_dag = ProvDAG(v5_qzv)
     dag_list = [v5_dag]
 
     def test_union_one_dag(self):
         dag = UnionedDAG(self.dag_list)
         self.assertEqual(dag.root_uuids,
                          ["ffb7cee3-2f1f-4988-90cc-efd5184ef003"])
-        self.assertEqual(dag.root_nodes, [self.v5_dag.root])
+        self.assertEqual(dag.root_nodes, [self.v5_dag.root_node])

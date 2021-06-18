@@ -73,7 +73,7 @@ class ProvDAGTests(unittest.TestCase):
                          )
 
     def test_number_of_actions(self):
-        self.assertEqual(self.v5_provDag._number_of_results, 15)
+        self.assertEqual(self.v5_provDag._num_results, 15)
 
     def test_nonexistent_fp(self):
         with self.assertRaisesRegex(FileNotFoundError, "not_a_filepath.qza"):
@@ -91,7 +91,7 @@ class ProvDAGTests(unittest.TestCase):
         self.assertEqual(self.v5_provDag.archive_version, '5')
 
     def test_framework_version_correct(self):
-        self.assertEqual(self.v5_provDag._framework_version, '2018.11.0')
+        self.assertEqual(self.v5_provDag.framework_version, '2018.11.0')
 
     def test_no_VERSION(self):
         with self.assertRaisesRegex(ValueError, "VERSION.*nonexistent"):
@@ -368,7 +368,7 @@ class ProvNodeTests(unittest.TestCase):
 
     def test_parents_property_has_parents(self):
         self.v5_ProvNode._origin_archives.append(ProvDAG(self.v5_qzv))
-        exp_nodes = [self.v5_ProvNode._origin_archives[0]._archive_contents[id]
+        exp_nodes = [self.v5_ProvNode._origin_archives[0]._archv_contents[id]
                      for id in ['89af91c0-033d-4e30-8ac4-f29a3b407dc1',
                                 'bce3d09b-e296-4f2b-9af4-834db6412429']]
         # _parents not initialized before call

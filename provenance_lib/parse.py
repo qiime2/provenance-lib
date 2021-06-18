@@ -1,7 +1,7 @@
 import codecs
 import pathlib
 import re
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 import bibtexparser as bp
 import yaml
@@ -135,7 +135,7 @@ class ProvNode:
                 parent_uuids = [
                     list(uuid.values())[0] for uuid in parent_dicts]
                 self._parents = [
-                    self._origin_archives[0]._archive_contents[uuid]
+                    self._origin_archives[0]._archv_contents[uuid]
                     for uuid in parent_uuids]
             except KeyError:
                 pass
@@ -199,13 +199,17 @@ class ProvDAG:
     """
     # NOTE: static type declarations like this break testing unless the class
     # is forward declared (ProvNode must be above ProvDAG or NameError).
-    _number_of_results: int
-    _archive_contents: Dict[str, ProvNode]
+    _num_results: int
+    _archv_contents: Dict[str, ProvNode]
     _archive_md: _ResultMetadata
 
     @property
     def archive_version(self):
-        return self._archive_version
+        return self._archv_vrsn
+
+    @property
+    def framework_version(self):
+        return self._frmwk_vrsn
 
     @property
     def root_uuid(self):
@@ -224,7 +228,7 @@ class ProvDAG:
         return self._archive_md.format
 
     def get_result(self, uuid):
-        return self._archive_contents[uuid]
+        return self._archv_contents[uuid]
 
     def _traverse_uuids_from_root(self):
         return self.root_node.traverse_uuids()
@@ -242,15 +246,15 @@ class ProvDAG:
 
     def __init__(self, archive_fp: str):
         self._archive_md: None
-        self._archive_contents: None
-        self._number_of_results = 0
+        self._archv_contents: None
+        self._num_results = 0
 
         with zipfile.ZipFile(archive_fp) as zf:
-            self._get_version_info(zf)
-            self._get_root_metadata(zf, archive_fp)
-            self._populate_archive(zf)
+            _, self._archv_vrsn, self._frmwk_vrsn = self._get_version_info(zf)
+            self._archive_md = self._get_root_metadata(zf, archive_fp)
+            self._num_results, self._archv_contents = self._populate_archv(zf)
 
-    def _get_version_info(self, zf: zipfile):
+    def _get_version_info(self, zf: zipfile) -> List[str]:
         """Parse Archive VERSION file"""
         # All files in zf start with root uuid, so we'll grab it from the first
         version_fp = pathlib.Path(zf.namelist()[0]).parts[0] + '/VERSION'
@@ -268,21 +272,21 @@ class ProvDAG:
                 f"Should match this RE:\n{_vrsn_mtch_repr}\n\n"
                 f"Actually looks like:\n{version_contents}\n")
 
-        _, self._archive_version, self._framework_version =\
-            [line.strip().split()[-1]
+        return [line.strip().split()[-1]
                 for line in version_contents.split(sep="\n") if line]
 
-    def _get_root_metadata(self, zf: zipfile, archive_fp: str):
+    def _get_root_metadata(self, zf: zipfile, archive_fp: str) \
+            -> _ResultMetadata:
         """ Get archive metadata including root uuid """
         # All files in zf start with root uuid, so we'll grab it from the first
         root_md_fp = pathlib.Path(zf.namelist()[0]).parts[0] + '/metadata.yaml'
         try:
-            self._archive_md = _ResultMetadata(zf, root_md_fp)
+            return _ResultMetadata(zf, root_md_fp)
         except KeyError:
             raise ValueError("Malformed Archive: "
                              "no top-level metadata.yaml file")
 
-    def _populate_archive(self, zf: zipfile):
+    def _populate_archv(self, zf: zipfile) -> Tuple[int, ProvNode]:
         """
         Populates an _Archive with all relevant provenance data
         Takes an Archive (as a zipfile) as input.
@@ -294,7 +298,8 @@ class ProvDAG:
         non-root provenance files live inside 'artifacts/<uuid>'
         e.g: <archive_root_uuid>/provenance/artifacts/<uuid>/metadata.yaml
         """
-        self._archive_contents = {}
+        archv_contents = {}
+        num_results = 0
 
         filenames = ['metadata.yaml', 'action/action.yaml', 'citations.bib']
         prov_data_fps = [
@@ -314,13 +319,14 @@ class ProvDAG:
                 uuid = self._get_nonroot_uuid(fp)
                 prefix = pathlib.Path(*fp.parts[0:4])
 
-            if uuid not in self._archive_contents:
+            if uuid not in archv_contents:
                 fps_for_this_result = [prefix / name for name in filenames]
-                self._number_of_results += 1
-                self._archive_contents[uuid] = ProvNode(self, zf,
-                                                        fps_for_this_result)
+                num_results += 1
+                archv_contents[uuid] = ProvNode(self, zf, fps_for_this_result)
 
-    def _get_nonroot_uuid(self, fp: pathlib.Path):
+        return (num_results, archv_contents)
+
+    def _get_nonroot_uuid(self, fp: pathlib.Path) -> str:
         """
         For non-root provenance files, get the Result's uuid from the path
         (avoiding the root Result's UUID which is in all paths)

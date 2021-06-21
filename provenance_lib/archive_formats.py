@@ -1,3 +1,4 @@
+from __future__ import annotations
 import codecs
 import pathlib
 import re
@@ -6,15 +7,6 @@ from typing import List, Tuple
 import bibtexparser as bp
 import yaml
 import zipfile
-
-
-# forward declarations for mypy. Eww for now.
-class _ResultMetadata:
-    pass
-
-
-class ProvNode:
-    pass
 
 
 _VERSION_MATCHER = (
@@ -145,10 +137,10 @@ class ParserV5(ParserV4):
 class FormatHandler():
     """
     Parses VERSION file data, has a version-specific parser which allows
-    for safe construction of ProvDAG objects
+    for version-safe archive parsing
     """
     _FORMAT_REGISTRY = {
-        # NOTE: update as things change in qiime2.core.archive.Archiver
+        # NOTE: update for new format versions in qiime2.core.archive.Archiver
         '0': ParserV0,
         '1': ParserV1,
         '2': ParserV2,
@@ -197,8 +189,6 @@ class FormatHandler():
 
 
 # NEXT: ProvNode is going to need to handle version numbers as well.
-# Should we move it over into ArchiveFormats? Or just hand it a version number,
-# so it knows what to expect?
 class ProvNode:
     """ One node of a provenance DAG, describing one QIIME 2 Result """
     _parents = None

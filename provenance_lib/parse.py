@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import List, Dict
 
 import yaml
@@ -39,8 +40,6 @@ class ProvDAG:
     Archive.
     TODO: May also contain a non-hierarchical pool of unique ProvNodes?
     """
-    # NOTE: static type declarations like this break testing unless the class
-    # is forward declared (ProvNode must be above ProvDAG or NameError).
     _num_results: int
     _archv_contents: Dict[str, ProvNode]
     _archive_md: _ResultMetadata
@@ -48,11 +47,11 @@ class ProvDAG:
     # TODO: Does this object even care about these version numbers?
     @property
     def archive_version(self):
-        return self._handler.archive_version
+        return self.handler.archive_version
 
     @property
     def framework_version(self):
-        return self._handler._framework_version
+        return self.handler.framework_version
 
     @property
     def root_uuid(self):
@@ -93,7 +92,6 @@ class ProvDAG:
         self._num_results = 0
 
         with zipfile.ZipFile(archive_fp) as zf:
-            # Make a handler. Handler has a parser, parser safely gets data
             self.handler = FormatHandler(zf)
             self._archive_md, (self._num_results, self._archv_contents) = \
                 self.handler.parse(zf, archive_fp)

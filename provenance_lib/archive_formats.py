@@ -43,6 +43,7 @@ class ParserV1(ParserV0):
     """
     Parser for V1 archives. These track provenance, so we parse it.
     """
+    archv_contents = {}
     prov_filenames = ['metadata.yaml', 'action/action.yaml']
 
     @classmethod
@@ -58,7 +59,6 @@ class ParserV1(ParserV0):
         non-root provenance files live inside 'artifacts/<uuid>'
         e.g: <archive_root_uuid>/provenance/artifacts/<uuid>/metadata.yaml
         """
-        archv_contents = {}
         num_results = 0
 
         prov_data_fps = [
@@ -78,16 +78,13 @@ class ParserV1(ParserV0):
                 uuid = self._get_nonroot_uuid(fp)
                 prefix = pathlib.Path(*fp.parts[0:4])
 
-            if uuid not in archv_contents:
+            if uuid not in self.archv_contents:
                 fps_for_this_result = [prefix / name
                                        for name in self.prov_filenames]
                 num_results += 1
-                archv_contents[uuid] = ProvNode(self, zf, fps_for_this_result)
-
-            # NEXT: Fix tests
-            # NEXT: ProvNode is going to need to handle version numbers too.
-
-        return (num_results, archv_contents)
+                self.archv_contents[uuid] = ProvNode(self, zf,
+                                                     fps_for_this_result)
+        return (num_results, self.archv_contents)
 
     @classmethod
     def _get_nonroot_uuid(self, fp: pathlib.Path) -> str:
@@ -192,12 +189,7 @@ class FormatHandler():
 class ProvNode:
     """ One node of a provenance DAG, describing one QIIME 2 Result """
     _parents = None
-    _origin_archives = []
-
-    # NOTE: ProvNodes capture their "origin_archive" in a list when
-    # initialized, and ProvNode.parents expects that origin_archive to be at
-    # index 0. Union (and similar operations) should not interfere with this
-    # convention.
+    _origin_parser = []
 
     @property
     def parents(self):
@@ -211,7 +203,7 @@ class ProvNode:
                 parent_uuids = [
                     list(uuid.values())[0] for uuid in parent_dicts]
                 self._parents = [
-                    self._origin_archives[0]._archv_contents[uuid]
+                    self._origin_parser[0].archv_contents[uuid]
                     for uuid in parent_uuids]
             except KeyError:
                 pass
@@ -229,9 +221,11 @@ class ProvNode:
     def format(self):
         return self._result_md.format
 
+    # NEXT: ProvNode is going to need to handle version numbers too.
+    # Are we already doing that here, by only parsing the files that exist?
     def __init__(self, origin_archive, zf: zipfile,
                  fps_for_this_result: List[pathlib.Path]):
-        self._origin_archives.append(origin_archive)
+        self._origin_parser.append(origin_archive)
         # TODO: Does VERSION effect what other things get read in?
         for fp in fps_for_this_result:
             # TODO: Should we be reading these zipfiles once here,

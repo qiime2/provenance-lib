@@ -367,8 +367,8 @@ class ProvNodeTests(unittest.TestCase):
         self.assertEqual(parentless_node._parents, None)
 
     def test_parents_property_has_parents(self):
-        self.v5_ProvNode._origin_archives.append(ProvDAG(self.v5_qzv))
-        exp_nodes = [self.v5_ProvNode._origin_archives[0]._archv_contents[id]
+        self.v5_ProvNode._origin_parser.append(ProvDAG(self.v5_qzv))
+        exp_nodes = [self.v5_ProvNode._origin_parser[0].archv_contents[id]
                      for id in ['89af91c0-033d-4e30-8ac4-f29a3b407dc1',
                                 'bce3d09b-e296-4f2b-9af4-834db6412429']]
         # _parents not initialized before call

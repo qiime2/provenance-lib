@@ -6,9 +6,9 @@ from unittest.mock import MagicMock
 
 import zipfile
 
-from ..parse import _VERSION_MATCHER
+from ..archive_formats import _VERSION_MATCHER
+from ..archive_formats import _Action, _Citations, _ResultMetadata
 from ..parse import ProvNode, ProvDAG, UnionedDAG
-from ..parse import _Action, _Citations, _ResultMetadata
 
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')

@@ -2,7 +2,7 @@ from __future__ import annotations
 import codecs
 import pathlib
 import re
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
 import bibtexparser as bp
 import yaml
@@ -20,8 +20,10 @@ class ParserV0():
     """
     Parser for V0 archives. These have no provenance, so we only parse metadata
     """
+    version_string = 0
+
     @classmethod
-    def get_root_md(self, zf: zipfile.ZipFile, archive_fp: str) \
+    def get_root_md(self, zf: zipfile.ZipFile) \
             -> _ResultMetadata:
         """ Get archive metadata including root uuid """
         # All files in zf start with root uuid, so we'll grab it from the first
@@ -34,20 +36,19 @@ class ParserV0():
 
     @classmethod
     def populate_archv(self, zf: zipfile.ZipFile) -> None:
-        # TODO: How does mypy handle the different return type in subclasses?
-        # TODO: This should probably Warn that v0 has no provenance, citations
-        raise NotImplementedError
+        raise NotImplementedError("V0 Archives do not contain provenance data")
 
 
 class ParserV1(ParserV0):
     """
     Parser for V1 archives. These track provenance, so we parse it.
     """
+    version_string = 1
     archv_contents = {}
     prov_filenames = ['metadata.yaml', 'action/action.yaml']
 
     @classmethod
-    def populate_archv(self, zf: zipfile) -> Tuple[int, ProvNode]:
+    def populate_archv(self, zf: zipfile) -> Tuple[int, Dict[str, ProvNode]]:
         """
         Populates an _Archive with all relevant provenance data
         Takes an Archive (as a zipfile) as input.
@@ -104,6 +105,7 @@ class ParserV2(ParserV1):
     Parser for V2 archives. Directory structure identical to V1
     action.yaml changes to support Pipelines
     """
+    version_string = 2
 
 
 class ParserV3(ParserV2):
@@ -111,6 +113,7 @@ class ParserV3(ParserV2):
     Parser for V3 archives. Directory structure identical to V1 & V2
     action.yaml now supports variadic inputs, so !set tags in action.yaml
     """
+    version_string = 3
     # TODO: move set constructor over here? (and !cite constructor below?)
 
 
@@ -119,6 +122,7 @@ class ParserV4(ParserV3):
     Parser for V4 archives. Adds citations to dir structure, changes to
     action.yaml incl transformers
     """
+    version_string = 4
     prov_filenames = ['metadata.yaml', 'action/action.yaml', 'citations.bib']
 
 
@@ -126,6 +130,7 @@ class ParserV5(ParserV4):
     """
     Parser for V5 archives. Adds checksums.md5
     """
+    version_string = 5
     prov_filenames = ['metadata.yaml', 'action/action.yaml', 'citations.bib',
                       'checksums.md5']
     # TODO: Add very optional checksum validation?
@@ -181,7 +186,7 @@ class FormatHandler():
 
     def parse(self, zf: zipfile.ZipFile, archive_fp: str) -> \
             Tuple[_ResultMetadata, Tuple[int, ProvNode]]:
-        return (self.parser.get_root_md(zf, archive_fp),
+        return (self.parser.get_root_md(zf),
                 self.parser.populate_archv(zf))
 
 
@@ -221,12 +226,23 @@ class ProvNode:
     def format(self):
         return self._result_md.format
 
-    # NEXT: ProvNode is going to need to handle version numbers too.
-    # Are we already doing that here, by only parsing the files that exist?
+    @property
+    def archive_version(self):
+        return self._origin_parser[0].version_string
+
+    @property
+    def framework_version(self):
+        # storing this would require passing it from Handler -> parser -> node
+        # or factoring _get_version() out into a standalone function and
+        # calling it again here. For now, I'm saying we don't care.
+        return NotImplementedError
+
+    # NOTE: This constructor is intentionally flexible, and will parse any
+    # files handed to it. It is the responsibility of the ParserVx classes to
+    # decide what files need to be passed.
     def __init__(self, origin_archive, zf: zipfile,
                  fps_for_this_result: List[pathlib.Path]):
         self._origin_parser.append(origin_archive)
-        # TODO: Does VERSION effect what other things get read in?
         for fp in fps_for_this_result:
             # TODO: Should we be reading these zipfiles once here,
             # and then passing them to the constructors below?

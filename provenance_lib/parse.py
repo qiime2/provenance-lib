@@ -44,32 +44,42 @@ class ProvDAG:
     _archv_contents: Dict[str, ProvNode]
     _archive_md: _ResultMetadata
 
-    # TODO: Does this object even care about these version numbers?
+    # TODO: Drop? Does this object even care about these version numbers?
     @property
     def archive_version(self):
+        """The archive version of this QIIME 2 Archive"""
         return self.handler.archive_version
 
+    # TODO: Drop? Does this object even care about these version numbers?
     @property
     def framework_version(self):
+        """The framework version that created this QIIME 2 Archive"""
         return self.handler.framework_version
 
     @property
     def root_uuid(self):
+        """The UUID of the terminal node of one QIIME 2 Archive"""
         return self._archive_md.uuid
 
     @property
     def root_node(self):
+        """The terminal ProvNode of one QIIME 2 Archive"""
         return self.get_result(self.root_uuid)
 
+    # TODO: drop this - belongs to the node?
     @property
     def archive_type(self):
+        """The semantic type of the terminal node of one QIIME 2 Archive"""
         return self._archive_md.type
 
+    # TODO: drop this - belongs to the node?
     @property
     def archive_format(self):
+        """The format of the terminal node of one QIIME 2 Archive"""
         return self._archive_md.format
 
     def get_result(self, uuid):
+        """Returns a ProvNode from this ProvDAG selected by UUID"""
         return self._archv_contents[uuid]
 
     def _traverse_uuids_from_root(self):

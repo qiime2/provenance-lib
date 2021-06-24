@@ -88,141 +88,73 @@ class ArchiveVersionMatcherTests(unittest.TestCase):
         self.assertNotRegex("framework: 1953.3.0", self.re_l3)
 
 
-class ParserV0Tests(unittest.TestCase):
-    # TODO: This should be a v0 archive
-    v5_qzv = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
-    v5_qzv_no_root_md = os.path.join(DATA_DIR, 'no_root_md_yaml.qzv')
-    root_uuid = 'ffb7cee3-2f1f-4988-90cc-efd5184ef003'
+class ParserVxTests(unittest.TestCase):
+    # TODO: 0 should have a v0 archive
+    cfg = {
+        '0': {'uuid': 'ffb7cee3-2f1f-4988-90cc-efd5184ef003',
+              'parser': ParserV0,
+              'n_res': None
+              },
+        '1': {'uuid': '0b8b47bd-f2f8-4029-923c-0e37a68340c3',
+              'parser': ParserV1,
+              'n_res': 10,
+              },
+        '2a': {'uuid': '219c4bdf-f2b1-4b3f-b66a-08de8a4d17ca',
+               'parser': ParserV2,
+               'n_res': 10,
+               },
+        '2b': {'uuid': '8abf8dee-0047-4a7f-9826-e66893182978',
+               'parser': ParserV2,
+               'n_res': 14,
+               },
+        '3': {'uuid': '3544061c-6e2f-4328-8345-754416828cb5',
+              'parser': ParserV3,
+              'n_res': 14,
+              },
+        '4': {'uuid': '91c2189a-2d2e-4d53-98ee-659caaf6ffc2',
+              'parser': ParserV4,
+              'n_res': 14,
+              },
+        '5': {'uuid': 'ffb7cee3-2f1f-4988-90cc-efd5184ef003',
+              'parser': ParserV5,
+              'n_res': 15,
+              },
+        }
 
-    def test_get_root_md(self):
-        with zipfile.ZipFile(self.v5_qzv) as zf:
-            root_md = ParserV0.get_root_md(zf)
-            self.assertEqual(root_md.uuid, self.root_uuid)
-            self.assertEqual(root_md.type,  'Visualization')
-            self.assertEqual(root_md.format, None)
+    for archv_vrsn in cfg.keys():
+        qzv = os.path.join(DATA_DIR, 'v' + archv_vrsn + '_uu_emperor.qzv')
+        root_uuid = cfg[archv_vrsn]['uuid']
 
-    def test_no_root_md(self):
-        with self.assertRaisesRegex(ValueError, "no top-level metadata"):
-            ProvDAG(self.v5_qzv_no_root_md)
+        def test_get_root_md(self):
+            with zipfile.ZipFile(self.qzv) as zf:
+                root_md = self.cfg[self.archv_vrsn]['parser'].get_root_md(zf)
+                self.assertEqual(root_md.uuid, self.root_uuid)
+                self.assertEqual(root_md.type,  'Visualization')
+                self.assertEqual(root_md.format, None)
 
-    def test_populate_archive(self):
-        with zipfile.ZipFile(self.v5_qzv) as zf:
-            with self.assertRaisesRegex(NotImplementedError,
-                                        "V0.*no.*provenance"):
-                ParserV0.populate_archv(zf)
+        def test_populate_archive(self):
+            with zipfile.ZipFile(self.qzv) as zf:
+                if self.archv_vrsn == '0':
+                    with self.assertRaisesRegex(NotImplementedError,
+                                                "V0.*no.*provenance"):
+                        self.cfg[self.archv_vrsn]['parser'].populate_archv(zf)
+                else:
+                    num_res, contents = \
+                        self.cfg[self.archv_vrsn]['parser'].populate_archv(zf)
+                    # Does this archive have the right number of Results?
+                    self.assertEqual(num_res, 10)
+                    # Is contents a dict?
+                    self.assertEqual(dict, type(contents))
+                    # Is contents keyed on uuids, containing ProvNodes?
+                    self.assertEqual(ProvNode, type(contents[self.root_uuid]))
+                    # Is the root UUID a key in the contents dict?
+                    self.assertIn(self.root_uuid, contents)
 
-
-class ParserV1Tests(unittest.TestCase):
-    v1_qzv = os.path.join(DATA_DIR, 'v1_uu_emperor.qzv')
-    root_uuid = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
-
-    def test_get_root_md(self):
-        with zipfile.ZipFile(self.v1_qzv) as zf:
-            root_md = ParserV1.get_root_md(zf)
-            self.assertEqual(root_md.uuid, self.root_uuid)
-            self.assertEqual(root_md.type,  'Visualization')
-            self.assertEqual(root_md.format, None)
-
-    def test_populate_archive(self):
-        with zipfile.ZipFile(self.v1_qzv) as zf:
-            num_res, contents = ParserV1.populate_archv(zf)
-            self.assertEqual(num_res, 10)
-            self.assertIn(self.root_uuid, contents)
-            self.assertEqual(dict, type(contents))
-            self.assertEqual(ProvNode, type(contents[self.root_uuid]))
-
-
-class ParserV2Tests(unittest.TestCase):
-    v2a_qzv = os.path.join(DATA_DIR, 'v2a_uu_emperor.qzv')
-    v2b_qzv = os.path.join(DATA_DIR, 'v2b_uu_emperor.qzv')
-    root_uuid_a = '219c4bdf-f2b1-4b3f-b66a-08de8a4d17ca'
-    root_uuid_b = '8abf8dee-0047-4a7f-9826-e66893182978'
-
-    def test_get_root_md(self):
-        with zipfile.ZipFile(self.v2a_qzv) as zf:
-            root_md = ParserV2.get_root_md(zf)
-            self.assertEqual(root_md.uuid, self.root_uuid_a)
-            self.assertEqual(root_md.type,  'Visualization')
-            self.assertEqual(root_md.format, None)
-        with zipfile.ZipFile(self.v2b_qzv) as zf:
-            root_md = ParserV2.get_root_md(zf)
-            self.assertEqual(root_md.uuid, self.root_uuid_b)
-            self.assertEqual(root_md.type,  'Visualization')
-            self.assertEqual(root_md.format, None)
-
-    def test_populate_archive(self):
-        with zipfile.ZipFile(self.v2a_qzv) as zf:
-            num_res, contents = ParserV2.populate_archv(zf)
-            self.assertEqual(num_res, 10)
-            self.assertIn(self.root_uuid_a, contents)
-            self.assertEqual(dict, type(contents))
-            self.assertEqual(ProvNode, type(contents[self.root_uuid_a]))
-        with zipfile.ZipFile(self.v2b_qzv) as zf:
-            num_res, contents = ParserV2.populate_archv(zf)
-            self.assertEqual(num_res, 14)
-            self.assertIn(self.root_uuid_b, contents)
-            self.assertEqual(dict, type(contents))
-            self.assertEqual(ProvNode, type(contents[self.root_uuid_b]))
-
-
-class ParserV3Tests(unittest.TestCase):
-    v3_qzv = os.path.join(DATA_DIR, 'v3_uu_emperor.qzv')
-    root_uuid = '3544061c-6e2f-4328-8345-754416828cb5'
-
-    def test_get_root_md(self):
-        with zipfile.ZipFile(self.v3_qzv) as zf:
-            root_md = ParserV3.get_root_md(zf)
-            self.assertEqual(root_md.uuid, self.root_uuid)
-            self.assertEqual(root_md.type,  'Visualization')
-            self.assertEqual(root_md.format, None)
-
-    def test_populate_archive(self):
-        with zipfile.ZipFile(self.v3_qzv) as zf:
-            num_res, contents = ParserV3.populate_archv(zf)
-            self.assertEqual(num_res, 14)
-            self.assertIn(self.root_uuid, contents)
-            self.assertEqual(dict, type(contents))
-            self.assertEqual(ProvNode, type(contents[self.root_uuid]))
-
-
-class ParserV4Tests(unittest.TestCase):
-    v4_qzv = os.path.join(DATA_DIR, 'v4_uu_emperor.qzv')
-    root_uuid = '91c2189a-2d2e-4d53-98ee-659caaf6ffc2'
-
-    def test_get_root_md(self):
-        with zipfile.ZipFile(self.v4_qzv) as zf:
-            root_md = ParserV4.get_root_md(zf)
-            self.assertEqual(root_md.uuid, self.root_uuid)
-            self.assertEqual(root_md.type,  'Visualization')
-            self.assertEqual(root_md.format, None)
-
-    def test_populate_archive(self):
-        with zipfile.ZipFile(self.v4_qzv) as zf:
-            num_res, contents = ParserV4.populate_archv(zf)
-            self.assertEqual(num_res, 14)
-            self.assertIn(self.root_uuid, contents)
-            self.assertEqual(dict, type(contents))
-            self.assertEqual(ProvNode, type(contents[self.root_uuid]))
-
-
-class ParserV5Tests(unittest.TestCase):
-    v5_qzv = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
-    root_uuid = 'ffb7cee3-2f1f-4988-90cc-efd5184ef003'
-
-    def test_get_root_md(self):
-        with zipfile.ZipFile(self.v5_qzv) as zf:
-            root_md = ParserV5.get_root_md(zf)
-            self.assertEqual(root_md.uuid, self.root_uuid)
-            self.assertEqual(root_md.type,  'Visualization')
-            self.assertEqual(root_md.format, None)
-
-    def test_populate_archive(self):
-        with zipfile.ZipFile(self.v5_qzv) as zf:
-            num_res, contents = ParserV5.populate_archv(zf)
-            self.assertEqual(num_res, 15)
-            self.assertIn(self.root_uuid, contents)
-            self.assertEqual(dict, type(contents))
-            self.assertEqual(ProvNode, type(contents[self.root_uuid]))
+            # NEXT: Why does archive 5 have 0 Results in it?
+            # test_parse.test_number_of_actions returns 15 successfully.
+            # NEXT: Coverage
+            # Do we want a test here that considers all results somehow? Is
+            # that niche already covered by our ProvDAG tests?
 
 
 class ResultMetadataTests(unittest.TestCase):

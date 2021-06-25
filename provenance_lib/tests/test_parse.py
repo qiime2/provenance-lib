@@ -1,8 +1,6 @@
-# flake8: noqa
 import os
 import codecs
 import pathlib
-from typing import Dict
 import unittest
 from unittest.mock import MagicMock
 
@@ -287,12 +285,12 @@ class FormatHandlerTests(unittest.TestCase):
               'fwv': '2.0.6',
               },
         '2a': {'parser': ParserV2,
-              'av': '2',
-              'fwv': '2017.9.0',
+               'av': '2',
+               'fwv': '2017.9.0',
                },
         '2b': {'parser': ParserV2,
-              'av': '2',
-              'fwv': '2017.10.0',
+               'av': '2',
+               'fwv': '2017.10.0',
                },
         '3': {'parser': ParserV3,
               'av': '3',

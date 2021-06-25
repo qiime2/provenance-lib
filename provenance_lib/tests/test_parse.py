@@ -25,7 +25,6 @@ class ProvDAGTests(unittest.TestCase):
     v5_qzv_version_bad = os.path.join(DATA_DIR, 'VERSION_bad.qzv')
     v5_qzv_version_short = os.path.join(DATA_DIR, 'VERSION_short.qzv')
     v5_qzv_version_long = os.path.join(DATA_DIR, 'VERSION_long.qzv')
-    v5_qzv_two_root_mds = os.path.join(DATA_DIR, 'two_root_md_yamls.qzv')
     fake_fp = os.path.join(DATA_DIR, 'not_a_filepath.qza')
     not_a_zip = os.path.join(DATA_DIR, 'not_a_zip.txt')
 
@@ -75,6 +74,12 @@ class ProvDAGTests(unittest.TestCase):
 
     def test_number_of_actions(self):
         self.assertEqual(self.v5_provDag._num_results, 15)
+
+    def test_archive_type(self):
+        self.assertEqual(self.v5_provDag.archive_type, 'Visualization')
+
+    def test_archive_format(self):
+        self.assertEqual(self.v5_provDag.archive_format, None)
 
     def test_nonexistent_fp(self):
         with self.assertRaisesRegex(FileNotFoundError, "not_a_filepath.qza"):
@@ -196,9 +201,9 @@ class ArchiveVersionMatcherTests(unittest.TestCase):
 
 
 class ParserVxTests(unittest.TestCase):
-    # TODO: 0 should have a v0 archive
+    # TODO: 0 should have a real v0 archive. Currently a hacked V1 arhive
     cfg = {
-        '0': {'uuid': 'ffb7cee3-2f1f-4988-90cc-efd5184ef003',
+        '0': {'uuid': '0b8b47bd-f2f8-4029-923c-0e37a68340c3',
               'parser': ParserV0,
               'num_res': None
               },
@@ -228,39 +233,68 @@ class ParserVxTests(unittest.TestCase):
               },
         }
 
-    for archv_vrsn in cfg.keys():
-        qzv = os.path.join(DATA_DIR, 'v' + archv_vrsn + '_uu_emperor.qzv')
-        root_uuid = cfg[archv_vrsn]['uuid']
-
-        def test_get_root_md(self):
-            with zipfile.ZipFile(self.qzv) as zf:
-                root_md = self.cfg[self.archv_vrsn]['parser'].get_root_md(zf)
-                self.assertEqual(root_md.uuid, self.root_uuid)
+    def test_get_root_md(self):
+        for archv_vrsn in self.cfg.keys():
+            qzv = os.path.join(DATA_DIR, 'v' + archv_vrsn + '_uu_emperor.qzv')
+            root_uuid = self.cfg[archv_vrsn]['uuid']
+            with zipfile.ZipFile(qzv) as zf:
+                root_md = self.cfg[archv_vrsn]['parser'].get_root_md(zf)
+                self.assertEqual(root_md.uuid, root_uuid)
                 self.assertEqual(root_md.type,  'Visualization')
                 self.assertEqual(root_md.format, None)
 
-        def test_populate_archive(self):
-            mock_DAG = MagicMock()
-            with zipfile.ZipFile(self.qzv) as zf:
-                if self.archv_vrsn == '0':
+    def test_get_root_md_no_md_yaml(self):
+        v5_qzv_no_root_md = os.path.join(DATA_DIR, 'no_root_md_yaml.qzv')
+        for archv_vrsn in self.cfg.keys():
+            with zipfile.ZipFile(v5_qzv_no_root_md) as zf:
+                with self.assertRaisesRegex(ValueError, "Malformed.*metadata"):
+                    self.cfg[archv_vrsn]['parser'].get_root_md(zf)
+
+    def test_populate_archive(self):
+        mock_DAG = MagicMock()
+        for archv_vrsn in self.cfg.keys():
+            qzv = os.path.join(DATA_DIR, 'v' + archv_vrsn + '_uu_emperor.qzv')
+            root_uuid = self.cfg[archv_vrsn]['uuid']
+            with zipfile.ZipFile(qzv) as zf:
+                if archv_vrsn == '0':
                     with self.assertRaisesRegex(NotImplementedError,
                                                 "V0.*no.*provenance"):
-                        self.cfg[self.archv_vrsn]['parser'].populate_archv(
-                            zf, mock_DAG)
+                        self.cfg[archv_vrsn]['parser'] \
+                            .populate_archv(zf, mock_DAG)
                 else:
-                    num_res, contents = \
-                        self.cfg[self.archv_vrsn]['parser'].populate_archv(
-                            zf, mock_DAG)
-                    print(f"Debug: archive version #{self.archv_vrsn} failing")
+                    num_res, contents = self.cfg[archv_vrsn]['parser'] \
+                                            .populate_archv(zf, mock_DAG)
+                    print(f"Debug: archive version #{archv_vrsn} failing")
                     # Does this archive have the right number of Results?
-                    self.assertEqual(num_res,
-                                     self.cfg[self.archv_vrsn]['num_res'])
+                    self.assertEqual(num_res, self.cfg[archv_vrsn]['num_res'])
                     # Is contents a dict?
                     self.assertEqual(dict, type(contents))
                     # Is contents keyed on uuids, containing ProvNodes?
-                    self.assertEqual(ProvNode, type(contents[self.root_uuid]))
+                    self.assertEqual(ProvNode, type(contents[root_uuid]))
                     # Is the root UUID a key in the contents dict?
-                    self.assertIn(self.root_uuid, contents)
+                    self.assertIn(root_uuid, contents)
+
+    def test_get_nonroot_uuid(self):
+        md_example = pathlib.Path(
+            'arch_root/provenance/artifacts/uuid123/metadata.yaml')
+        action_example = pathlib.Path(
+            'arch_root/provenance/artifacts/uuid123/action/action.yaml')
+        exp = 'uuid123'
+
+        with self.assertRaisesRegex(NotImplementedError, "V0"):
+            self.cfg['0']['parser']._get_nonroot_uuid(md_example)
+
+        # Only parsers from v1 forward have this method
+        parsers = [vrsn['parser'] for vrsn in list(self.cfg.values())[1:]]
+
+        for parser in parsers:
+            self.assertEqual(parser._get_nonroot_uuid(md_example), exp)
+            self.assertEqual(parser._get_nonroot_uuid(action_example), exp)
+
+
+class FormatHandlerTests(unittest.TestCase):
+    # TODO: NEXT
+    pass
 
 
 class ResultMetadataTests(unittest.TestCase):
@@ -396,6 +430,12 @@ class ProvNodeTests(unittest.TestCase):
         self.assertEqual(repr(self.v5_ProvNode),
                          "ProvNode(ffb7cee3-2f1f-4988-90cc-efd5184ef003, "
                          "Visualization, fmt=None)")
+
+    def test_archive_version(self):
+        self.assertEqual(self.v5_ProvNode.archive_version, '5')
+
+    def test_framework_version(self):
+        self.assertEqual(self.v5_ProvNode.framework_version, '2018.11.0')
 
     maxDiff = None
 

@@ -165,15 +165,15 @@ class ProvNode:
 
     @property
     def archive_version(self):
-        # TODO: NEXT Fix this
-        return self._owner_dag.version_string
+        # TODO: Should nodes know their own versions information? I think so.
+        # This would have to happen in parsing, by reading additional VERSIONs
+        return self._owner_dag.archive_version
 
     @property
     def framework_version(self):
-        # storing this would require passing it from Handler -> parser -> node
-        # or factoring _get_version() out into a standalone function and
-        # calling it again here. For now, I'm saying we don't care.
-        return NotImplementedError
+        # TODO: Should nodes know their own versions information? I think so.
+        # This would have to happen in parsing, by reading additional VERSIONs
+        return self._owner_dag.framework_version
 
     # NOTE: This constructor is intentionally flexible, and will parse any
     # files handed to it. It is the responsibility of the ParserVx classes to
@@ -304,8 +304,15 @@ class ParserV0():
             raise ValueError("Malformed Archive: "
                              "no top-level metadata.yaml file")
 
+    # QUESTION: This is not an ABC. Is it best practice to drop these methods
+    # and include them only in subclasses where they are actually implemented
+    # by the Archive Format? Tests that iterate can always catch other errors
     @classmethod
-    def populate_archv(self, zf: zipfile.ZipFile) -> None:
+    def populate_archv(self, zf: zipfile.ZipFile, owner_dag: ProvDAG) -> None:
+        raise NotImplementedError("V0 Archives do not contain provenance data")
+
+    @classmethod
+    def _get_nonroot_uuid(self, fp: pathlib.Path) -> str:
         raise NotImplementedError("V0 Archives do not contain provenance data")
 
 
@@ -329,6 +336,7 @@ class ParserV1(ParserV0):
         e.g: <archive_root_uuid>/provenance/metadata.yaml
         non-root provenance files live inside 'artifacts/<uuid>'
         e.g: <archive_root_uuid>/provenance/artifacts/<uuid>/metadata.yaml
+        or <archive_root_uuid>/provenance/artifacts/<uuid>/action/action.yaml
         """
         archv_contents = {}
         num_results = 0

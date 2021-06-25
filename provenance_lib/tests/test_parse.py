@@ -1,13 +1,15 @@
+# flake8: noqa
 import os
 import codecs
 import pathlib
+from typing import Dict
 import unittest
 from unittest.mock import MagicMock
 
 import zipfile
 
 from ..parse import (
-    _VERSION_MATCHER, ProvDAG, UnionedDAG, ProvNode,
+    _VERSION_MATCHER, ProvDAG, UnionedDAG, ProvNode, FormatHandler,
     _Action, _Citations, _ResultMetadata,
     ParserV0, ParserV1, ParserV2, ParserV3, ParserV4, ParserV5,
 )
@@ -21,10 +23,6 @@ class ProvDAGTests(unittest.TestCase):
     maxDiff = None
 
     v5_qzv = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
-    v5_qzv_version_gone = os.path.join(DATA_DIR, 'VERSION_missing.qzv')
-    v5_qzv_version_bad = os.path.join(DATA_DIR, 'VERSION_bad.qzv')
-    v5_qzv_version_short = os.path.join(DATA_DIR, 'VERSION_short.qzv')
-    v5_qzv_version_long = os.path.join(DATA_DIR, 'VERSION_long.qzv')
     fake_fp = os.path.join(DATA_DIR, 'not_a_filepath.qza')
     not_a_zip = os.path.join(DATA_DIR, 'not_a_zip.txt')
 
@@ -90,31 +88,11 @@ class ProvDAGTests(unittest.TestCase):
                                     "File is not a zip file"):
             ProvDAG(self.not_a_zip)
 
-    # Testing major VERSION file issues is easier and more reliable with
-    # "real" archives (here). Detailed tests of the VERSION regex are in
-    # test_archive_formats.VersionMatcherTests, so we can reduce overhead
     def test_archive_version_correct(self):
         self.assertEqual(self.v5_provDag.archive_version, '5')
 
     def test_framework_version_correct(self):
         self.assertEqual(self.v5_provDag.framework_version, '2018.11.0')
-
-    def test_no_VERSION(self):
-        with self.assertRaisesRegex(ValueError, "VERSION.*nonexistent"):
-            ProvDAG(self.v5_qzv_version_gone)
-
-    def test_bad_VERSION(self):
-        with self.assertRaisesRegex(ValueError, "VERSION.*out of spec"):
-            ProvDAG(self.v5_qzv_version_bad)
-
-    def test_short_VERSION(self):
-        with self.assertRaisesRegex(ValueError, "VERSION.*out of spec"):
-            ProvDAG(self.v5_qzv_version_short)
-
-    def test_long_VERSION(self):
-        with self.assertRaisesRegex(ValueError,
-                                    "VERSION.*out of spec"):
-            ProvDAG(self.v5_qzv_version_long)
 
 
 class UnionedDAGTests(unittest.TestCase):
@@ -268,9 +246,9 @@ class ParserVxTests(unittest.TestCase):
                     # Does this archive have the right number of Results?
                     self.assertEqual(num_res, self.cfg[archv_vrsn]['num_res'])
                     # Is contents a dict?
-                    self.assertEqual(dict, type(contents))
+                    self.assertIs(type(contents), dict)
                     # Is contents keyed on uuids, containing ProvNodes?
-                    self.assertEqual(ProvNode, type(contents[root_uuid]))
+                    self.assertIs(type(contents[root_uuid]), ProvNode)
                     # Is the root UUID a key in the contents dict?
                     self.assertIn(root_uuid, contents)
 
@@ -293,8 +271,116 @@ class ParserVxTests(unittest.TestCase):
 
 
 class FormatHandlerTests(unittest.TestCase):
-    # TODO: NEXT
-    pass
+    v5_qzv = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
+    v5_no_version = os.path.join(DATA_DIR, 'VERSION_missing.qzv')
+    v5_qzv_version_bad = os.path.join(DATA_DIR, 'VERSION_bad.qzv')
+    v5_qzv_version_short = os.path.join(DATA_DIR, 'VERSION_short.qzv')
+    v5_qzv_version_long = os.path.join(DATA_DIR, 'VERSION_long.qzv')
+
+    cfg = {
+        '0': {'parser': ParserV0,
+              'av': '0',
+              'fwv': '2.0.5',
+              },
+        '1': {'parser': ParserV1,
+              'av': '1',
+              'fwv': '2.0.6',
+              },
+        '2a': {'parser': ParserV2,
+              'av': '2',
+              'fwv': '2017.9.0',
+               },
+        '2b': {'parser': ParserV2,
+              'av': '2',
+              'fwv': '2017.10.0',
+               },
+        '3': {'parser': ParserV3,
+              'av': '3',
+              'fwv': '2017.12.0',
+              },
+        '4': {'parser': ParserV4,
+              'av': '4',
+              'fwv': '2018.4.0',
+              },
+        '5': {'parser': ParserV5,
+              'av': '5',
+              'fwv': '2018.11.0',
+              },
+        }
+
+    # Can we make a FormatHandler without anything blowing up?
+    def test_smoke(self):
+        for arch_ver in self.cfg.keys():
+            qzv = os.path.join(DATA_DIR, 'v' + arch_ver + '_uu_emperor.qzv')
+            with zipfile.ZipFile(qzv) as zf:
+                FormatHandler(zf)
+        self.assertTrue(True)
+
+    def test_archive_version(self):
+        for arch_ver in self.cfg.keys():
+            qzv = os.path.join(DATA_DIR, 'v' + arch_ver + '_uu_emperor.qzv')
+            with zipfile.ZipFile(qzv) as zf:
+                handler = FormatHandler(zf)
+                self.assertEqual(handler.archive_version,
+                                 self.cfg[arch_ver]['av'])
+
+    def test_framework_version(self):
+        for arch_ver in self.cfg.keys():
+            qzv = os.path.join(DATA_DIR, 'v' + arch_ver + '_uu_emperor.qzv')
+            with zipfile.ZipFile(qzv) as zf:
+                handler = FormatHandler(zf)
+                print(arch_ver)
+                print(handler.archive_version)
+                print(handler.framework_version)
+                print(self.cfg[arch_ver]['fwv'])
+                self.assertEqual(handler.framework_version,
+                                 self.cfg[arch_ver]['fwv'])
+
+    def test_correct_parser(self):
+        for arch_ver in self.cfg.keys():
+            qzv = os.path.join(DATA_DIR, 'v' + arch_ver + '_uu_emperor.qzv')
+            with zipfile.ZipFile(qzv) as zf:
+                handler = FormatHandler(zf)
+                self.assertEqual(handler.parser,
+                                 self.cfg[arch_ver]['parser'])
+
+    def test_parse(self):
+        uuid = 'ffb7cee3-2f1f-4988-90cc-efd5184ef003'
+        with zipfile.ZipFile(self.v5_qzv) as zf:
+            handler = FormatHandler(zf)
+            mock_DAG = MagicMock()
+            md, (num_r, contents) = handler.parse(zf, mock_DAG)
+            self.assertIs(type(md), _ResultMetadata)
+            self.assertEqual(md.uuid, uuid)
+            self.assertEqual(md.type, 'Visualization')
+            self.assertEqual(md.format, None)
+            self.assertIs(type(num_r), int)
+            self.assertEqual(num_r, 15)
+            self.assertIn(uuid, contents.keys())
+            self.assertIs(type(contents[uuid]), ProvNode)
+
+    # Testing _get_version's behavior with major VERSION file issues is easier
+    # and more reliable with "real" zip archives. Detailed tests of the VERSION
+    # regex are in test_archive_formats.VersionMatcherTests to reduce overhead
+    def test_get_version_no_VERSION_file(self):
+        with zipfile.ZipFile(self.v5_no_version) as zf:
+            with self.assertRaisesRegex(ValueError, "VERSION.*nonexistent"):
+                FormatHandler(zf)
+
+    def test_get_version_VERSION_bad(self):
+        with zipfile.ZipFile(self.v5_qzv_version_bad) as zf:
+            with self.assertRaisesRegex(ValueError, "VERSION.*out of spec"):
+                FormatHandler(zf)
+
+    def test_short_VERSION(self):
+        with zipfile.ZipFile(self.v5_qzv_version_short) as zf:
+            with self.assertRaisesRegex(ValueError, "VERSION.*out of spec"):
+                FormatHandler(zf)
+
+    def test_long_VERSION(self):
+        with zipfile.ZipFile(self.v5_qzv_version_long) as zf:
+            with self.assertRaisesRegex(ValueError, "VERSION.*out of spec"):
+                FormatHandler(zf)
 
 
 class ResultMetadataTests(unittest.TestCase):
@@ -405,6 +491,7 @@ class ProvNodeTests(unittest.TestCase):
             self.v5_ProvNode = ProvNode(self.v5_dag, zf, self.root_md_fps)
 
     def test_smoke(self):
+        self.assertTrue(True)
         self.assertIs(type(self.v5_ProvNode), ProvNode)
 
     def test_v5_viz_md(self):

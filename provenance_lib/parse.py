@@ -10,10 +10,10 @@ import zipfile
 
 
 _VERSION_MATCHER = (
-    r"QIIME 2\n"
-    r"archive: [0-9]{1,2}$\n"
-    r"framework: "
-    r"(?:20[0-9]{2}|2)\.(?:[1-9][0-2]?|0)\.[0-9](?:\.dev[0-9]?)?\Z")
+    r'QIIME 2\n'
+    r'archive: [0-9]{1,2}$\n'
+    r'framework: '
+    r'(?:20[0-9]{2}|2)\.(?:[1-9][0-2]?|0)\.[0-9](?:\.dev[0-9]?)?\Z')
 
 # TODO: Move constructors into a separate module
 # from yaml_constructors import (
@@ -466,7 +466,7 @@ class FormatHandler():
                 f"Actually looks like:\n{version_contents}\n")
 
         return [line.strip().split()[-1]
-                for line in version_contents.split(sep="\n") if line]
+                for line in version_contents.split(sep='\n') if line]
 
     def parse(self, zf: zipfile.ZipFile, owned_by: ProvDAG) -> \
             Tuple[_ResultMetadata, Tuple[int, Dict[str, ProvNode]]]:

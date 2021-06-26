@@ -197,9 +197,14 @@ class ProvNode:
     def __str__(self):
         return f'ProvNode({self.uuid})'
 
+    def __hash__(self):
+        return hash(self.uuid)
+
     def __eq__(self, other):
         # TODO: Should this offer more robust validation?
-        return self.uuid == other.uuid
+        return (self.__class__ == other.__class__
+                and self.uuid == other.uuid
+                )
 
     # TODO: Should this live in ProvDAG?
     def traverse_uuids(self):

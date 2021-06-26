@@ -479,6 +479,7 @@ class ProvNodeTests(unittest.TestCase):
         # Building a dag to back thesee tests, because the alternative is to
         # hand-build two to three test nodes and mock a ProvDAG to hold them.
         self.v5_dag = ProvDAG(self.v5_qzv)
+        self.v5_uuid = 'ffb7cee3-2f1f-4988-90cc-efd5184ef003'
         super().setUp()
         self.root_metadata_fps = None
 
@@ -494,22 +495,32 @@ class ProvNodeTests(unittest.TestCase):
 
     def test_v5_viz_md(self):
         print(self.v5_ProvNode)
-        self.assertEqual(self.v5_ProvNode.uuid,
-                         'ffb7cee3-2f1f-4988-90cc-efd5184ef003')
+        self.assertEqual(self.v5_ProvNode.uuid, self.v5_uuid)
         self.assertEqual(self.v5_ProvNode.sem_type, 'Visualization')
         self.assertEqual(self.v5_ProvNode.format, None)
 
     def test_eq(self):
         self.assertEqual(self.v5_ProvNode, self.v5_ProvNode)
         mock_node = MagicMock()
-        mock_node.uuid = 'ffb7cee3-2f1f-4988-90cc-efd5184ef003'
-        self.assertEqual(self.v5_ProvNode, mock_node)
-        mock_node.uuid = 'gerbil'
+        # Mock has no matching UUID
         self.assertNotEqual(self.v5_ProvNode, mock_node)
+        mock_node.uuid = 'gerbil'
+
+        # Mock has bad UUID
+        self.assertNotEqual(self.v5_ProvNode, mock_node)
+        mock_node.uuid = self.v5_uuid
+
+        # Matching UUIDs insufficient if classes differ
+        self.assertNotEqual(self.v5_ProvNode, mock_node)
+        mock_node.__class__ = ProvNode
+        self.assertEqual(self.v5_ProvNode, mock_node)
+
+    def test_is_hashable(self):
+        exp_hash = hash(self.v5_uuid)
+        self.assertEqual(hash(self.v5_ProvNode), exp_hash)
 
     def test_str(self):
-        self.assertEqual(str(self.v5_ProvNode),
-                         "ProvNode(ffb7cee3-2f1f-4988-90cc-efd5184ef003)")
+        self.assertEqual(str(self.v5_ProvNode), f"ProvNode({self.v5_uuid})")
 
     def test_repr(self):
         self.assertEqual(repr(self.v5_ProvNode),

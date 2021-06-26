@@ -21,6 +21,7 @@ class ProvDAGTests(unittest.TestCase):
     maxDiff = None
 
     v5_qzv = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
+    v5_uuid = 'ffb7cee3-2f1f-4988-90cc-efd5184ef003'
     fake_fp = os.path.join(DATA_DIR, 'not_a_filepath.qza')
     not_a_zip = os.path.join(DATA_DIR, 'not_a_zip.txt')
 
@@ -32,8 +33,7 @@ class ProvDAGTests(unittest.TestCase):
         self.assertTrue(True)
 
     def test_root_uuid_correct(self):
-        self.assertEqual(self.v5_provDag.root_uuid,
-                         "ffb7cee3-2f1f-4988-90cc-efd5184ef003")
+        self.assertEqual(self.v5_provDag.root_uuid, self.v5_uuid)
 
     def test_root_node_is_archive_root(self):
         mock_dag = MagicMock()
@@ -48,24 +48,24 @@ class ProvDAGTests(unittest.TestCase):
 
     def test_str(self):
         self.assertRegex(str(self.v5_provDag),
-                         "(?s)UUID:\t\tffb7cee3.*Type.*Data Format")
+                         '(?s)UUID:\t\tffb7cee3.*Type.*Data Format')
 
     def test_repr(self):
         self.assertRegex(
             repr(self.v5_provDag),
-            "(?s)UUID:\t\tffb7cee3.*Type.*Data Format.*Contains")
+            '(?s)UUID:\t\tffb7cee3.*Type.*Data Format.*Contains')
 
     def test_repr_contains(self):
         self.assertRegex(repr(self.v5_provDag),
-                         ("ffb7cee3-2f1f-4988-90cc-efd5184ef003:\n"
-                          "  89af91c0-033d-4e30-8ac4-f29a3b407dc1:\n"
-                          "    99fa3670-aa1a-45f6-ba8e-803c976a1163:\n"
-                          "      a35830e1-4535-47c6-aa23-be295a57ee1c: null\n"
-                          "  bce3d09b-e296-4f2b-9af4-834db6412429:\n"
-                          "    7ecf8954-e49a-4605-992e-99fcee397935:\n"
-                          "      99fa3670-aa1a-45f6-ba8e-803c976a1163:\n"
-                          "        a35830e1-4535-47c6-aa23-be295a57ee1c: null"
-                          "\n")
+                         ('ffb7cee3-2f1f-4988-90cc-efd5184ef003:\n'
+                          '  89af91c0-033d-4e30-8ac4-f29a3b407dc1:\n'
+                          '    99fa3670-aa1a-45f6-ba8e-803c976a1163:\n'
+                          '      a35830e1-4535-47c6-aa23-be295a57ee1c: null\n'
+                          '  bce3d09b-e296-4f2b-9af4-834db6412429:\n'
+                          '    7ecf8954-e49a-4605-992e-99fcee397935:\n'
+                          '      99fa3670-aa1a-45f6-ba8e-803c976a1163:\n'
+                          '        a35830e1-4535-47c6-aa23-be295a57ee1c: null'
+                          '\n')
                          )
 
     def test_number_of_actions(self):
@@ -78,12 +78,12 @@ class ProvDAGTests(unittest.TestCase):
         self.assertEqual(self.v5_provDag.archive_format, None)
 
     def test_nonexistent_fp(self):
-        with self.assertRaisesRegex(FileNotFoundError, "not_a_filepath.qza"):
+        with self.assertRaisesRegex(FileNotFoundError, 'not_a_filepath.qza'):
             ProvDAG(self.fake_fp)
 
     def test_not_a_zip_archive(self):
         with self.assertRaisesRegex(zipfile.BadZipFile,
-                                    "File is not a zip file"):
+                                    'File is not a zip file'):
             ProvDAG(self.not_a_zip)
 
     def test_archive_version_correct(self):
@@ -95,13 +95,13 @@ class ProvDAGTests(unittest.TestCase):
 
 class UnionedDAGTests(unittest.TestCase):
     v5_qzv = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
+    v5_uuid = 'ffb7cee3-2f1f-4988-90cc-efd5184ef003'
     v5_dag = ProvDAG(v5_qzv)
     dag_list = [v5_dag]
 
     def test_union_one_dag(self):
         dag = UnionedDAG(self.dag_list)
-        self.assertEqual(dag.root_uuids,
-                         ["ffb7cee3-2f1f-4988-90cc-efd5184ef003"])
+        self.assertEqual(dag.root_uuids, [self.v5_uuid])
         self.assertEqual(dag.root_nodes, [self.v5_dag.root_node])
 
 
@@ -110,70 +110,70 @@ class ArchiveVersionMatcherTests(unittest.TestCase):
 
     def test_version_too_short(self):
         shorty = (
-            r"QIIME 2\n"
-            r"archive: 4"
+            r'QIIME 2\n'
+            r'archive: 4'
         )
         self.assertNotRegex(shorty, _VERSION_MATCHER)
 
     def test_version_too_long(self):
         longy = (
-            r"QIIME 2\n"
-            r"archive: 4\n"
-            r"framework: 2019.8.1.dev0\n"
-            r"This line should not be here"
+            r'QIIME 2\n'
+            r'archive: 4\n'
+            r'framework: 2019.8.1.dev0\n'
+            r'This line should not be here'
         )
         self.assertNotRegex(longy, _VERSION_MATCHER)
 
-    splitvm = codecs.decode(_VERSION_MATCHER, 'unicode-escape').split(sep="\n")
+    splitvm = codecs.decode(_VERSION_MATCHER, 'unicode-escape').split(sep='\n')
     re_l1, re_l2, re_l3 = splitvm
 
     def test_line1_good(self):
-        self.assertRegex("QIIME 2\n", self.re_l1)
+        self.assertRegex('QIIME 2\n', self.re_l1)
 
     def test_line1_bad(self):
-        self.assertNotRegex("SHIMMY 2\n", self.re_l1)
+        self.assertNotRegex('SHIMMY 2\n', self.re_l1)
 
     def test_archive_version_1digit_numeric(self):
-        self.assertRegex("archive: 1\n", self.re_l2)
+        self.assertRegex('archive: 1\n', self.re_l2)
 
     def test_archive_version_2digit_numeric(self):
-        self.assertRegex("archive: 12\n", self.re_l2)
+        self.assertRegex('archive: 12\n', self.re_l2)
 
     def test_archive_version_bad(self):
-        self.assertNotRegex("agama agama\n", self.re_l2)
+        self.assertNotRegex('agama agama\n', self.re_l2)
 
     def test_archive_version_3digit_numeric(self):
-        self.assertNotRegex("archive: 123\n", self.re_l2)
+        self.assertNotRegex('archive: 123\n', self.re_l2)
 
     def test_archive_version_nonnumeric(self):
-        self.assertNotRegex("archive: 1a\n", self.re_l2)
+        self.assertNotRegex('archive: 1a\n', self.re_l2)
 
     def test_fmwk_version_good_semver(self):
-        self.assertRegex("framework: 2.0.6", self.re_l3)
+        self.assertRegex('framework: 2.0.6', self.re_l3)
 
     def test_fmwk_version_good_semver_dev(self):
-        self.assertRegex("framework: 2.0.6.dev0", self.re_l3)
+        self.assertRegex('framework: 2.0.6.dev0', self.re_l3)
 
     def test_fmwk_version_good_year_month_patch(self):
-        self.assertRegex("framework: 2020.2.0", self.re_l3)
+        self.assertRegex('framework: 2020.2.0', self.re_l3)
 
     def test_fmwk_version_good_year_month_patch_2digit_month(self):
-        self.assertRegex("framework: 2018.11.0", self.re_l3)
+        self.assertRegex('framework: 2018.11.0', self.re_l3)
 
     def test_fmwk_version_good_year_month_patch_dev(self):
-        self.assertRegex("framework: 2020.2.0.dev1", self.re_l3)
+        self.assertRegex('framework: 2020.2.0.dev1', self.re_l3)
 
     def test_fmwk_version_good_ymp_2digit_month_dev(self):
-        self.assertRegex("framework: 2020.11.0.dev0", self.re_l3)
+        self.assertRegex('framework: 2020.11.0.dev0', self.re_l3)
 
     def test_fmwk_version_invalid_month(self):
-        self.assertNotRegex("framework: 2020.13.0", self.re_l3)
+        self.assertNotRegex('framework: 2020.13.0', self.re_l3)
 
     def test_fmwk_version_invalid_month_leading_zero(self):
-        self.assertNotRegex("framework: 2020.03.0", self.re_l3)
+        self.assertNotRegex('framework: 2020.03.0', self.re_l3)
 
     def test_fmwk_version_invalid_year(self):
-        self.assertNotRegex("framework: 1953.3.0", self.re_l3)
+        self.assertNotRegex('framework: 1953.3.0', self.re_l3)
 
 
 class ParserVxTests(unittest.TestCase):
@@ -223,7 +223,7 @@ class ParserVxTests(unittest.TestCase):
         v5_qzv_no_root_md = os.path.join(DATA_DIR, 'no_root_md_yaml.qzv')
         for archv_vrsn in self.cfg.keys():
             with zipfile.ZipFile(v5_qzv_no_root_md) as zf:
-                with self.assertRaisesRegex(ValueError, "Malformed.*metadata"):
+                with self.assertRaisesRegex(ValueError, 'Malformed.*metadata'):
                     self.cfg[archv_vrsn]['parser'].get_root_md(zf)
 
     def test_populate_archive(self):
@@ -234,13 +234,13 @@ class ParserVxTests(unittest.TestCase):
             with zipfile.ZipFile(qzv) as zf:
                 if archv_vrsn == '0':
                     with self.assertRaisesRegex(NotImplementedError,
-                                                "V0.*no.*provenance"):
+                                                'V0.*no.*provenance'):
                         self.cfg[archv_vrsn]['parser'] \
                             .populate_archv(zf, mock_DAG)
                 else:
                     num_res, contents = self.cfg[archv_vrsn]['parser'] \
                                             .populate_archv(zf, mock_DAG)
-                    print(f"Debug: archive version #{archv_vrsn} failing")
+                    print(f'Debug: archive version #{archv_vrsn} failing')
                     # Does this archive have the right number of Results?
                     self.assertEqual(num_res, self.cfg[archv_vrsn]['num_res'])
                     # Is contents a dict?
@@ -257,7 +257,7 @@ class ParserVxTests(unittest.TestCase):
             'arch_root/provenance/artifacts/uuid123/action/action.yaml')
         exp = 'uuid123'
 
-        with self.assertRaisesRegex(NotImplementedError, "V0"):
+        with self.assertRaisesRegex(NotImplementedError, 'V0'):
             self.cfg['0']['parser']._get_nonroot_uuid(md_example)
 
         # Only parsers from v1 forward have this method
@@ -362,41 +362,41 @@ class FormatHandlerTests(unittest.TestCase):
     # regex are in test_archive_formats.VersionMatcherTests to reduce overhead
     def test_get_version_no_VERSION_file(self):
         with zipfile.ZipFile(self.v5_no_version) as zf:
-            with self.assertRaisesRegex(ValueError, "VERSION.*nonexistent"):
+            with self.assertRaisesRegex(ValueError, 'VERSION.*nonexistent'):
                 FormatHandler(zf)
 
     def test_get_version_VERSION_bad(self):
         with zipfile.ZipFile(self.v5_qzv_version_bad) as zf:
-            with self.assertRaisesRegex(ValueError, "VERSION.*out of spec"):
+            with self.assertRaisesRegex(ValueError, 'VERSION.*out of spec'):
                 FormatHandler(zf)
 
     def test_short_VERSION(self):
         with zipfile.ZipFile(self.v5_qzv_version_short) as zf:
-            with self.assertRaisesRegex(ValueError, "VERSION.*out of spec"):
+            with self.assertRaisesRegex(ValueError, 'VERSION.*out of spec'):
                 FormatHandler(zf)
 
     def test_long_VERSION(self):
         with zipfile.ZipFile(self.v5_qzv_version_long) as zf:
-            with self.assertRaisesRegex(ValueError, "VERSION.*out of spec"):
+            with self.assertRaisesRegex(ValueError, 'VERSION.*out of spec'):
                 FormatHandler(zf)
 
 
 class ResultMetadataTests(unittest.TestCase):
     v5_qzv = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
-    md_fp = "ffb7cee3-2f1f-4988-90cc-efd5184ef003/provenance/metadata.yaml"
+    v5_uuid = 'ffb7cee3-2f1f-4988-90cc-efd5184ef003'
+    md_fp = f'{v5_uuid}/provenance/metadata.yaml'
     with zipfile.ZipFile(v5_qzv) as zf:
         v5_root_md = _ResultMetadata(zf, md_fp)
 
     def test_smoke(self):
-        self.assertEqual(self.v5_root_md.uuid,
-                         "ffb7cee3-2f1f-4988-90cc-efd5184ef003")
-        self.assertEqual(self.v5_root_md.type, "Visualization")
+        self.assertEqual(self.v5_root_md.uuid, self.v5_uuid)
+        self.assertEqual(self.v5_root_md.type, 'Visualization')
         self.assertEqual(self.v5_root_md.format, None)
 
     def test_repr(self):
-        exp = ("UUID:\t\tffb7cee3-2f1f-4988-90cc-efd5184ef003\n"
-               "Type:\t\tVisualization\n"
-               "Data Format:\tNone")
+        exp = (f'UUID:\t\t{self.v5_uuid}\n'
+               'Type:\t\tVisualization\n'
+               'Data Format:\tNone')
         self.assertEqual(repr(self.v5_root_md), exp)
 
 
@@ -406,37 +406,37 @@ class ActionTests(unittest.TestCase):
         act = _Action(zf, 'action.yaml')
 
     def test_action_id(self):
-        exp = "5bc4b090-abbc-46b0-a219-346c8026f7d7"
+        exp = '5bc4b090-abbc-46b0-a219-346c8026f7d7'
         self.assertEqual(self.act.action_id, exp)
 
     def test_action_type(self):
-        exp = "pipeline"
+        exp = 'pipeline'
         self.assertEqual(self.act.action_type, exp)
 
     def test_action(self):
-        exp = "core_metrics_phylogenetic"
+        exp = 'core_metrics_phylogenetic'
         self.assertEqual(self.act.action, exp)
 
     def test_plugin(self):
-        exp = "diversity"
+        exp = 'diversity'
         self.assertEqual(self.act.plugin, exp)
 
     def test_inputs(self):
-        exp = [{"table": "706b6bce-8f19-4ae9-b8f5-21b14a814a1b"},
-               {"phylogeny": "ad7e5b50-065c-4fdd-8d9b-991e92caad22"}]
+        exp = [{'table': '706b6bce-8f19-4ae9-b8f5-21b14a814a1b'},
+               {'phylogeny': 'ad7e5b50-065c-4fdd-8d9b-991e92caad22'}]
         self.assertEqual(self.act.inputs, exp)
 
     def test_repr(self):
-        exp = ("_Action(action_id=5bc4b090-abbc-46b0-a219-346c8026f7d7, "
-               "type=pipeline, plugin=diversity, "
-               "action=core_metrics_phylogenetic)")
+        exp = ('_Action(action_id=5bc4b090-abbc-46b0-a219-346c8026f7d7, '
+               'type=pipeline, plugin=diversity, '
+               'action=core_metrics_phylogenetic)')
         self.assertEqual(repr(self.act), exp)
 
 
 class CitationsTests(unittest.TestCase):
     cite_strs = ['cite_none', 'cite_one', 'cite_many']
-    bibs = [bib+".bib" for bib in cite_strs]
-    zips = [os.path.join(DATA_DIR, bib+".zip") for bib in cite_strs]
+    bibs = [bib+'.bib' for bib in cite_strs]
+    zips = [os.path.join(DATA_DIR, bib+'.zip') for bib in cite_strs]
 
     def test_empty_bib(self):
         with zipfile.ZipFile(self.zips[0]) as zf:
@@ -446,16 +446,16 @@ class CitationsTests(unittest.TestCase):
 
     def test_citation(self):
         with zipfile.ZipFile(self.zips[1]) as zf:
-            exp = "framework"
+            exp = 'framework'
             citations = _Citations(zf, self.bibs[1])
             for key in citations._citations.keys():
                 self.assertRegex(key, exp)
 
     def test_many_citations(self):
-        exp = ["2020.6.0.dev0", "unweighted_unifrac.+0",
-               "unweighted_unifrac.+1", "unweighted_unifrac.+2",
-               "unweighted_unifrac.+3", "unweighted_unifrac.+4",
-               "BIOMV210DirFmt", "BIOMV210Format"]
+        exp = ['2020.6.0.dev0', 'unweighted_unifrac.+0',
+               'unweighted_unifrac.+1', 'unweighted_unifrac.+2',
+               'unweighted_unifrac.+3', 'unweighted_unifrac.+4',
+               'BIOMV210DirFmt', 'BIOMV210Format']
         with zipfile.ZipFile(self.zips[2]) as zf:
             citations = _Citations(zf, self.bibs[2])
             for i, key in enumerate(citations._citations.keys()):
@@ -520,12 +520,11 @@ class ProvNodeTests(unittest.TestCase):
         self.assertEqual(hash(self.v5_ProvNode), exp_hash)
 
     def test_str(self):
-        self.assertEqual(str(self.v5_ProvNode), f"ProvNode({self.v5_uuid})")
+        self.assertEqual(str(self.v5_ProvNode), f'ProvNode({self.v5_uuid})')
 
     def test_repr(self):
         self.assertEqual(repr(self.v5_ProvNode),
-                         "ProvNode(ffb7cee3-2f1f-4988-90cc-efd5184ef003, "
-                         "Visualization, fmt=None)")
+                         f'ProvNode({self.v5_uuid}, Visualization, fmt=None)')
 
     def test_archive_version(self):
         self.assertEqual(self.v5_ProvNode.archive_version, '5')
@@ -539,15 +538,15 @@ class ProvNodeTests(unittest.TestCase):
     def test_traverse_uuids(self):
         # This is disgusting, but avoids a baffling syntax error raised
         # whenever I attempted to define exp as a single literal
-        exp = {"ffb7cee3-2f1f-4988-90cc-efd5184ef003":
-               {"89af91c0-033d-4e30-8ac4-f29a3b407dc1":
-                {"99fa3670-aa1a-45f6-ba8e-803c976a1163":
-                 {"a35830e1-4535-47c6-aa23-be295a57ee1c": None}}}}
-        second_half = {"bce3d09b-e296-4f2b-9af4-834db6412429":
-                       {"7ecf8954-e49a-4605-992e-99fcee397935":
-                        {"99fa3670-aa1a-45f6-ba8e-803c976a1163":
-                         {"a35830e1-4535-47c6-aa23-be295a57ee1c": None}}}}
-        exp["ffb7cee3-2f1f-4988-90cc-efd5184ef003"].update(second_half)
+        exp = {'ffb7cee3-2f1f-4988-90cc-efd5184ef003':
+               {'89af91c0-033d-4e30-8ac4-f29a3b407dc1':
+                {'99fa3670-aa1a-45f6-ba8e-803c976a1163':
+                 {'a35830e1-4535-47c6-aa23-be295a57ee1c': None}}}}
+        second_half = {'bce3d09b-e296-4f2b-9af4-834db6412429':
+                       {'7ecf8954-e49a-4605-992e-99fcee397935':
+                        {'99fa3670-aa1a-45f6-ba8e-803c976a1163':
+                         {'a35830e1-4535-47c6-aa23-be295a57ee1c': None}}}}
+        exp['ffb7cee3-2f1f-4988-90cc-efd5184ef003'].update(second_half)
         actual = self.v5_ProvNode.traverse_uuids()
         self.assertEqual(actual, exp)
 

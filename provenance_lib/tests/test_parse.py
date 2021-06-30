@@ -117,12 +117,6 @@ class ProvDAGTests(unittest.TestCase):
     def test_number_of_actions(self):
         self.assertEqual(self.v5_provDag._num_results, test_data['5']['n_res'])
 
-    def test_archive_type(self):
-        self.assertEqual(self.v5_provDag.archive_type, 'Visualization')
-
-    def test_archive_format(self):
-        self.assertEqual(self.v5_provDag.archive_format, None)
-
     def test_nonexistent_fp(self):
         with self.assertRaisesRegex(FileNotFoundError, 'not_a_filepath.qza'):
             ProvDAG(self.fake_fp)
@@ -131,13 +125,6 @@ class ProvDAGTests(unittest.TestCase):
         with self.assertRaisesRegex(zipfile.BadZipFile,
                                     'File is not a zip file'):
             ProvDAG(self.not_a_zip)
-
-    def test_archive_version_correct(self):
-        self.assertEqual(self.v5_provDag.archive_version, test_data['5']['av'])
-
-    def test_framework_version_correct(self):
-        self.assertEqual(self.v5_provDag.framework_version,
-                         test_data['5']['fwv'])
 
 
 class ArchiveVersionMatcherTests(unittest.TestCase):
@@ -296,10 +283,6 @@ class FormatHandlerTests(unittest.TestCase):
             qzv = test_data[arch_ver]['qzv_fp']
             with zipfile.ZipFile(qzv) as zf:
                 handler = FormatHandler(zf)
-                print(arch_ver)
-                print(handler.archive_version)
-                print(handler.framework_version)
-                print(test_data[arch_ver]['fwv'])
                 self.assertEqual(handler.framework_version,
                                  test_data[arch_ver]['fwv'])
 
@@ -459,7 +442,7 @@ class ProvNodeTests(unittest.TestCase):
     # ProvDAGs responsible for assigning parentage to their ProvNodes
 
     def setUp(self):
-        # Building a dag to back thesee tests, because the alternative is to
+        # Using a dag to back these tests, because the alternative is to
         # hand-build two to three test nodes and mock a ProvDAG to hold them.
         self.v5_dag = ProvDAG(test_data['5']['qzv_fp'])
         super().setUp()
@@ -476,7 +459,6 @@ class ProvNodeTests(unittest.TestCase):
         self.assertIs(type(self.v5_ProvNode), ProvNode)
 
     def test_v5_viz_md(self):
-        print(self.v5_ProvNode)
         self.assertEqual(self.v5_ProvNode.uuid, test_data['5']['uuid'])
         self.assertEqual(self.v5_ProvNode.sem_type, 'Visualization')
         self.assertEqual(self.v5_ProvNode.format, None)

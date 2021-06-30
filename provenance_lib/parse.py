@@ -80,44 +80,24 @@ class ProvDAG:
     _archv_contents: Dict[str, ProvNode]
     _archive_md: _ResultMetadata
 
-    # TODO: Drop? Does this object even care about these version numbers?
-    @property
-    def archive_version(self):
-        """The archive version of this QIIME 2 Archive"""
-        return self.handler.archive_version
-
-    # TODO: Drop? Does this object even care about these version numbers?
-    @property
-    def framework_version(self):
-        """The framework version that created this QIIME 2 Archive"""
-        return self.handler.framework_version
-
+    # TODO: remove this? replace with a collection of terminal uuids
     @property
     def root_uuid(self):
         """The UUID of the terminal node of one QIIME 2 Archive"""
         return self._archive_md.uuid
 
+    # TODO: remove this? replace with a collection of terminal nodes
     @property
     def root_node(self):
         """The terminal ProvNode of one QIIME 2 Archive"""
         return self.get_result(self.root_uuid)
 
-    # TODO: drop this - belongs to the node?
-    @property
-    def archive_type(self):
-        """The semantic type of the terminal node of one QIIME 2 Archive"""
-        return self._archive_md.type
-
-    # TODO: drop this - belongs to the node?
-    @property
-    def archive_format(self):
-        """The format of the terminal node of one QIIME 2 Archive"""
-        return self._archive_md.format
-
     def get_result(self, uuid):
         """Returns a ProvNode from this ProvDAG selected by UUID"""
         return self._archv_contents[uuid]
 
+    # TODO: remove this? traversal querying should be handled by nx?
+    # May still be useful for repr?
     def _traverse_uuids_from_root(self):
         return self.root_node.traverse_uuids()
 
@@ -148,6 +128,7 @@ class ProvNode:
     _parents = None
     _owner_dag = None
 
+    # TODO: handle with nx?
     @property
     def parents(self):
         """ The list of ProvNodes used as inputs in creating this ProvNode """
@@ -193,8 +174,6 @@ class ProvNode:
                  fps_for_this_result: List[pathlib.Path]):
         self._owner_dag = ownedBy
         for fp in fps_for_this_result:
-            # TODO: Should we be reading these zipfiles once here,
-            # and then passing them to the constructors below?
             if fp.name == 'VERSION':
                 self._archive_version, self._framework_version = \
                     get_version(zf, fp)
@@ -215,12 +194,11 @@ class ProvNode:
         return hash(self.uuid)
 
     def __eq__(self, other):
-        # TODO: Should this offer more robust validation?
         return (self.__class__ == other.__class__
                 and self.uuid == other.uuid
                 )
 
-    # TODO: Should this live in ProvDAG?
+    # TODO: Drop with NetworkX, or keep it around for the repr?
     def traverse_uuids(self):
         """ depth-first traversal of this ProvNode's ancestors """
         local_parents = dict()
@@ -432,7 +410,7 @@ class ParserV5(ParserV4):
     """
     version_string = 5
     prov_filenames = (*ParserV4.prov_filenames, 'checksums.md5')
-    # TODO: Add checksum validation (imported from framework)
+    # TODO: Add checksum validation (imported from framework) here
 
 
 class FormatHandler():

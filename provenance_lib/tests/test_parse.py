@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import zipfile
 
 from ..parse import (
-    _VERSION_MATCHER, ProvDAG, UnionedDAG, ProvNode, FormatHandler,
+    _VERSION_MATCHER, ProvDAG, ProvNode, FormatHandler,
     _Action, _Citations, _ResultMetadata,
     ParserV0, ParserV1, ParserV2, ParserV3, ParserV4, ParserV5,
 )
@@ -91,18 +91,6 @@ class ProvDAGTests(unittest.TestCase):
 
     def test_framework_version_correct(self):
         self.assertEqual(self.v5_provDag.framework_version, '2018.11.0')
-
-
-class UnionedDAGTests(unittest.TestCase):
-    v5_qzv = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
-    v5_uuid = 'ffb7cee3-2f1f-4988-90cc-efd5184ef003'
-    v5_dag = ProvDAG(v5_qzv)
-    dag_list = [v5_dag]
-
-    def test_union_one_dag(self):
-        dag = UnionedDAG(self.dag_list)
-        self.assertEqual(dag.root_uuids, [self.v5_uuid])
-        self.assertEqual(dag.root_nodes, [self.v5_dag.root_node])
 
 
 class ArchiveVersionMatcherTests(unittest.TestCase):

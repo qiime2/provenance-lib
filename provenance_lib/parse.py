@@ -116,17 +116,6 @@ class ProvDAG:
                 self.handler.parse(zf, owned_by=self)
 
 
-class UnionedDAG:
-    """
-    a many-rooted DAG of ProvNode objects, created from a Union of ProvDAGs
-    """
-
-    # TODO: Implement
-    def __init__(self, dags: List[ProvDAG]):
-        self.root_uuids = [dag.root_uuid for dag in dags]
-        self.root_nodes = [dag.root_node for dag in dags]
-
-
 class ProvNode:
     """ One node of a provenance DAG, describing one QIIME 2 Result """
     _parents = None

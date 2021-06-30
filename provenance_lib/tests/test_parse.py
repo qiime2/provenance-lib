@@ -10,10 +10,62 @@ from ..parse import (
     _VERSION_MATCHER, ProvDAG, ProvNode, FormatHandler,
     _Action, _Citations, _ResultMetadata,
     ParserV0, ParserV1, ParserV2, ParserV3, ParserV4, ParserV5,
+    get_version,
 )
 from .util import is_provnode_data
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
+test_data = {
+    '0': {'parser': ParserV0,
+          'av': '0',
+          'fwv': '2.0.5',
+          'uuid': '0b8b47bd-f2f8-4029-923c-0e37a68340c3',
+          'num_res': None,
+          'qzv_fp': os.path.join(DATA_DIR, 'v0_uu_emperor.qzv'),
+          },
+    '1': {'parser': ParserV1,
+          'av': '1',
+          'fwv': '2.0.6',
+          'uuid': '0b8b47bd-f2f8-4029-923c-0e37a68340c3',
+          'num_res': 10,
+          'qzv_fp': os.path.join(DATA_DIR, 'v1_uu_emperor.qzv'),
+          },
+    '2a': {'parser': ParserV2,
+           'av': '2',
+           'fwv': '2017.9.0',
+           'uuid': '219c4bdf-f2b1-4b3f-b66a-08de8a4d17ca',
+           'num_res': 10,
+           'qzv_fp': os.path.join(DATA_DIR, 'v2a_uu_emperor.qzv'),
+           },
+    '2b': {'parser': ParserV2,
+           'av': '2',
+           'fwv': '2017.10.0',
+           'uuid': '8abf8dee-0047-4a7f-9826-e66893182978',
+           'num_res': 14,
+           'qzv_fp': os.path.join(DATA_DIR, 'v2b_uu_emperor.qzv'),
+           },
+    '3': {'parser': ParserV3,
+          'av': '3',
+          'fwv': '2017.12.0',
+          'uuid': '3544061c-6e2f-4328-8345-754416828cb5',
+          'num_res': 14,
+          'qzv_fp': os.path.join(DATA_DIR, 'v3_uu_emperor.qzv'),
+          },
+    '4': {'parser': ParserV4,
+          'av': '4',
+          'fwv': '2018.4.0',
+          'uuid': '91c2189a-2d2e-4d53-98ee-659caaf6ffc2',
+          'num_res': 14,
+          'qzv_fp': os.path.join(DATA_DIR, 'v4_uu_emperor.qzv'),
+          },
+    '5': {'parser': ParserV5,
+          'av': '5',
+          'fwv': '2018.11.0',
+          'uuid': 'ffb7cee3-2f1f-4988-90cc-efd5184ef003',
+          'num_res': 15,
+          'qzv_fp': os.path.join(DATA_DIR, 'v5_uu_emperor.qzv'),
+          },
+    }
 
 
 class ProvDAGTests(unittest.TestCase):
@@ -345,28 +397,43 @@ class FormatHandlerTests(unittest.TestCase):
             self.assertIn(uuid, contents.keys())
             self.assertIs(type(contents[uuid]), ProvNode)
 
-    # Testing _get_version's behavior with major VERSION file issues is easier
-    # and more reliable with "real" zip archives. Detailed tests of the VERSION
-    # regex are in test_archive_formats.VersionMatcherTests to reduce overhead
+
+class GetVersionTests(unittest.TestCase):
+    v5_no_version = os.path.join(DATA_DIR, 'VERSION_missing.qzv')
+    v5_qzv_version_bad = os.path.join(DATA_DIR, 'VERSION_bad.qzv')
+    v5_qzv_version_short = os.path.join(DATA_DIR, 'VERSION_short.qzv')
+    v5_qzv_version_long = os.path.join(DATA_DIR, 'VERSION_long.qzv')
+
+    # High-level checks only. Detailed tests of the VERSION_MATCHER regex are
+    # in test_archive_formats.VersionMatcherTests to reduce overhead
+
     def test_get_version_no_VERSION_file(self):
         with zipfile.ZipFile(self.v5_no_version) as zf:
             with self.assertRaisesRegex(ValueError, 'VERSION.*nonexistent'):
-                FormatHandler(zf)
+                get_version(zf)
 
     def test_get_version_VERSION_bad(self):
         with zipfile.ZipFile(self.v5_qzv_version_bad) as zf:
             with self.assertRaisesRegex(ValueError, 'VERSION.*out of spec'):
-                FormatHandler(zf)
+                get_version(zf)
 
     def test_short_VERSION(self):
         with zipfile.ZipFile(self.v5_qzv_version_short) as zf:
             with self.assertRaisesRegex(ValueError, 'VERSION.*out of spec'):
-                FormatHandler(zf)
+                get_version(zf)
 
     def test_long_VERSION(self):
         with zipfile.ZipFile(self.v5_qzv_version_long) as zf:
             with self.assertRaisesRegex(ValueError, 'VERSION.*out of spec'):
-                FormatHandler(zf)
+                get_version(zf)
+
+    def test_version_nums(self):
+        for arch_ver in test_data.keys():
+            qzv = os.path.join(DATA_DIR, 'v' + arch_ver + '_uu_emperor.qzv')
+            with zipfile.ZipFile(qzv) as zf:
+                exp_arch, exp_frmwk = get_version(zf)
+                self.assertEqual(exp_arch, test_data[arch_ver]['av'])
+                self.assertEqual(exp_frmwk, test_data[arch_ver]['fwv'])
 
 
 class ResultMetadataTests(unittest.TestCase):

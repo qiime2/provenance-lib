@@ -43,6 +43,29 @@ yaml.SafeLoader.add_constructor('!cite', citation_constructor)
 yaml.SafeLoader.add_constructor('!ref', ref_constructor)
 
 
+def get_version(zf: zipfile) -> Tuple[str]:
+    """Parse Archive VERSION file"""
+    # All files in zf start with root uuid, so we'll grab it from the first
+    version_fp = pathlib.Path(zf.namelist()[0]).parts[0] + '/VERSION'
+    try:
+        with zf.open(version_fp) as v_fp:
+            version_contents = str(v_fp.read().strip(), 'utf-8')
+    except KeyError:
+        raise ValueError(
+            "Malformed Archive: VERSION file misplaced or nonexistent")
+
+    if not re.match(_VERSION_MATCHER, version_contents, re.MULTILINE):
+        _vrsn_mtch_repr = codecs.decode(_VERSION_MATCHER, 'unicode-escape')
+        raise ValueError(
+            "Malformed Archive: VERSION file out of spec\n\n"
+            f"Should match this RE:\n{_vrsn_mtch_repr}\n\n"
+            f"Actually looks like:\n{version_contents}\n")
+
+    _, archv_vrsn, frmwk_vrsn = [line.strip().split()[-1] for line in
+                                 version_contents.split(sep='\n') if line]
+    return (archv_vrsn, frmwk_vrsn)
+
+
 class ProvDAG:
     """
     A single-rooted DAG of ProvNode objects, representing a single QIIME 2
@@ -433,29 +456,8 @@ class FormatHandler():
         return self._frmwk_vrsn
 
     def __init__(self, zf: zipfile.ZipFile):
-        _, self._archv_vrsn, self._frmwk_vrsn = self._get_version(zf)
+        self._archv_vrsn, self._frmwk_vrsn = get_version(zf)
         self.parser = self._FORMAT_REGISTRY[self._archv_vrsn]
-
-    def _get_version(self, zf: zipfile) -> List[str]:
-        """Parse Archive VERSION file"""
-        # All files in zf start with root uuid, so we'll grab it from the first
-        version_fp = pathlib.Path(zf.namelist()[0]).parts[0] + '/VERSION'
-        try:
-            with zf.open(version_fp) as v_fp:
-                version_contents = str(v_fp.read().strip(), 'utf-8')
-        except KeyError:
-            raise ValueError(
-                "Malformed Archive: VERSION file misplaced or nonexistent")
-
-        if not re.match(_VERSION_MATCHER, version_contents, re.MULTILINE):
-            _vrsn_mtch_repr = codecs.decode(_VERSION_MATCHER, 'unicode-escape')
-            raise ValueError(
-                "Malformed Archive: VERSION file out of spec\n\n"
-                f"Should match this RE:\n{_vrsn_mtch_repr}\n\n"
-                f"Actually looks like:\n{version_contents}\n")
-
-        return [line.strip().split()[-1]
-                for line in version_contents.split(sep='\n') if line]
 
     def parse(self, zf: zipfile.ZipFile, owned_by: ProvDAG) -> \
             Tuple[_ResultMetadata, Tuple[int, Dict[str, ProvNode]]]:

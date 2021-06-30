@@ -2,7 +2,7 @@ from __future__ import annotations
 import codecs
 import pathlib
 import re
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 
 import bibtexparser as bp
 import yaml
@@ -43,10 +43,14 @@ yaml.SafeLoader.add_constructor('!cite', citation_constructor)
 yaml.SafeLoader.add_constructor('!ref', ref_constructor)
 
 
-def get_version(zf: zipfile) -> Tuple[str]:
-    """Parse Archive VERSION file"""
-    # All files in zf start with root uuid, so we'll grab it from the first
-    version_fp = pathlib.Path(zf.namelist()[0]).parts[0] + '/VERSION'
+def get_version(zf: zipfile, fp: Optional[str] = None) -> Tuple[str]:
+    """Parse a VERSION file - by default uses the VERSION at archive root"""
+    if not fp:
+        # All files in zf start with root uuid, so we'll grab it from the first
+        version_fp = pathlib.Path(zf.namelist()[0]).parts[0] + '/VERSION'
+    else:
+        version_fp = str(fp)
+
     try:
         with zf.open(version_fp) as v_fp:
             version_contents = str(v_fp.read().strip(), 'utf-8')
@@ -156,9 +160,8 @@ class ProvNode:
                 parent_dicts = [parent for parent in self._action.inputs]
                 parent_uuids = [
                     list(uuid.values())[0] for uuid in parent_dicts]
-                self._parents = [
-                    self._owner_dag._archv_contents[uuid]
-                    for uuid in parent_uuids]
+                self._parents = [self._owner_dag._archv_contents[uuid] for
+                                 uuid in parent_uuids]
             except KeyError:
                 pass
         return self._parents
@@ -177,15 +180,11 @@ class ProvNode:
 
     @property
     def archive_version(self):
-        # TODO: Should nodes know their own versions information? I think so.
-        # This would have to happen in parsing, by reading additional VERSIONs
-        return self._owner_dag.archive_version
+        return self._archive_version
 
     @property
     def framework_version(self):
-        # TODO: Should nodes know their own versions information? I think so.
-        # This would have to happen in parsing, by reading additional VERSIONs
-        return self._owner_dag.framework_version
+        return self._framework_version
 
     # NOTE: This constructor is intentionally flexible, and will parse any
     # files handed to it. It is the responsibility of the ParserVx classes to
@@ -196,7 +195,10 @@ class ProvNode:
         for fp in fps_for_this_result:
             # TODO: Should we be reading these zipfiles once here,
             # and then passing them to the constructors below?
-            if fp.name == 'metadata.yaml':
+            if fp.name == 'VERSION':
+                self._archive_version, self._framework_version = \
+                    get_version(zf, fp)
+            elif fp.name == 'metadata.yaml':
                 self._result_md = _ResultMetadata(zf, str(fp))
             elif fp.name == 'action.yaml':
                 self._action = _Action(zf, str(fp))
@@ -338,9 +340,7 @@ class ParserV1(ParserV0):
     Parser for V1 archives. These track provenance, so we parse it.
     """
     version_string = 1
-    prov_filenames = ('metadata.yaml', 'action/action.yaml')
-    # TODO NEXT: Add VERSION to the above ^, and start parsing VERSION files
-    # in the ProvNode constructor
+    prov_filenames = ('metadata.yaml', 'action/action.yaml', 'VERSION')
 
     @classmethod
     def parse_prov(self, zf: zipfile, owner_dag: ProvDAG) -> \

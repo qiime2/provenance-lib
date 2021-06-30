@@ -6,4 +6,5 @@ def is_provnode_data(fp):
     return 'provenance' in fp and 'artifacts' not in fp and (
         'metadata.yaml' in fp or
         'action.yaml' in fp or
-        'citations.bib' in fp)
+        'citations.bib' in fp or
+        'VERSION')

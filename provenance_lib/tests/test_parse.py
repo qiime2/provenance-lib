@@ -481,18 +481,20 @@ class ProvNodeTests(unittest.TestCase):
         self.assertEqual(self.v5_ProvNode.sem_type, 'Visualization')
         self.assertEqual(self.v5_ProvNode.format, None)
 
-    def test_eq(self):
+    def test_self_eq(self):
         self.assertEqual(self.v5_ProvNode, self.v5_ProvNode)
-        mock_node = MagicMock()
+
+    def test_eq(self):
         # Mock has no matching UUID
+        mock_node = MagicMock()
         self.assertNotEqual(self.v5_ProvNode, mock_node)
-        mock_node.uuid = 'gerbil'
 
         # Mock has bad UUID
+        mock_node.uuid = 'gerbil'
         self.assertNotEqual(self.v5_ProvNode, mock_node)
-        mock_node.uuid = test_data['5']['uuid']
 
         # Matching UUIDs insufficient if classes differ
+        mock_node.uuid = test_data['5']['uuid']
         self.assertNotEqual(self.v5_ProvNode, mock_node)
         mock_node.__class__ = ProvNode
         self.assertEqual(self.v5_ProvNode, mock_node)

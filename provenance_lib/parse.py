@@ -2,7 +2,7 @@ from __future__ import annotations
 import codecs
 import pathlib
 import re
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 
 import bibtexparser as bp
 import yaml
@@ -43,6 +43,33 @@ yaml.SafeLoader.add_constructor('!cite', citation_constructor)
 yaml.SafeLoader.add_constructor('!ref', ref_constructor)
 
 
+def get_version(zf: zipfile, fp: Optional[str] = None) -> Tuple[str]:
+    """Parse a VERSION file - by default uses the VERSION at archive root"""
+    if not fp:
+        # All files in zf start with root uuid, so we'll grab it from the first
+        version_fp = pathlib.Path(zf.namelist()[0]).parts[0] + '/VERSION'
+    else:
+        version_fp = str(fp)
+
+    try:
+        with zf.open(version_fp) as v_fp:
+            version_contents = str(v_fp.read().strip(), 'utf-8')
+    except KeyError:
+        raise ValueError(
+            "Malformed Archive: VERSION file misplaced or nonexistent")
+
+    if not re.match(_VERSION_MATCHER, version_contents, re.MULTILINE):
+        _vrsn_mtch_repr = codecs.decode(_VERSION_MATCHER, 'unicode-escape')
+        raise ValueError(
+            "Malformed Archive: VERSION file out of spec\n\n"
+            f"Should match this RE:\n{_vrsn_mtch_repr}\n\n"
+            f"Actually looks like:\n{version_contents}\n")
+
+    _, archv_vrsn, frmwk_vrsn = [line.strip().split()[-1] for line in
+                                 version_contents.split(sep='\n') if line]
+    return (archv_vrsn, frmwk_vrsn)
+
+
 class ProvDAG:
     """
     A single-rooted DAG of ProvNode objects, representing a single QIIME 2
@@ -53,44 +80,24 @@ class ProvDAG:
     _archv_contents: Dict[str, ProvNode]
     _archive_md: _ResultMetadata
 
-    # TODO: Drop? Does this object even care about these version numbers?
-    @property
-    def archive_version(self):
-        """The archive version of this QIIME 2 Archive"""
-        return self.handler.archive_version
-
-    # TODO: Drop? Does this object even care about these version numbers?
-    @property
-    def framework_version(self):
-        """The framework version that created this QIIME 2 Archive"""
-        return self.handler.framework_version
-
+    # TODO: remove this? replace with a collection of terminal uuids
     @property
     def root_uuid(self):
         """The UUID of the terminal node of one QIIME 2 Archive"""
         return self._archive_md.uuid
 
+    # TODO: remove this? replace with a collection of terminal nodes
     @property
     def root_node(self):
         """The terminal ProvNode of one QIIME 2 Archive"""
         return self.get_result(self.root_uuid)
 
-    # TODO: drop this - belongs to the node?
-    @property
-    def archive_type(self):
-        """The semantic type of the terminal node of one QIIME 2 Archive"""
-        return self._archive_md.type
-
-    # TODO: drop this - belongs to the node?
-    @property
-    def archive_format(self):
-        """The format of the terminal node of one QIIME 2 Archive"""
-        return self._archive_md.format
-
     def get_result(self, uuid):
         """Returns a ProvNode from this ProvDAG selected by UUID"""
         return self._archv_contents[uuid]
 
+    # TODO: remove this? traversal querying should be handled by nx?
+    # May still be useful for repr?
     def _traverse_uuids_from_root(self):
         return self.root_node.traverse_uuids()
 
@@ -116,22 +123,12 @@ class ProvDAG:
                 self.handler.parse(zf, owned_by=self)
 
 
-class UnionedDAG:
-    """
-    a many-rooted DAG of ProvNode objects, created from a Union of ProvDAGs
-    """
-
-    # TODO: Implement
-    def __init__(self, dags: List[ProvDAG]):
-        self.root_uuids = [dag.root_uuid for dag in dags]
-        self.root_nodes = [dag.root_node for dag in dags]
-
-
 class ProvNode:
     """ One node of a provenance DAG, describing one QIIME 2 Result """
     _parents = None
     _owner_dag = None
 
+    # TODO: handle with nx?
     @property
     def parents(self):
         """ The list of ProvNodes used as inputs in creating this ProvNode """
@@ -144,9 +141,8 @@ class ProvNode:
                 parent_dicts = [parent for parent in self._action.inputs]
                 parent_uuids = [
                     list(uuid.values())[0] for uuid in parent_dicts]
-                self._parents = [
-                    self._owner_dag._archv_contents[uuid]
-                    for uuid in parent_uuids]
+                self._parents = [self._owner_dag._archv_contents[uuid] for
+                                 uuid in parent_uuids]
             except KeyError:
                 pass
         return self._parents
@@ -165,15 +161,11 @@ class ProvNode:
 
     @property
     def archive_version(self):
-        # TODO: Should nodes know their own versions information? I think so.
-        # This would have to happen in parsing, by reading additional VERSIONs
-        return self._owner_dag.archive_version
+        return self._archive_version
 
     @property
     def framework_version(self):
-        # TODO: Should nodes know their own versions information? I think so.
-        # This would have to happen in parsing, by reading additional VERSIONs
-        return self._owner_dag.framework_version
+        return self._framework_version
 
     # NOTE: This constructor is intentionally flexible, and will parse any
     # files handed to it. It is the responsibility of the ParserVx classes to
@@ -182,9 +174,10 @@ class ProvNode:
                  fps_for_this_result: List[pathlib.Path]):
         self._owner_dag = ownedBy
         for fp in fps_for_this_result:
-            # TODO: Should we be reading these zipfiles once here,
-            # and then passing them to the constructors below?
-            if fp.name == 'metadata.yaml':
+            if fp.name == 'VERSION':
+                self._archive_version, self._framework_version = \
+                    get_version(zf, fp)
+            elif fp.name == 'metadata.yaml':
                 self._result_md = _ResultMetadata(zf, str(fp))
             elif fp.name == 'action.yaml':
                 self._action = _Action(zf, str(fp))
@@ -201,12 +194,11 @@ class ProvNode:
         return hash(self.uuid)
 
     def __eq__(self, other):
-        # TODO: Should this offer more robust validation?
         return (self.__class__ == other.__class__
                 and self.uuid == other.uuid
                 )
 
-    # TODO: Should this live in ProvDAG?
+    # TODO: Drop with NetworkX, or keep it around for the repr?
     def traverse_uuids(self):
         """ depth-first traversal of this ProvNode's ancestors """
         local_parents = dict()
@@ -313,7 +305,7 @@ class ParserV0():
     # and include them only in subclasses where they are actually implemented
     # by the Archive Format? Tests that iterate can always catch other errors
     @classmethod
-    def populate_archv(self, zf: zipfile.ZipFile, owner_dag: ProvDAG) -> None:
+    def parse_prov(self, zf: zipfile.ZipFile, owner_dag: ProvDAG) -> None:
         raise NotImplementedError("V0 Archives do not contain provenance data")
 
     @classmethod
@@ -326,10 +318,10 @@ class ParserV1(ParserV0):
     Parser for V1 archives. These track provenance, so we parse it.
     """
     version_string = 1
-    prov_filenames = ['metadata.yaml', 'action/action.yaml']
+    prov_filenames = ('metadata.yaml', 'action/action.yaml', 'VERSION')
 
     @classmethod
-    def populate_archv(self, zf: zipfile, owner_dag: ProvDAG) -> \
+    def parse_prov(self, zf: zipfile, owner_dag: ProvDAG) -> \
             Tuple[int, Dict[str, ProvNode]]:
         """
         Populates an _Archive with all relevant provenance data
@@ -390,6 +382,7 @@ class ParserV2(ParserV1):
     action.yaml changes to support Pipelines
     """
     version_string = 2
+    prov_filenames = ParserV1.prov_filenames
 
 
 class ParserV3(ParserV2):
@@ -398,6 +391,7 @@ class ParserV3(ParserV2):
     action.yaml now supports variadic inputs, so !set tags in action.yaml
     """
     version_string = 3
+    prov_filenames = ParserV2.prov_filenames
     # TODO: move set constructor over here? (and !cite constructor below?)
 
 
@@ -407,7 +401,7 @@ class ParserV4(ParserV3):
     action.yaml incl transformers
     """
     version_string = 4
-    prov_filenames = ['metadata.yaml', 'action/action.yaml', 'citations.bib']
+    prov_filenames = (*ParserV3.prov_filenames, 'citations.bib')
 
 
 class ParserV5(ParserV4):
@@ -415,9 +409,8 @@ class ParserV5(ParserV4):
     Parser for V5 archives. Adds checksums.md5
     """
     version_string = 5
-    prov_filenames = ['metadata.yaml', 'action/action.yaml', 'citations.bib',
-                      'checksums.md5']
-    # TODO: Add very optional checksum validation?
+    prov_filenames = (*ParserV4.prov_filenames, 'checksums.md5')
+    # TODO: Add checksum validation (imported from framework) here
 
 
 class FormatHandler():
@@ -444,31 +437,10 @@ class FormatHandler():
         return self._frmwk_vrsn
 
     def __init__(self, zf: zipfile.ZipFile):
-        _, self._archv_vrsn, self._frmwk_vrsn = self._get_version(zf)
+        self._archv_vrsn, self._frmwk_vrsn = get_version(zf)
         self.parser = self._FORMAT_REGISTRY[self._archv_vrsn]
-
-    def _get_version(self, zf: zipfile) -> List[str]:
-        """Parse Archive VERSION file"""
-        # All files in zf start with root uuid, so we'll grab it from the first
-        version_fp = pathlib.Path(zf.namelist()[0]).parts[0] + '/VERSION'
-        try:
-            with zf.open(version_fp) as v_fp:
-                version_contents = str(v_fp.read().strip(), 'utf-8')
-        except KeyError:
-            raise ValueError(
-                "Malformed Archive: VERSION file misplaced or nonexistent")
-
-        if not re.match(_VERSION_MATCHER, version_contents, re.MULTILINE):
-            _vrsn_mtch_repr = codecs.decode(_VERSION_MATCHER, 'unicode-escape')
-            raise ValueError(
-                "Malformed Archive: VERSION file out of spec\n\n"
-                f"Should match this RE:\n{_vrsn_mtch_repr}\n\n"
-                f"Actually looks like:\n{version_contents}\n")
-
-        return [line.strip().split()[-1]
-                for line in version_contents.split(sep='\n') if line]
 
     def parse(self, zf: zipfile.ZipFile, owned_by: ProvDAG) -> \
             Tuple[_ResultMetadata, Tuple[int, Dict[str, ProvNode]]]:
         return (self.parser.get_root_md(zf),
-                self.parser.populate_archv(zf, owned_by))
+                self.parser.parse_prov(zf, owned_by))

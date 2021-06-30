@@ -7,25 +7,73 @@ from unittest.mock import MagicMock
 import zipfile
 
 from ..parse import (
-    _VERSION_MATCHER, ProvDAG, UnionedDAG, ProvNode, FormatHandler,
+    _VERSION_MATCHER, ProvDAG, ProvNode, FormatHandler,
     _Action, _Citations, _ResultMetadata,
     ParserV0, ParserV1, ParserV2, ParserV3, ParserV4, ParserV5,
+    get_version,
 )
 from .util import is_provnode_data
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
+test_data = {
+    '0': {'parser': ParserV0,
+          'av': '0',
+          'fwv': '2.0.5',
+          'uuid': '0b8b47bd-f2f8-4029-923c-0e37a68340c3',
+          'n_res': None,
+          'qzv_fp': os.path.join(DATA_DIR, 'v0_uu_emperor.qzv'),
+          },
+    '1': {'parser': ParserV1,
+          'av': '1',
+          'fwv': '2.0.6',
+          'uuid': '0b8b47bd-f2f8-4029-923c-0e37a68340c3',
+          'n_res': 10,
+          'qzv_fp': os.path.join(DATA_DIR, 'v1_uu_emperor.qzv'),
+          },
+    '2a': {'parser': ParserV2,
+           'av': '2',
+           'fwv': '2017.9.0',
+           'uuid': '219c4bdf-f2b1-4b3f-b66a-08de8a4d17ca',
+           'n_res': 10,
+           'qzv_fp': os.path.join(DATA_DIR, 'v2a_uu_emperor.qzv'),
+           },
+    '2b': {'parser': ParserV2,
+           'av': '2',
+           'fwv': '2017.10.0',
+           'uuid': '8abf8dee-0047-4a7f-9826-e66893182978',
+           'n_res': 14,
+           'qzv_fp': os.path.join(DATA_DIR, 'v2b_uu_emperor.qzv'),
+           },
+    '3': {'parser': ParserV3,
+          'av': '3',
+          'fwv': '2017.12.0',
+          'uuid': '3544061c-6e2f-4328-8345-754416828cb5',
+          'n_res': 14,
+          'qzv_fp': os.path.join(DATA_DIR, 'v3_uu_emperor.qzv'),
+          },
+    '4': {'parser': ParserV4,
+          'av': '4',
+          'fwv': '2018.4.0',
+          'uuid': '91c2189a-2d2e-4d53-98ee-659caaf6ffc2',
+          'n_res': 14,
+          'qzv_fp': os.path.join(DATA_DIR, 'v4_uu_emperor.qzv'),
+          },
+    '5': {'parser': ParserV5,
+          'av': '5',
+          'fwv': '2018.11.0',
+          'uuid': 'ffb7cee3-2f1f-4988-90cc-efd5184ef003',
+          'n_res': 15,
+          'qzv_fp': os.path.join(DATA_DIR, 'v5_uu_emperor.qzv'),
+          },
+    }
 
 
 class ProvDAGTests(unittest.TestCase):
     # Remove the character limit when reporting failing tests for this class
     maxDiff = None
-
-    v5_qzv = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
-    v5_uuid = 'ffb7cee3-2f1f-4988-90cc-efd5184ef003'
     fake_fp = os.path.join(DATA_DIR, 'not_a_filepath.qza')
     not_a_zip = os.path.join(DATA_DIR, 'not_a_zip.txt')
-
-    v5_provDag = ProvDAG(v5_qzv)
+    v5_provDag = ProvDAG(test_data['5']['qzv_fp'])
 
     # This should only trigger if something fails in setup or above
     # e.g. if v5_provDag fails to initialize
@@ -33,18 +81,16 @@ class ProvDAGTests(unittest.TestCase):
         self.assertTrue(True)
 
     def test_root_uuid_correct(self):
-        self.assertEqual(self.v5_provDag.root_uuid, self.v5_uuid)
+        self.assertEqual(self.v5_provDag.root_uuid, test_data['5']['uuid'])
 
     def test_root_node_is_archive_root(self):
         mock_dag = MagicMock()
-        self.root_metadata_fps = None
-        with zipfile.ZipFile(self.v5_qzv) as zf:
+        with zipfile.ZipFile(test_data['5']['qzv_fp']) as zf:
             all_filenames = zf.namelist()
-            self.root_md_fnames = filter(is_provnode_data, all_filenames)
-            self.root_md_fps = [pathlib.Path(fp) for fp in self.root_md_fnames]
-            self.v5_ProvNode = ProvNode(mock_dag, zf,
-                                        self.root_md_fps)
-        self.assertEqual(self.v5_ProvNode, self.v5_provDag.root_node)
+            root_md_fnames = filter(is_provnode_data, all_filenames)
+            root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
+            v5_ProvNode = ProvNode(mock_dag, zf, root_md_fps)
+            self.assertEqual(v5_ProvNode, self.v5_provDag.root_node)
 
     def test_str(self):
         self.assertRegex(str(self.v5_provDag),
@@ -69,13 +115,7 @@ class ProvDAGTests(unittest.TestCase):
                          )
 
     def test_number_of_actions(self):
-        self.assertEqual(self.v5_provDag._num_results, 15)
-
-    def test_archive_type(self):
-        self.assertEqual(self.v5_provDag.archive_type, 'Visualization')
-
-    def test_archive_format(self):
-        self.assertEqual(self.v5_provDag.archive_format, None)
+        self.assertEqual(self.v5_provDag._num_results, test_data['5']['n_res'])
 
     def test_nonexistent_fp(self):
         with self.assertRaisesRegex(FileNotFoundError, 'not_a_filepath.qza'):
@@ -85,24 +125,6 @@ class ProvDAGTests(unittest.TestCase):
         with self.assertRaisesRegex(zipfile.BadZipFile,
                                     'File is not a zip file'):
             ProvDAG(self.not_a_zip)
-
-    def test_archive_version_correct(self):
-        self.assertEqual(self.v5_provDag.archive_version, '5')
-
-    def test_framework_version_correct(self):
-        self.assertEqual(self.v5_provDag.framework_version, '2018.11.0')
-
-
-class UnionedDAGTests(unittest.TestCase):
-    v5_qzv = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
-    v5_uuid = 'ffb7cee3-2f1f-4988-90cc-efd5184ef003'
-    v5_dag = ProvDAG(v5_qzv)
-    dag_list = [v5_dag]
-
-    def test_union_one_dag(self):
-        dag = UnionedDAG(self.dag_list)
-        self.assertEqual(dag.root_uuids, [self.v5_uuid])
-        self.assertEqual(dag.root_nodes, [self.v5_dag.root_node])
 
 
 class ArchiveVersionMatcherTests(unittest.TestCase):
@@ -178,71 +200,41 @@ class ArchiveVersionMatcherTests(unittest.TestCase):
 
 class ParserVxTests(unittest.TestCase):
     # TODO: 0 should have a real v0 archive. Currently a hacked V1 arhive
-    cfg = {
-        '0': {'uuid': '0b8b47bd-f2f8-4029-923c-0e37a68340c3',
-              'parser': ParserV0,
-              'num_res': None
-              },
-        '1': {'uuid': '0b8b47bd-f2f8-4029-923c-0e37a68340c3',
-              'parser': ParserV1,
-              'num_res': 10,
-              },
-        '2a': {'uuid': '219c4bdf-f2b1-4b3f-b66a-08de8a4d17ca',
-               'parser': ParserV2,
-               'num_res': 10,
-               },
-        '2b': {'uuid': '8abf8dee-0047-4a7f-9826-e66893182978',
-               'parser': ParserV2,
-               'num_res': 14,
-               },
-        '3': {'uuid': '3544061c-6e2f-4328-8345-754416828cb5',
-              'parser': ParserV3,
-              'num_res': 14,
-              },
-        '4': {'uuid': '91c2189a-2d2e-4d53-98ee-659caaf6ffc2',
-              'parser': ParserV4,
-              'num_res': 14,
-              },
-        '5': {'uuid': 'ffb7cee3-2f1f-4988-90cc-efd5184ef003',
-              'parser': ParserV5,
-              'num_res': 15,
-              },
-        }
 
     def test_get_root_md(self):
-        for archv_vrsn in self.cfg.keys():
-            qzv = os.path.join(DATA_DIR, 'v' + archv_vrsn + '_uu_emperor.qzv')
-            root_uuid = self.cfg[archv_vrsn]['uuid']
-            with zipfile.ZipFile(qzv) as zf:
-                root_md = self.cfg[archv_vrsn]['parser'].get_root_md(zf)
+        for archv_vrsn in test_data.keys():
+            fp = test_data[archv_vrsn]['qzv_fp']
+            root_uuid = test_data[archv_vrsn]['uuid']
+            with zipfile.ZipFile(fp) as zf:
+                root_md = test_data[archv_vrsn]['parser'].get_root_md(zf)
                 self.assertEqual(root_md.uuid, root_uuid)
                 self.assertEqual(root_md.type,  'Visualization')
                 self.assertEqual(root_md.format, None)
 
     def test_get_root_md_no_md_yaml(self):
         v5_qzv_no_root_md = os.path.join(DATA_DIR, 'no_root_md_yaml.qzv')
-        for archv_vrsn in self.cfg.keys():
+        for archv_vrsn in test_data.keys():
             with zipfile.ZipFile(v5_qzv_no_root_md) as zf:
                 with self.assertRaisesRegex(ValueError, 'Malformed.*metadata'):
-                    self.cfg[archv_vrsn]['parser'].get_root_md(zf)
+                    test_data[archv_vrsn]['parser'].get_root_md(zf)
 
     def test_populate_archive(self):
         mock_DAG = MagicMock()
-        for archv_vrsn in self.cfg.keys():
-            qzv = os.path.join(DATA_DIR, 'v' + archv_vrsn + '_uu_emperor.qzv')
-            root_uuid = self.cfg[archv_vrsn]['uuid']
-            with zipfile.ZipFile(qzv) as zf:
+        for archv_vrsn in test_data.keys():
+            fp = test_data[archv_vrsn]['qzv_fp']
+            root_uuid = test_data[archv_vrsn]['uuid']
+            with zipfile.ZipFile(fp) as zf:
                 if archv_vrsn == '0':
                     with self.assertRaisesRegex(NotImplementedError,
                                                 'V0.*no.*provenance'):
-                        self.cfg[archv_vrsn]['parser'] \
-                            .populate_archv(zf, mock_DAG)
+                        test_data[archv_vrsn]['parser'] \
+                            .parse_prov(zf, mock_DAG)
                 else:
-                    num_res, contents = self.cfg[archv_vrsn]['parser'] \
-                                            .populate_archv(zf, mock_DAG)
+                    num_res, contents = test_data[archv_vrsn]['parser'] \
+                                            .parse_prov(zf, mock_DAG)
                     print(f'Debug: archive version #{archv_vrsn} failing')
                     # Does this archive have the right number of Results?
-                    self.assertEqual(num_res, self.cfg[archv_vrsn]['num_res'])
+                    self.assertEqual(num_res, test_data[archv_vrsn]['n_res'])
                     # Is contents a dict?
                     self.assertIs(type(contents), dict)
                     # Is contents keyed on uuids, containing ProvNodes?
@@ -258,10 +250,10 @@ class ParserVxTests(unittest.TestCase):
         exp = 'uuid123'
 
         with self.assertRaisesRegex(NotImplementedError, 'V0'):
-            self.cfg['0']['parser']._get_nonroot_uuid(md_example)
+            test_data['0']['parser']._get_nonroot_uuid(md_example)
 
         # Only parsers from v1 forward have this method
-        parsers = [vrsn['parser'] for vrsn in list(self.cfg.values())[1:]]
+        parsers = [vrsn['parser'] for vrsn in list(test_data.values())[1:]]
 
         for parser in parsers:
             self.assertEqual(parser._get_nonroot_uuid(md_example), exp)
@@ -269,82 +261,42 @@ class ParserVxTests(unittest.TestCase):
 
 
 class FormatHandlerTests(unittest.TestCase):
-    v5_qzv = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
-    v5_no_version = os.path.join(DATA_DIR, 'VERSION_missing.qzv')
-    v5_qzv_version_bad = os.path.join(DATA_DIR, 'VERSION_bad.qzv')
-    v5_qzv_version_short = os.path.join(DATA_DIR, 'VERSION_short.qzv')
-    v5_qzv_version_long = os.path.join(DATA_DIR, 'VERSION_long.qzv')
-
-    cfg = {
-        '0': {'parser': ParserV0,
-              'av': '0',
-              'fwv': '2.0.5',
-              },
-        '1': {'parser': ParserV1,
-              'av': '1',
-              'fwv': '2.0.6',
-              },
-        '2a': {'parser': ParserV2,
-               'av': '2',
-               'fwv': '2017.9.0',
-               },
-        '2b': {'parser': ParserV2,
-               'av': '2',
-               'fwv': '2017.10.0',
-               },
-        '3': {'parser': ParserV3,
-              'av': '3',
-              'fwv': '2017.12.0',
-              },
-        '4': {'parser': ParserV4,
-              'av': '4',
-              'fwv': '2018.4.0',
-              },
-        '5': {'parser': ParserV5,
-              'av': '5',
-              'fwv': '2018.11.0',
-              },
-        }
 
     # Can we make a FormatHandler without anything blowing up?
     def test_smoke(self):
-        for arch_ver in self.cfg.keys():
-            qzv = os.path.join(DATA_DIR, 'v' + arch_ver + '_uu_emperor.qzv')
+        for arch_ver in test_data.keys():
+            qzv = test_data[arch_ver]['qzv_fp']
             with zipfile.ZipFile(qzv) as zf:
                 FormatHandler(zf)
         self.assertTrue(True)
 
     def test_archive_version(self):
-        for arch_ver in self.cfg.keys():
-            qzv = os.path.join(DATA_DIR, 'v' + arch_ver + '_uu_emperor.qzv')
+        for arch_ver in test_data.keys():
+            qzv = test_data[arch_ver]['qzv_fp']
             with zipfile.ZipFile(qzv) as zf:
                 handler = FormatHandler(zf)
                 self.assertEqual(handler.archive_version,
-                                 self.cfg[arch_ver]['av'])
+                                 test_data[arch_ver]['av'])
 
     def test_framework_version(self):
-        for arch_ver in self.cfg.keys():
-            qzv = os.path.join(DATA_DIR, 'v' + arch_ver + '_uu_emperor.qzv')
+        for arch_ver in test_data.keys():
+            qzv = test_data[arch_ver]['qzv_fp']
             with zipfile.ZipFile(qzv) as zf:
                 handler = FormatHandler(zf)
-                print(arch_ver)
-                print(handler.archive_version)
-                print(handler.framework_version)
-                print(self.cfg[arch_ver]['fwv'])
                 self.assertEqual(handler.framework_version,
-                                 self.cfg[arch_ver]['fwv'])
+                                 test_data[arch_ver]['fwv'])
 
     def test_correct_parser(self):
-        for arch_ver in self.cfg.keys():
-            qzv = os.path.join(DATA_DIR, 'v' + arch_ver + '_uu_emperor.qzv')
+        for arch_ver in test_data.keys():
+            qzv = test_data[arch_ver]['qzv_fp']
             with zipfile.ZipFile(qzv) as zf:
                 handler = FormatHandler(zf)
                 self.assertEqual(handler.parser,
-                                 self.cfg[arch_ver]['parser'])
+                                 test_data[arch_ver]['parser'])
 
     def test_parse(self):
-        uuid = 'ffb7cee3-2f1f-4988-90cc-efd5184ef003'
-        with zipfile.ZipFile(self.v5_qzv) as zf:
+        uuid = test_data['5']['uuid']
+        with zipfile.ZipFile(test_data['5']['qzv_fp']) as zf:
             handler = FormatHandler(zf)
             mock_DAG = MagicMock()
             md, (num_r, contents) = handler.parse(zf, mock_DAG)
@@ -357,33 +309,48 @@ class FormatHandlerTests(unittest.TestCase):
             self.assertIn(uuid, contents.keys())
             self.assertIs(type(contents[uuid]), ProvNode)
 
-    # Testing _get_version's behavior with major VERSION file issues is easier
-    # and more reliable with "real" zip archives. Detailed tests of the VERSION
-    # regex are in test_archive_formats.VersionMatcherTests to reduce overhead
+
+class GetVersionTests(unittest.TestCase):
+    v5_no_version = os.path.join(DATA_DIR, 'VERSION_missing.qzv')
+    v5_qzv_version_bad = os.path.join(DATA_DIR, 'VERSION_bad.qzv')
+    v5_qzv_version_short = os.path.join(DATA_DIR, 'VERSION_short.qzv')
+    v5_qzv_version_long = os.path.join(DATA_DIR, 'VERSION_long.qzv')
+
+    # High-level checks only. Detailed tests of the VERSION_MATCHER regex are
+    # in test_archive_formats.VersionMatcherTests to reduce overhead
+
     def test_get_version_no_VERSION_file(self):
         with zipfile.ZipFile(self.v5_no_version) as zf:
             with self.assertRaisesRegex(ValueError, 'VERSION.*nonexistent'):
-                FormatHandler(zf)
+                get_version(zf)
 
     def test_get_version_VERSION_bad(self):
         with zipfile.ZipFile(self.v5_qzv_version_bad) as zf:
             with self.assertRaisesRegex(ValueError, 'VERSION.*out of spec'):
-                FormatHandler(zf)
+                get_version(zf)
 
     def test_short_VERSION(self):
         with zipfile.ZipFile(self.v5_qzv_version_short) as zf:
             with self.assertRaisesRegex(ValueError, 'VERSION.*out of spec'):
-                FormatHandler(zf)
+                get_version(zf)
 
     def test_long_VERSION(self):
         with zipfile.ZipFile(self.v5_qzv_version_long) as zf:
             with self.assertRaisesRegex(ValueError, 'VERSION.*out of spec'):
-                FormatHandler(zf)
+                get_version(zf)
+
+    def test_version_nums(self):
+        for arch_ver in test_data.keys():
+            qzv = os.path.join(DATA_DIR, 'v' + arch_ver + '_uu_emperor.qzv')
+            with zipfile.ZipFile(qzv) as zf:
+                exp_arch, exp_frmwk = get_version(zf)
+                self.assertEqual(exp_arch, test_data[arch_ver]['av'])
+                self.assertEqual(exp_frmwk, test_data[arch_ver]['fwv'])
 
 
 class ResultMetadataTests(unittest.TestCase):
-    v5_qzv = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
-    v5_uuid = 'ffb7cee3-2f1f-4988-90cc-efd5184ef003'
+    v5_qzv = test_data['5']['qzv_fp']
+    v5_uuid = test_data['5']['uuid']
     md_fp = f'{v5_uuid}/provenance/metadata.yaml'
     with zipfile.ZipFile(v5_qzv) as zf:
         v5_root_md = _ResultMetadata(zf, md_fp)
@@ -475,62 +442,65 @@ class ProvNodeTests(unittest.TestCase):
     # ProvDAGs responsible for assigning parentage to their ProvNodes
 
     def setUp(self):
-        self.v5_qzv = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
-        # Building a dag to back thesee tests, because the alternative is to
+        # Using a dag to back these tests, because the alternative is to
         # hand-build two to three test nodes and mock a ProvDAG to hold them.
-        self.v5_dag = ProvDAG(self.v5_qzv)
-        self.v5_uuid = 'ffb7cee3-2f1f-4988-90cc-efd5184ef003'
+        self.v5_dag = ProvDAG(test_data['5']['qzv_fp'])
         super().setUp()
         self.root_metadata_fps = None
 
-        with zipfile.ZipFile(self.v5_qzv) as zf:
+        with zipfile.ZipFile(test_data['5']['qzv_fp']) as zf:
             all_filenames = zf.namelist()
-            self.root_md_fnames = filter(is_provnode_data, all_filenames)
-            self.root_md_fps = [pathlib.Path(fp) for fp in self.root_md_fnames]
-            self.v5_ProvNode = ProvNode(self.v5_dag, zf, self.root_md_fps)
+            root_md_fnames = filter(is_provnode_data, all_filenames)
+            root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
+            self.v5_ProvNode = ProvNode(self.v5_dag, zf, root_md_fps)
 
     def test_smoke(self):
         self.assertTrue(True)
         self.assertIs(type(self.v5_ProvNode), ProvNode)
 
     def test_v5_viz_md(self):
-        print(self.v5_ProvNode)
-        self.assertEqual(self.v5_ProvNode.uuid, self.v5_uuid)
+        self.assertEqual(self.v5_ProvNode.uuid, test_data['5']['uuid'])
         self.assertEqual(self.v5_ProvNode.sem_type, 'Visualization')
         self.assertEqual(self.v5_ProvNode.format, None)
 
-    def test_eq(self):
+    def test_self_eq(self):
         self.assertEqual(self.v5_ProvNode, self.v5_ProvNode)
-        mock_node = MagicMock()
+
+    def test_eq(self):
         # Mock has no matching UUID
+        mock_node = MagicMock()
         self.assertNotEqual(self.v5_ProvNode, mock_node)
-        mock_node.uuid = 'gerbil'
 
         # Mock has bad UUID
+        mock_node.uuid = 'gerbil'
         self.assertNotEqual(self.v5_ProvNode, mock_node)
-        mock_node.uuid = self.v5_uuid
 
         # Matching UUIDs insufficient if classes differ
+        mock_node.uuid = test_data['5']['uuid']
         self.assertNotEqual(self.v5_ProvNode, mock_node)
         mock_node.__class__ = ProvNode
         self.assertEqual(self.v5_ProvNode, mock_node)
 
     def test_is_hashable(self):
-        exp_hash = hash(self.v5_uuid)
+        exp_hash = hash(test_data['5']['uuid'])
         self.assertEqual(hash(self.v5_ProvNode), exp_hash)
 
     def test_str(self):
-        self.assertEqual(str(self.v5_ProvNode), f'ProvNode({self.v5_uuid})')
+        v5_uuid = test_data['5']['uuid']
+        self.assertEqual(str(self.v5_ProvNode), f'ProvNode({v5_uuid})')
 
     def test_repr(self):
+        v5_uuid = test_data['5']['uuid']
         self.assertEqual(repr(self.v5_ProvNode),
-                         f'ProvNode({self.v5_uuid}, Visualization, fmt=None)')
+                         f'ProvNode({v5_uuid}, Visualization, fmt=None)')
 
     def test_archive_version(self):
-        self.assertEqual(self.v5_ProvNode.archive_version, '5')
+        self.assertEqual(self.v5_ProvNode.archive_version,
+                         test_data['5']['av'])
 
     def test_framework_version(self):
-        self.assertEqual(self.v5_ProvNode.framework_version, '2018.11.0')
+        self.assertEqual(self.v5_ProvNode.framework_version,
+                         test_data['5']['fwv'])
 
     maxDiff = None
 
@@ -564,7 +534,7 @@ class ProvNodeTests(unittest.TestCase):
         self.assertEqual(parentless_node._parents, None)
 
     def test_parents_property_has_parents(self):
-        self.v5_ProvNode._owner_dag = ProvDAG(self.v5_qzv)
+        self.v5_ProvNode._owner_dag = ProvDAG(test_data['5']['qzv_fp'])
         exp_nodes = [self.v5_ProvNode._owner_dag._archv_contents[id]
                      for id in ['89af91c0-033d-4e30-8ac4-f29a3b407dc1',
                                 'bce3d09b-e296-4f2b-9af4-834db6412429']]

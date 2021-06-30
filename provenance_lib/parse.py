@@ -338,7 +338,9 @@ class ParserV1(ParserV0):
     Parser for V1 archives. These track provenance, so we parse it.
     """
     version_string = 1
-    prov_filenames = ['metadata.yaml', 'action/action.yaml']
+    prov_filenames = ('metadata.yaml', 'action/action.yaml')
+    # TODO NEXT: Add VERSION to the above ^, and start parsing VERSION files
+    # in the ProvNode constructor
 
     @classmethod
     def parse_prov(self, zf: zipfile, owner_dag: ProvDAG) -> \
@@ -402,6 +404,7 @@ class ParserV2(ParserV1):
     action.yaml changes to support Pipelines
     """
     version_string = 2
+    prov_filenames = ParserV1.prov_filenames
 
 
 class ParserV3(ParserV2):
@@ -410,6 +413,7 @@ class ParserV3(ParserV2):
     action.yaml now supports variadic inputs, so !set tags in action.yaml
     """
     version_string = 3
+    prov_filenames = ParserV2.prov_filenames
     # TODO: move set constructor over here? (and !cite constructor below?)
 
 
@@ -419,7 +423,7 @@ class ParserV4(ParserV3):
     action.yaml incl transformers
     """
     version_string = 4
-    prov_filenames = ['metadata.yaml', 'action/action.yaml', 'citations.bib']
+    prov_filenames = (*ParserV3.prov_filenames, 'citations.bib')
 
 
 class ParserV5(ParserV4):
@@ -427,9 +431,8 @@ class ParserV5(ParserV4):
     Parser for V5 archives. Adds checksums.md5
     """
     version_string = 5
-    prov_filenames = ['metadata.yaml', 'action/action.yaml', 'citations.bib',
-                      'checksums.md5']
-    # TODO: Add very optional checksum validation?
+    prov_filenames = (*ParserV4.prov_filenames, 'checksums.md5')
+    # TODO: Add checksum validation (imported from framework)
 
 
 class FormatHandler():

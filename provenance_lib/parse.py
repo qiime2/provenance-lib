@@ -325,7 +325,7 @@ class ParserV0():
     # and include them only in subclasses where they are actually implemented
     # by the Archive Format? Tests that iterate can always catch other errors
     @classmethod
-    def populate_archv(self, zf: zipfile.ZipFile, owner_dag: ProvDAG) -> None:
+    def parse_prov(self, zf: zipfile.ZipFile, owner_dag: ProvDAG) -> None:
         raise NotImplementedError("V0 Archives do not contain provenance data")
 
     @classmethod
@@ -341,7 +341,7 @@ class ParserV1(ParserV0):
     prov_filenames = ['metadata.yaml', 'action/action.yaml']
 
     @classmethod
-    def populate_archv(self, zf: zipfile, owner_dag: ProvDAG) -> \
+    def parse_prov(self, zf: zipfile, owner_dag: ProvDAG) -> \
             Tuple[int, Dict[str, ProvNode]]:
         """
         Populates an _Archive with all relevant provenance data
@@ -462,4 +462,4 @@ class FormatHandler():
     def parse(self, zf: zipfile.ZipFile, owned_by: ProvDAG) -> \
             Tuple[_ResultMetadata, Tuple[int, Dict[str, ProvNode]]]:
         return (self.parser.get_root_md(zf),
-                self.parser.populate_archv(zf, owned_by))
+                self.parser.parse_prov(zf, owned_by))

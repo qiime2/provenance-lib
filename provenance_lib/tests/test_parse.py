@@ -241,10 +241,10 @@ class ParserVxTests(unittest.TestCase):
                     with self.assertRaisesRegex(NotImplementedError,
                                                 'V0.*no.*provenance'):
                         test_data[archv_vrsn]['parser'] \
-                            .populate_archv(zf, mock_DAG)
+                            .parse_prov(zf, mock_DAG)
                 else:
                     num_res, contents = test_data[archv_vrsn]['parser'] \
-                                            .populate_archv(zf, mock_DAG)
+                                            .parse_prov(zf, mock_DAG)
                     print(f'Debug: archive version #{archv_vrsn} failing')
                     # Does this archive have the right number of Results?
                     self.assertEqual(num_res, test_data[archv_vrsn]['n_res'])

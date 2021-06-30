@@ -199,7 +199,7 @@ class ArchiveVersionMatcherTests(unittest.TestCase):
 
 
 class ParserVxTests(unittest.TestCase):
-    # TODO: 0 should have a real v0 archive. Currently a hacked V1 arhive
+    # TODO: 0 should have a real v0 archive. Currently a hacked V1 archive
 
     def test_get_root_md(self):
         for archv_vrsn in test_data.keys():

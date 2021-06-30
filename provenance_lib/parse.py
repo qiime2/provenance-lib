@@ -8,6 +8,8 @@ import bibtexparser as bp
 import yaml
 import zipfile
 
+# Alias string as UUID so we can specify types more clearly
+UUID = str
 
 _VERSION_MATCHER = (
     r'QIIME 2\n'
@@ -43,7 +45,7 @@ yaml.SafeLoader.add_constructor('!cite', citation_constructor)
 yaml.SafeLoader.add_constructor('!ref', ref_constructor)
 
 
-def get_version(zf: zipfile, fp: Optional[str] = None) -> Tuple[str]:
+def get_version(zf: zipfile, fp: Optional[pathlib.Path] = None) -> Tuple[str]:
     """Parse a VERSION file - by default uses the VERSION at archive root"""
     if not fp:
         # All files in zf start with root uuid, so we'll grab it from the first
@@ -76,9 +78,9 @@ class ProvDAG:
     Archive.
     TODO: May also contain a non-hierarchical pool of unique ProvNodes?
     """
-    _num_results: int
-    _archv_contents: Dict[str, ProvNode]
-    _archive_md: _ResultMetadata
+    _num_results: Optional[int]
+    _archv_contents: Dict[UUID, ProvNode]
+    _archive_md: Optional[_ResultMetadata]
 
     # TODO: remove this? replace with a collection of terminal uuids
     @property
@@ -171,7 +173,7 @@ class ProvNode:
     # files handed to it. It is the responsibility of the ParserVx classes to
     # decide what files need to be passed.
     def __init__(self, ownedBy, zf: zipfile,
-                 fps_for_this_result: List[pathlib.Path]):
+                 fps_for_this_result: List[pathlib.Path]) -> None:
         self._owner_dag = ownedBy
         for fp in fps_for_this_result:
             if fp.name == 'VERSION':
@@ -184,22 +186,22 @@ class ProvNode:
             elif fp.name == 'citations.bib':
                 self._citations = _Citations(zf, str(fp))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'ProvNode({self.uuid}, {self.sem_type}, fmt={self.format})'
 
-    def __str__(self):
-        return f'ProvNode({self.uuid})'
+    def __str__(self) -> UUID:
+        return f'{self.uuid}'
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.uuid)
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return (self.__class__ == other.__class__
                 and self.uuid == other.uuid
                 )
 
     # TODO: Drop with NetworkX, or keep it around for the repr?
-    def traverse_uuids(self):
+    def traverse_uuids(self) -> Dict[UUID, ProvNode]:
         """ depth-first traversal of this ProvNode's ancestors """
         local_parents = dict()
         if not self.parents:
@@ -322,7 +324,7 @@ class ParserV1(ParserV0):
 
     @classmethod
     def parse_prov(self, zf: zipfile, owner_dag: ProvDAG) -> \
-            Tuple[int, Dict[str, ProvNode]]:
+            Tuple[int, Dict[UUID, ProvNode]]:
         """
         Populates an _Archive with all relevant provenance data
         Takes an Archive (as a zipfile) as input.
@@ -364,7 +366,7 @@ class ParserV1(ParserV0):
         return (num_results, archv_contents)
 
     @classmethod
-    def _get_nonroot_uuid(self, fp: pathlib.Path) -> str:
+    def _get_nonroot_uuid(self, fp: pathlib.Path) -> UUID:
         """
         For non-root provenance files, get the Result's uuid from the path
         (avoiding the root Result's UUID which is in all paths)
@@ -441,6 +443,6 @@ class FormatHandler():
         self.parser = self._FORMAT_REGISTRY[self._archv_vrsn]
 
     def parse(self, zf: zipfile.ZipFile, owned_by: ProvDAG) -> \
-            Tuple[_ResultMetadata, Tuple[int, Dict[str, ProvNode]]]:
+            Tuple[_ResultMetadata, Tuple[int, Dict[UUID, ProvNode]]]:
         return (self.parser.get_root_md(zf),
                 self.parser.parse_prov(zf, owned_by))

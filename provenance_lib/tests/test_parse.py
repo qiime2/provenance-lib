@@ -487,7 +487,7 @@ class ProvNodeTests(unittest.TestCase):
 
     def test_str(self):
         v5_uuid = test_data['5']['uuid']
-        self.assertEqual(str(self.v5_ProvNode), f'ProvNode({v5_uuid})')
+        self.assertEqual(str(self.v5_ProvNode), f'{v5_uuid}')
 
     def test_repr(self):
         v5_uuid = test_data['5']['uuid']

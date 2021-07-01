@@ -4,6 +4,7 @@ import pathlib
 import unittest
 from unittest.mock import MagicMock
 
+from networkx import DiGraph
 import zipfile
 
 from ..parse import (
@@ -12,7 +13,7 @@ from ..parse import (
     ParserV0, ParserV1, ParserV2, ParserV3, ParserV4, ParserV5,
     get_version,
 )
-from .util import is_provnode_data
+from .util import is_root_provnode_data
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 test_data = {
@@ -87,7 +88,7 @@ class ProvDAGTests(unittest.TestCase):
         mock_dag = MagicMock()
         with zipfile.ZipFile(test_data['5']['qzv_fp']) as zf:
             all_filenames = zf.namelist()
-            root_md_fnames = filter(is_provnode_data, all_filenames)
+            root_md_fnames = filter(is_root_provnode_data, all_filenames)
             root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
             v5_ProvNode = ProvNode(mock_dag, zf, root_md_fps)
             self.assertEqual(v5_ProvNode, self.v5_provDag.root_node)
@@ -125,6 +126,19 @@ class ProvDAGTests(unittest.TestCase):
         with self.assertRaisesRegex(zipfile.BadZipFile,
                                     'File is not a zip file'):
             ProvDAG(self.not_a_zip)
+
+    # Following are some rudimentary nx tests
+    # TODO: clean this up
+    def test_is_digraph(self):
+        self.assertIsInstance(self.v5_provDag, DiGraph)
+
+    def test_has_nodes(self):
+        self.assertIn(test_data['5']['uuid'], self.v5_provDag.nodes)
+
+    def test_root_node_action_type(self):
+        self.assertEqual(
+            self.v5_provDag.nodes[test_data['5']['uuid']]['action_type'],
+            'pipeline')
 
 
 class ArchiveVersionMatcherTests(unittest.TestCase):
@@ -368,9 +382,13 @@ class ResultMetadataTests(unittest.TestCase):
 
 
 class ActionTests(unittest.TestCase):
-    action_fp = os.path.join(DATA_DIR, 'action.zip')
-    with zipfile.ZipFile(action_fp) as zf:
+    root_action_fp = os.path.join(DATA_DIR, 'v5_emperor_root_action.zip')
+    import_action_fp = os.path.join(DATA_DIR, 'v5_import_action.zip')
+    with zipfile.ZipFile(root_action_fp) as zf:
         act = _Action(zf, 'action.yaml')
+
+    with zipfile.ZipFile(import_action_fp) as zf:
+        imp_act = _Action(zf, 'action.yaml')
 
     def test_action_id(self):
         exp = '5bc4b090-abbc-46b0-a219-346c8026f7d7'
@@ -398,6 +416,21 @@ class ActionTests(unittest.TestCase):
                'type=pipeline, plugin=diversity, '
                'action=core_metrics_phylogenetic)')
         self.assertEqual(repr(self.act), exp)
+
+    # NOTE: Import is not handled by a plugin, and has no inputs. Parsing logic
+    # provides values for the following properties which are not present in
+    # action.yaml
+    def test_action_for_import_node(self):
+        exp = 'import'
+        self.assertEqual(self.imp_act.action, exp)
+
+    def test_plugin_for_import_node(self):
+        exp = 'framework'
+        self.assertEqual(self.imp_act.plugin, exp)
+
+    def test_inputs_for_import_node(self):
+        exp = None
+        self.assertEqual(self.imp_act.inputs, exp)
 
 
 class CitationsTests(unittest.TestCase):
@@ -450,7 +483,7 @@ class ProvNodeTests(unittest.TestCase):
 
         with zipfile.ZipFile(test_data['5']['qzv_fp']) as zf:
             all_filenames = zf.namelist()
-            root_md_fnames = filter(is_provnode_data, all_filenames)
+            root_md_fnames = filter(is_root_provnode_data, all_filenames)
             root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
             self.v5_ProvNode = ProvNode(self.v5_dag, zf, root_md_fps)
 
@@ -501,6 +534,12 @@ class ProvNodeTests(unittest.TestCase):
     def test_framework_version(self):
         self.assertEqual(self.v5_ProvNode.framework_version,
                          test_data['5']['fwv'])
+
+    # def test_attr(self):
+    #     attrs = dir(self.v5_ProvNode)
+    #     attrs = self.v5_ProvNode.__dict__
+    #     print(attrs)
+    #     self.assertEqual(attrs, 'gerbil')
 
     maxDiff = None
 

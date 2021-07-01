@@ -36,3 +36,6 @@ if __name__ == '__main__':
     print('\t- etcetera, etcetera')
 
     print(f'\nIts prov DAG looks like\n{dummy_DAG}')
+
+    print('#########################################')
+    print(dummy_DAG.nodes['ffb7cee3-2f1f-4988-90cc-efd5184ef003']['inputs'])

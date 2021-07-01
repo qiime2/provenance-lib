@@ -5,6 +5,7 @@ import re
 from typing import List, Dict, Tuple, Optional
 
 import bibtexparser as bp
+from networkx import DiGraph
 import yaml
 import zipfile
 
@@ -72,15 +73,15 @@ def get_version(zf: zipfile, fp: Optional[pathlib.Path] = None) -> Tuple[str]:
     return (archv_vrsn, frmwk_vrsn)
 
 
-class ProvDAG:
+class ProvDAG(DiGraph):
     """
     A single-rooted DAG of ProvNode objects, representing a single QIIME 2
     Archive.
     TODO: May also contain a non-hierarchical pool of unique ProvNodes?
     """
-    _num_results: Optional[int]
+    _num_results: int
     _archv_contents: Dict[UUID, ProvNode]
-    _archive_md: Optional[_ResultMetadata]
+    _archive_md: _ResultMetadata
 
     # TODO: remove this? replace with a collection of terminal uuids
     @property
@@ -115,14 +116,47 @@ class ProvDAG:
         return r_str
 
     def __init__(self, archive_fp: str):
-        self._archive_md: None
-        self._archv_contents: None
-        self._num_results = 0
-
+        super().__init__()
         with zipfile.ZipFile(archive_fp) as zf:
-            self.handler = FormatHandler(zf)
+            handler = FormatHandler(zf)
             self._archive_md, (self._num_results, self._archv_contents) = \
-                self.handler.parse(zf, owned_by=self)
+                handler.parse(zf, owned_by=self)
+
+            # Nodes are literally UUIDs. Entire ProvNodes and select other data
+            # are stored as attributes.
+
+            # TODO: If our nodes are ProvNodes instead of uuids, do we get
+            # these attributes, queryable, "for free"?
+
+            con = self._archv_contents
+            node_contents = [
+                (n_id, dict(full_ProvNode_payload=con[n_id],
+                            type=con[n_id].sem_type,
+                            format=con[n_id].format,
+                            framework_version=con[n_id].framework_version,
+                            archive_version=con[n_id].archive_version,
+                            action_type=con[n_id]._action.action_type,
+                            plugin=con[n_id]._action.plugin,
+                            inputs=con[n_id]._action.inputs,
+                            )) for n_id in self._archv_contents]
+            self.add_nodes_from(node_contents)
+
+            ebunch = []
+            for node_id, data in self.nodes(data=True):
+                if data['inputs']:
+                    for input in data['inputs']:
+                        type = tuple(input.keys())[0]
+                        parent_uuid = tuple(input.values())[0]
+                        ebunch.append((parent_uuid, node_id,
+                                       {'type': type, 'runtime': 'TODO'}))
+            self.add_edges_from(ebunch)
+            # TODO NEXT: add execution data to the ebunch. This lives in
+            # _action._execution['runtime']['duration'] or thereabouts
+            # TODO: De-duplicate the graph?
+            # Our digraph contains all directories in the archive,
+            # and doesn't handle aliases in the same way that q2view does.
+            # We'll need to consider the semantics here.
+            # TODO: Add Digraph tests - include the weird query bug in the jn
 
 
 class ProvNode:
@@ -145,7 +179,9 @@ class ProvNode:
                     list(uuid.values())[0] for uuid in parent_dicts]
                 self._parents = [self._owner_dag._archv_contents[uuid] for
                                  uuid in parent_uuids]
-            except KeyError:
+            except TypeError:
+                # Imports have no parent inputs. self.action.inputs will be
+                # None and not iterable when that occurs
                 pass
         return self._parents
 
@@ -182,8 +218,10 @@ class ProvNode:
             elif fp.name == 'metadata.yaml':
                 self._result_md = _ResultMetadata(zf, str(fp))
             elif fp.name == 'action.yaml':
+                # TODO: this should be public
                 self._action = _Action(zf, str(fp))
             elif fp.name == 'citations.bib':
+                # TODO: should this be public?
                 self._citations = _Citations(zf, str(fp))
 
     def __repr__(self) -> str:
@@ -215,36 +253,54 @@ class ProvNode:
 
 
 class _Action:
-    """ Provenance data for a single QIIME 2 Result from action.yaml """
-    _action_details = None
+    """ Provenance data from action.yaml for a single QIIME 2 Result """
 
     @property
-    def action_id(self):
+    def action_id(self) -> str:
         """ the UUID assigned to this Action (not its Results) """
         return self._execution_details['uuid']
 
     @property
-    def action_type(self):
-        """ the type of Action represented (e.g. Method, Pipeline, etc. ) """
+    def action_type(self) -> str:
+        """
+        The type of Action represented (e.g. Method, Pipeline, etc. )
+        Returns Import if an import - this is a useful sentinel for deciding
+        what type of action we're parsing (Action vs import)
+        """
         return self._action_details['type']
 
+    # TODO: The semantics are clunky for the following properties when the
+    # "Action" was an import. The approach taken here is not comprehensive and
+    # very not DRY. See TODOs in ProvDAG for notes on possibly handling with
+    # schemas upstream
     @property
-    def action(self):
-        """ the action executed by this Action """
-        return self._action_details['action']
+    def action(self) -> str:
+        """
+        The name of the action itself. Returns 'import' if this is an import.
+        """
+        action = self._action_details.get('action')
+        if self.action_type == 'import':
+            action = 'import'
+        return action
 
     @property
-    def plugin(self):
-        """ the plugin which executed this Action """
-        return self._action_details['plugin']
+    def plugin(self) -> str:
+        """
+        The plugin which executed this Action. Returns 'framework' if this is
+        an import.
+        """
+        plugin = self._action_details.get('plugin')
+        if self.action_type == 'import':
+            plugin = 'framework'
+        return plugin
 
     @property
-    def inputs(self):
+    def inputs(self) -> Optional[List[Dict[str, UUID]]]:
         """
-        a list of single-item dicts containing the types and UUIDs of this
-        action's inputs
+        a list of single-item {Type: UUID} dicts describing this
+        action's inputs. Returns None if this "action" is an Import
         """
-        return self._action_details['inputs']
+        return self._action_details.get('inputs')
 
     def __init__(self, zf: zipfile, fp: str):
         self._action_dict = yaml.safe_load(zf.read(fp))

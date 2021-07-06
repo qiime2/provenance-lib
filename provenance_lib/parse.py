@@ -87,44 +87,54 @@ class ProvDAG(DiGraph):
 
     # TODO: remove this? replace with a collection of terminal uuids
     @property
-    def root_uuid(self):
+    def root_uuid(self) -> UUID:
         """The UUID of the terminal node of one QIIME 2 Archive"""
         return self._archive_md.uuid
 
     # TODO: remove this? replace with a collection of terminal nodes
     @property
-    def root_node(self):
+    def root_node(self) -> ProvNode:
         """The terminal ProvNode of one QIIME 2 Archive"""
         return self.get_result(self.root_uuid)
 
-    def get_result(self, uuid):
+    def get_result(self, uuid) -> ProvNode:
         """Returns a ProvNode from this ProvDAG selected by UUID"""
         return self._archv_contents[uuid]
 
-    # TODO: remove this? traversal querying should be handled by nx?
-    # May still be useful for repr?
-    def _traverse_uuids_from_root(self):
-        return self.root_node.traverse_uuids()
-
-    def __str__(self):
+    def __str__(self) -> str:
         return repr(self._archive_md)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         # Traverse DAG, printing UUIDs
         # TODO: Improve this repr to remove id duplication
         r_str = self.__str__() + "\nContains Results:\n"
-        uuid_yaml = yaml.dump(self._traverse_uuids_from_root())
+        uuid_yaml = yaml.dump(self.traverse_uuids())
         r_str += uuid_yaml
         return r_str
 
-    # TODO: NEXT - remove traversal logic, rewrite __str__ and __repr and test
+    def traverse_uuids(self, node_id: UUID = None) -> \
+            Dict[UUID, ProvNode]:
+        """ depth-first traversal of this ProvNode's ancestors """
+        # Use this DAG's root uuid by default
+        node_id = self.root_uuid if node_id is None else node_id
+        local_parents = dict()
+        if not self.nodes[node_id]['inputs']:
+            local_parents = {node_id: None}
+        else:
+            sub_dag = dict()
+            parents = self.nodes[node_id]['inputs']
+            parent_uuids = (list(parent.values())[0] for parent in parents)
+            for uuid in parent_uuids:
+                sub_dag.update(self.traverse_uuids(uuid))
+            local_parents[node_id] = sub_dag
+        return local_parents
 
     def __init__(self, archive_fp: str):
         super().__init__()
         with zipfile.ZipFile(archive_fp) as zf:
             handler = FormatHandler(zf)
             self._archive_md, (self._num_results, self._archv_contents) = \
-                handler.parse(zf, owned_by=self)
+                handler.parse(zf)
 
             # Nodes are literally UUIDs. Entire ProvNodes and select other data
             # are stored as attributes.
@@ -163,31 +173,6 @@ class ProvDAG(DiGraph):
 
 class ProvNode:
     """ One node of a provenance DAG, describing one QIIME 2 Result """
-    _parents = None
-    _owner_dag = None
-
-    # TODO: handle with nx?
-    @property
-    def parents(self):
-        """ The list of ProvNodes used as inputs in creating this ProvNode """
-        # NOTE: We must delay gathering parentage data until the ProvDAG is
-        # fully populated (otherwise KeyError on the UUID of a not-yet-parsed
-        # ProvNode). Caching this lazily allows us to delay until the first
-        # call (likely the first DAG traversal)
-        if not self._parents:
-            try:
-                parent_dicts = [parent for parent in self._action.inputs]
-                parent_uuids = [
-                    list(uuid.values())[0] for uuid in parent_dicts]
-                self._parents = [self._owner_dag._archv_contents[uuid] for
-                                 uuid in parent_uuids]
-            except TypeError:
-                # Imports have no parent inputs. self.action.inputs will be
-                # None and not iterable when that occurs
-                pass
-        return self._parents
-
-    # TODO: We can _probably_ throw out .parents and traverse_uuids() now!
 
     @property
     def uuid(self):
@@ -212,9 +197,8 @@ class ProvNode:
     # NOTE: This constructor is intentionally flexible, and will parse any
     # files handed to it. It is the responsibility of the ParserVx classes to
     # decide what files need to be passed.
-    def __init__(self, ownedBy, zf: zipfile,
+    def __init__(self, zf: zipfile,
                  fps_for_this_result: List[pathlib.Path]) -> None:
-        self._owner_dag = ownedBy
         for fp in fps_for_this_result:
             if fp.name == 'VERSION':
                 self._archive_version, self._framework_version = \
@@ -241,19 +225,6 @@ class ProvNode:
         return (self.__class__ == other.__class__
                 and self.uuid == other.uuid
                 )
-
-    # TODO: Drop with NetworkX, or keep it around for the repr?
-    def traverse_uuids(self) -> Dict[UUID, ProvNode]:
-        """ depth-first traversal of this ProvNode's ancestors """
-        local_parents = dict()
-        if not self.parents:
-            local_parents = {self.uuid: None}
-        else:
-            sub_dag = dict()
-            for parent in self.parents:
-                sub_dag.update(parent.traverse_uuids())
-            local_parents[self.uuid] = sub_dag
-        return local_parents
 
 
 class _Action:
@@ -383,7 +354,7 @@ class ParserV0():
     # and include them only in subclasses where they are actually implemented
     # by the Archive Format? Tests that iterate can always catch other errors
     @classmethod
-    def parse_prov(self, zf: zipfile.ZipFile, owner_dag: ProvDAG) -> None:
+    def parse_prov(self, zf: zipfile.ZipFile) -> None:
         raise NotImplementedError("V0 Archives do not contain provenance data")
 
     @classmethod
@@ -399,8 +370,7 @@ class ParserV1(ParserV0):
     prov_filenames = ('metadata.yaml', 'action/action.yaml', 'VERSION')
 
     @classmethod
-    def parse_prov(self, zf: zipfile, owner_dag: ProvDAG) -> \
-            Tuple[int, Dict[UUID, ProvNode]]:
+    def parse_prov(self, zf: zipfile) -> Tuple[int, Dict[UUID, ProvNode]]:
         """
         Populates an _Archive with all relevant provenance data
         Takes an Archive (as a zipfile) as input.
@@ -437,8 +407,7 @@ class ParserV1(ParserV0):
                 fps_for_this_result = [prefix / name
                                        for name in self.prov_filenames]
                 num_results += 1
-                archv_contents[uuid] = ProvNode(owner_dag, zf,
-                                                fps_for_this_result)
+                archv_contents[uuid] = ProvNode(zf, fps_for_this_result)
         return (num_results, archv_contents)
 
     @classmethod
@@ -470,7 +439,6 @@ class ParserV3(ParserV2):
     """
     version_string = 3
     prov_filenames = ParserV2.prov_filenames
-    # TODO: move set constructor over here? (and !cite constructor below?)
 
 
 class ParserV4(ParserV3):
@@ -518,7 +486,7 @@ class FormatHandler():
         self._archv_vrsn, self._frmwk_vrsn = get_version(zf)
         self.parser = self._FORMAT_REGISTRY[self._archv_vrsn]
 
-    def parse(self, zf: zipfile.ZipFile, owned_by: ProvDAG) -> \
+    def parse(self, zf: zipfile.ZipFile) -> \
             Tuple[_ResultMetadata, Tuple[int, Dict[UUID, ProvNode]]]:
         return (self.parser.get_root_md(zf),
-                self.parser.parse_prov(zf, owned_by))
+                self.parser.parse_prov(zf))

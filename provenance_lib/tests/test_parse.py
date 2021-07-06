@@ -2,6 +2,7 @@ import os
 import codecs
 import pathlib
 import unittest
+from datetime import timedelta
 from unittest.mock import MagicMock
 
 from networkx import DiGraph
@@ -93,6 +94,66 @@ class ProvDAGTests(unittest.TestCase):
             v5_ProvNode = ProvNode(mock_dag, zf, root_md_fps)
             self.assertEqual(v5_ProvNode, self.v5_provDag.root_node)
 
+    def test_number_of_actions(self):
+        # TODO: remove _num_results and rely on node.len()?
+        # This call should be made once we've decided how to represent nodes,
+        # e.g. nested or all-nodes/raw
+        # At that time, remove one of these assertions
+        self.assertEqual(self.v5_provDag._num_results, test_data['5']['n_res'])
+        self.assertEqual(len(self.v5_provDag), test_data['5']['n_res'])
+
+    def test_nonexistent_fp(self):
+        with self.assertRaisesRegex(FileNotFoundError, 'not_a_filepath.qza'):
+            ProvDAG(self.fake_fp)
+
+    def test_not_a_zip_archive(self):
+        with self.assertRaisesRegex(zipfile.BadZipFile,
+                                    'File is not a zip file'):
+            ProvDAG(self.not_a_zip)
+
+    # Following are some rudimentary nx tests
+    # TODO: clean this up
+    def test_is_digraph(self):
+        self.assertIsInstance(self.v5_provDag, DiGraph)
+
+    def test_has_nodes(self):
+        self.assertIn(test_data['5']['uuid'], self.v5_provDag.nodes)
+
+    def test_root_node_attributes(self):
+        root_node = self.v5_provDag.nodes[test_data['5']['uuid']]
+        self.assertEqual(root_node['type'], 'Visualization')
+        self.assertEqual(root_node['format'], None)
+        self.assertEqual(root_node['framework_version'], '2018.11.0')
+        self.assertEqual(root_node['archive_version'], '5')
+        self.assertEqual(root_node['action_type'], 'pipeline')
+        self.assertEqual(root_node['plugin'], 'diversity')
+        self.assertIn({'table': '89af91c0-033d-4e30-8ac4-f29a3b407dc1'},
+                      root_node['inputs'])
+        self.assertIn({'phylogeny': 'bce3d09b-e296-4f2b-9af4-834db6412429'},
+                      root_node['inputs'])
+        self.assertEqual(root_node['runtime'],
+                         timedelta(seconds=5, microseconds=249201))
+
+    def test_has_edges(self):
+        self.assertTrue(self.v5_provDag.has_edge(
+            '89af91c0-033d-4e30-8ac4-f29a3b407dc1',
+            'ffb7cee3-2f1f-4988-90cc-efd5184ef003'))
+        self.assertTrue(self.v5_provDag.has_edge(
+            'bce3d09b-e296-4f2b-9af4-834db6412429',
+            'ffb7cee3-2f1f-4988-90cc-efd5184ef003'))
+
+    def test_edge_types(self):
+        self.assertEqual('table',
+                         self.v5_provDag
+                         ['89af91c0-033d-4e30-8ac4-f29a3b407dc1']
+                         ['ffb7cee3-2f1f-4988-90cc-efd5184ef003']
+                         ['type'])
+        self.assertEqual('phylogeny',
+                         self.v5_provDag
+                         ['bce3d09b-e296-4f2b-9af4-834db6412429']
+                         ['ffb7cee3-2f1f-4988-90cc-efd5184ef003']
+                         ['type'])
+
     def test_str(self):
         self.assertRegex(str(self.v5_provDag),
                          '(?s)UUID:\t\tffb7cee3.*Type.*Data Format')
@@ -114,31 +175,6 @@ class ProvDAGTests(unittest.TestCase):
                           '        a35830e1-4535-47c6-aa23-be295a57ee1c: null'
                           '\n')
                          )
-
-    def test_number_of_actions(self):
-        self.assertEqual(self.v5_provDag._num_results, test_data['5']['n_res'])
-
-    def test_nonexistent_fp(self):
-        with self.assertRaisesRegex(FileNotFoundError, 'not_a_filepath.qza'):
-            ProvDAG(self.fake_fp)
-
-    def test_not_a_zip_archive(self):
-        with self.assertRaisesRegex(zipfile.BadZipFile,
-                                    'File is not a zip file'):
-            ProvDAG(self.not_a_zip)
-
-    # Following are some rudimentary nx tests
-    # TODO: clean this up
-    def test_is_digraph(self):
-        self.assertIsInstance(self.v5_provDag, DiGraph)
-
-    def test_has_nodes(self):
-        self.assertIn(test_data['5']['uuid'], self.v5_provDag.nodes)
-
-    def test_root_node_action_type(self):
-        self.assertEqual(
-            self.v5_provDag.nodes[test_data['5']['uuid']]['action_type'],
-            'pipeline')
 
 
 class ArchiveVersionMatcherTests(unittest.TestCase):
@@ -398,6 +434,16 @@ class ActionTests(unittest.TestCase):
         exp = 'pipeline'
         self.assertEqual(self.act.action_type, exp)
 
+    def test_runtime(self):
+        exp_t = timedelta
+        exp = timedelta(seconds=2, microseconds=17110)
+        self.assertIs(type(self.act.runtime), exp_t)
+        self.assertEqual(self.act.runtime, exp)
+
+    def test_runtime_str(self):
+        exp = '2 seconds, and 17110 microseconds'
+        self.assertEqual(self.act.runtime_str, exp)
+
     def test_action(self):
         exp = 'core_metrics_phylogenetic'
         self.assertEqual(self.act.action, exp)
@@ -534,12 +580,6 @@ class ProvNodeTests(unittest.TestCase):
     def test_framework_version(self):
         self.assertEqual(self.v5_ProvNode.framework_version,
                          test_data['5']['fwv'])
-
-    # def test_attr(self):
-    #     attrs = dir(self.v5_ProvNode)
-    #     attrs = self.v5_ProvNode.__dict__
-    #     print(attrs)
-    #     self.assertEqual(attrs, 'gerbil')
 
     maxDiff = None
 

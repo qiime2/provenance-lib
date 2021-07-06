@@ -2,6 +2,7 @@ from __future__ import annotations
 import codecs
 import pathlib
 import re
+from datetime import timedelta
 from typing import List, Dict, Tuple, Optional
 
 import bibtexparser as bp
@@ -32,6 +33,7 @@ def citation_constructor(loader, node):
 
 def ref_constructor(loader, node):
     value = loader.construct_scalar(node)
+    # TODO: should these become _, or do we get value out of capturing them?
     environment, plugins, plugin_name = value.split(':')
     return plugin_name
 
@@ -115,6 +117,8 @@ class ProvDAG(DiGraph):
         r_str += uuid_yaml
         return r_str
 
+    # TODO: NEXT - remove traversal logic, rewrite __str__ and __repr and test
+
     def __init__(self, archive_fp: str):
         super().__init__()
         with zipfile.ZipFile(archive_fp) as zf:
@@ -138,6 +142,7 @@ class ProvDAG(DiGraph):
                             action_type=con[n_id]._action.action_type,
                             plugin=con[n_id]._action.plugin,
                             inputs=con[n_id]._action.inputs,
+                            runtime=con[n_id]._action.runtime
                             )) for n_id in self._archv_contents]
             self.add_nodes_from(node_contents)
 
@@ -148,15 +153,12 @@ class ProvDAG(DiGraph):
                         type = tuple(input.keys())[0]
                         parent_uuid = tuple(input.values())[0]
                         ebunch.append((parent_uuid, node_id,
-                                       {'type': type, 'runtime': 'TODO'}))
+                                       {'type': type}))
             self.add_edges_from(ebunch)
-            # TODO NEXT: add execution data to the ebunch. This lives in
-            # _action._execution['runtime']['duration'] or thereabouts
             # TODO: De-duplicate the graph?
             # Our digraph contains all directories in the archive,
             # and doesn't handle aliases in the same way that q2view does.
             # We'll need to consider the semantics here.
-            # TODO: Add Digraph tests - include the weird query bug in the jn
 
 
 class ProvNode:
@@ -184,6 +186,8 @@ class ProvNode:
                 # None and not iterable when that occurs
                 pass
         return self._parents
+
+    # TODO: We can _probably_ throw out .parents and traverse_uuids() now!
 
     @property
     def uuid(self):
@@ -269,8 +273,24 @@ class _Action:
         """
         return self._action_details['type']
 
+    @property
+    def runtime(self) -> timedelta:
+        """
+        The elapsed run time of the Action, as a datetime object
+        """
+        end = self._execution_details['runtime']['end']
+        start = self._execution_details['runtime']['start']
+        return end - start
+
+    @property
+    def runtime_str(self) -> str:
+        """
+        The elapsed run time of the Action, in Seconds and microseconds
+        """
+        return self._execution_details['runtime']['duration']
+
     # TODO: The semantics are clunky for the following properties when the
-    # "Action" was an import. The approach taken here is not comprehensive and
+    # "Action" is an import. The approach taken here is not comprehensive and
     # very not DRY. See TODOs in ProvDAG for notes on possibly handling with
     # schemas upstream
     @property

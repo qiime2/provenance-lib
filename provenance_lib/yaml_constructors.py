@@ -1,9 +1,11 @@
-from typing import List, Union
+from typing import List, TypedDict, Union
 
 # NoProvenance = collections.namedtuple('NoProvenance', ['uuid'])
-# MetadataPath = collections.namedtuple('MetadataPath', ['path'])
 # ColorPrimitive = collections.namedtuple('ColorPrimitive', ['hex'])
 # LiteralString = collections.namedtuple('LiteralString', ['string'])
+
+# Alias string as UUID so we can specify types more clearly
+UUID = str
 
 
 def citation_key_constructor(loader, node) -> str:
@@ -13,25 +15,49 @@ def citation_key_constructor(loader, node) -> str:
     so _we're not parsing these into component substrings_.
 
     If that need arises in future, these are spec'ed in provenance.py as:
-
-    <domain>|<package>:<version>|<optional_identifier>|<index>
+    <domain>|<package>:<version>|[<identifier>|]<index>
 
     and frequently look like this (note no identifier):
-
     framework|qiime2:2020.6.0.dev0|0
     """
     value = loader.construct_scalar(node)
     return value
 
 
-def metadata_path_constructor(loader, node):
+class MetadataInfo(TypedDict):
+    """ A static type definition metadata_path_constructor's return value """
+    input_artifact_uuids: List[UUID]
+    relative_fp: str
+
+
+def metadata_path_constructor(loader, node) -> MetadataInfo:
     """
-    A constructor for !metadata yaml tags, this docstring still TODO
+    A constructor for !metadata yaml tags, which come in the form
+    [<uuid_ref>[,<uuid_ref>]...:]<relative_filepath>
+
+    Most commonly, we see:
+    !metadata 'sample_metadata.tsv'
+
+    In cases where Artifacts are used as metadata, we see:
+    !metadata '415409a4-371d-4c69-9433-e3eaba5301b4:feature_metadata.tsv'
+
+    In cases where multiple Artifacts as metadata were merged,
+    it is possible for multiple comma-separated uuids to precede the ':'
+    !metadata '<uuid1>,<uuid2>,...,<uuidn>:feature_metadata.tsv'
+
+    The metadata files (including "Artifact metadata") are saved in the same
+    dir as `action.yaml`. The UUIDs listed must be incorporated into our
+    provenance graph as inputs, so are returned in list form.
     """
-    # TODO: NEXT - do we need more from this than a simple str? If so, what?
-    # TODO: NEXT - test this
-    value = loader.construct_scalar(node)
-    return value
+    # TODO: NEXT - add Artifact "metadata" to provenance as inputs/parents
+    raw = loader.construct_scalar(node)
+    if ':' in raw:
+        artifact_uuids, rel_fp = raw.split(':')
+        artifact_uuids = artifact_uuids.split(',')
+    else:
+        artifact_uuids = []
+        rel_fp = raw
+    return {'input_artifact_uuids': artifact_uuids, 'relative_fp': rel_fp}
 
 
 def ref_constructor(loader, node) -> Union[str, List[str]]:
@@ -39,7 +65,6 @@ def ref_constructor(loader, node) -> Union[str, List[str]]:
     A constructor for !ref yaml tags. These tags describe yaml values that
     reference other namespaces within the document, using colons to separate
     namespaces. For example:
-
     !ref 'environment:plugins:sample-classifier'
 
     At present, ForwardRef tags are only used in the framework to 'link' the

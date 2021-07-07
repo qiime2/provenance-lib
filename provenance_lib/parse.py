@@ -10,14 +10,14 @@ from networkx import DiGraph
 import yaml
 import zipfile
 
+# NOTE: str aliased to UUID in yaml_constructors to prevent circular dependency
+from .yaml_constructors import UUID
 from .yaml_constructors import (
-    citation_key_constructor, metadata_path_constructor, ref_constructor)
+    citation_key_constructor, metadata_path_constructor, ref_constructor,
+    )
 yaml.SafeLoader.add_constructor('!cite', citation_key_constructor)
 yaml.SafeLoader.add_constructor('!metadata', metadata_path_constructor)
 yaml.SafeLoader.add_constructor('!ref', ref_constructor)
-
-# Alias string as UUID so we can specify types more clearly
-UUID = str
 
 _VERSION_MATCHER = (
     r'QIIME 2\n'

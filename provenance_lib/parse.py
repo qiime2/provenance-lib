@@ -10,6 +10,12 @@ from networkx import DiGraph
 import yaml
 import zipfile
 
+from .yaml_constructors import (
+    citation_key_constructor, metadata_path_constructor, ref_constructor)
+yaml.SafeLoader.add_constructor('!cite', citation_key_constructor)
+yaml.SafeLoader.add_constructor('!metadata', metadata_path_constructor)
+yaml.SafeLoader.add_constructor('!ref', ref_constructor)
+
 # Alias string as UUID so we can specify types more clearly
 UUID = str
 
@@ -18,34 +24,6 @@ _VERSION_MATCHER = (
     r'archive: [0-9]{1,2}$\n'
     r'framework: '
     r'(?:20[0-9]{2}|2)\.(?:[1-9][0-2]?|0)\.[0-9](?:\.dev[0-9]?)?\Z')
-
-# TODO: Move constructors into a separate module
-# from yaml_constructors import (
-#     metadata_constructor, citation_constructor, ref_constructor)
-
-
-# TODO: The framework exposes many additional custom tags not yet handled
-# here. Check qiime2/core/archive/provenance.py for everything
-def citation_constructor(loader, node):
-    value = loader.construct_scalar(node)
-    return value
-
-
-def ref_constructor(loader, node):
-    value = loader.construct_scalar(node)
-    # TODO: should these become _, or do we get value out of capturing them?
-    environment, plugins, plugin_name = value.split(':')
-    return plugin_name
-
-
-def metadata_constructor(loader, node):
-    value = loader.construct_scalar(node)
-    return value
-
-
-yaml.SafeLoader.add_constructor('!metadata', metadata_constructor)
-yaml.SafeLoader.add_constructor('!cite', citation_constructor)
-yaml.SafeLoader.add_constructor('!ref', ref_constructor)
 
 
 def get_version(zf: zipfile, fp: Optional[pathlib.Path] = None) -> Tuple[str]:
@@ -140,7 +118,9 @@ class ProvDAG(DiGraph):
             # are stored as attributes.
 
             # TODO: If our nodes are ProvNodes instead of uuids, do we get
-            # these attributes, queryable, "for free"?
+            # these attributes, queryable, "for free"? Do we only get
+            # "enhanced" node equality checking? And if so, is that really a
+            # value?
 
             con = self._archv_contents
             node_contents = [

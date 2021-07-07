@@ -2,8 +2,10 @@ import os
 import codecs
 import pathlib
 import unittest
+from datetime import timedelta
 from unittest.mock import MagicMock
 
+from networkx import DiGraph
 import zipfile
 
 from ..parse import (
@@ -12,7 +14,7 @@ from ..parse import (
     ParserV0, ParserV1, ParserV2, ParserV3, ParserV4, ParserV5,
     get_version,
 )
-from .util import is_provnode_data
+from .util import is_root_provnode_data
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 test_data = {
@@ -84,13 +86,70 @@ class ProvDAGTests(unittest.TestCase):
         self.assertEqual(self.v5_provDag.root_uuid, test_data['5']['uuid'])
 
     def test_root_node_is_archive_root(self):
-        mock_dag = MagicMock()
         with zipfile.ZipFile(test_data['5']['qzv_fp']) as zf:
             all_filenames = zf.namelist()
-            root_md_fnames = filter(is_provnode_data, all_filenames)
+            root_md_fnames = filter(is_root_provnode_data, all_filenames)
             root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
-            v5_ProvNode = ProvNode(mock_dag, zf, root_md_fps)
+            v5_ProvNode = ProvNode(zf, root_md_fps)
             self.assertEqual(v5_ProvNode, self.v5_provDag.root_node)
+
+    def test_number_of_actions(self):
+        # TODO: remove _num_results and rely on node.len()?
+        # This call should be made once we've decided how to represent nodes,
+        # e.g. nested or all-nodes/raw
+        # At that time, remove one of these assertions
+        self.assertEqual(self.v5_provDag._num_results, test_data['5']['n_res'])
+        self.assertEqual(len(self.v5_provDag), test_data['5']['n_res'])
+
+    def test_nonexistent_fp(self):
+        with self.assertRaisesRegex(FileNotFoundError, 'not_a_filepath.qza'):
+            ProvDAG(self.fake_fp)
+
+    def test_not_a_zip_archive(self):
+        with self.assertRaisesRegex(zipfile.BadZipFile,
+                                    'File is not a zip file'):
+            ProvDAG(self.not_a_zip)
+
+    def test_is_digraph(self):
+        self.assertIsInstance(self.v5_provDag, DiGraph)
+
+    def test_has_nodes(self):
+        self.assertIn(test_data['5']['uuid'], self.v5_provDag.nodes)
+
+    def test_root_node_attributes(self):
+        root_node = self.v5_provDag.nodes[test_data['5']['uuid']]
+        self.assertEqual(root_node['type'], 'Visualization')
+        self.assertEqual(root_node['format'], None)
+        self.assertEqual(root_node['framework_version'], '2018.11.0')
+        self.assertEqual(root_node['archive_version'], '5')
+        self.assertEqual(root_node['action_type'], 'pipeline')
+        self.assertEqual(root_node['plugin'], 'diversity')
+        self.assertIn({'table': '89af91c0-033d-4e30-8ac4-f29a3b407dc1'},
+                      root_node['inputs'])
+        self.assertIn({'phylogeny': 'bce3d09b-e296-4f2b-9af4-834db6412429'},
+                      root_node['inputs'])
+        self.assertEqual(root_node['runtime'],
+                         timedelta(seconds=5, microseconds=249201))
+
+    def test_has_edges(self):
+        self.assertTrue(self.v5_provDag.has_edge(
+            '89af91c0-033d-4e30-8ac4-f29a3b407dc1',
+            'ffb7cee3-2f1f-4988-90cc-efd5184ef003'))
+        self.assertTrue(self.v5_provDag.has_edge(
+            'bce3d09b-e296-4f2b-9af4-834db6412429',
+            'ffb7cee3-2f1f-4988-90cc-efd5184ef003'))
+
+    def test_edge_types(self):
+        self.assertEqual('table',
+                         self.v5_provDag
+                         ['89af91c0-033d-4e30-8ac4-f29a3b407dc1']
+                         ['ffb7cee3-2f1f-4988-90cc-efd5184ef003']
+                         ['type'])
+        self.assertEqual('phylogeny',
+                         self.v5_provDag
+                         ['bce3d09b-e296-4f2b-9af4-834db6412429']
+                         ['ffb7cee3-2f1f-4988-90cc-efd5184ef003']
+                         ['type'])
 
     def test_str(self):
         self.assertRegex(str(self.v5_provDag),
@@ -100,6 +159,19 @@ class ProvDAGTests(unittest.TestCase):
         self.assertRegex(
             repr(self.v5_provDag),
             '(?s)UUID:\t\tffb7cee3.*Type.*Data Format.*Contains')
+
+    # TODO: This should probably be reduced to a minimum example
+    def test_traverse_uuids(self):
+        exp = {'ffb7cee3-2f1f-4988-90cc-efd5184ef003':
+               {'89af91c0-033d-4e30-8ac4-f29a3b407dc1':
+                {'99fa3670-aa1a-45f6-ba8e-803c976a1163':
+                 {'a35830e1-4535-47c6-aa23-be295a57ee1c': None}},
+                'bce3d09b-e296-4f2b-9af4-834db6412429':
+                {'7ecf8954-e49a-4605-992e-99fcee397935':
+                 {'99fa3670-aa1a-45f6-ba8e-803c976a1163':
+                  {'a35830e1-4535-47c6-aa23-be295a57ee1c': None}}}}}
+        actual = self.v5_provDag.traverse_uuids()
+        self.assertEqual(actual, exp)
 
     def test_repr_contains(self):
         self.assertRegex(repr(self.v5_provDag),
@@ -113,18 +185,6 @@ class ProvDAGTests(unittest.TestCase):
                           '        a35830e1-4535-47c6-aa23-be295a57ee1c: null'
                           '\n')
                          )
-
-    def test_number_of_actions(self):
-        self.assertEqual(self.v5_provDag._num_results, test_data['5']['n_res'])
-
-    def test_nonexistent_fp(self):
-        with self.assertRaisesRegex(FileNotFoundError, 'not_a_filepath.qza'):
-            ProvDAG(self.fake_fp)
-
-    def test_not_a_zip_archive(self):
-        with self.assertRaisesRegex(zipfile.BadZipFile,
-                                    'File is not a zip file'):
-            ProvDAG(self.not_a_zip)
 
 
 class ArchiveVersionMatcherTests(unittest.TestCase):
@@ -199,7 +259,7 @@ class ArchiveVersionMatcherTests(unittest.TestCase):
 
 
 class ParserVxTests(unittest.TestCase):
-    # TODO: 0 should have a real v0 archive. Currently a hacked V1 arhive
+    # TODO: 0 should have a real v0 archive. Currently a hacked V1 archive
 
     def test_get_root_md(self):
         for archv_vrsn in test_data.keys():
@@ -219,7 +279,6 @@ class ParserVxTests(unittest.TestCase):
                     test_data[archv_vrsn]['parser'].get_root_md(zf)
 
     def test_populate_archive(self):
-        mock_DAG = MagicMock()
         for archv_vrsn in test_data.keys():
             fp = test_data[archv_vrsn]['qzv_fp']
             root_uuid = test_data[archv_vrsn]['uuid']
@@ -227,11 +286,10 @@ class ParserVxTests(unittest.TestCase):
                 if archv_vrsn == '0':
                     with self.assertRaisesRegex(NotImplementedError,
                                                 'V0.*no.*provenance'):
-                        test_data[archv_vrsn]['parser'] \
-                            .parse_prov(zf, mock_DAG)
+                        test_data[archv_vrsn]['parser'].parse_prov(zf)
                 else:
                     num_res, contents = test_data[archv_vrsn]['parser'] \
-                                            .parse_prov(zf, mock_DAG)
+                                            .parse_prov(zf)
                     print(f'Debug: archive version #{archv_vrsn} failing')
                     # Does this archive have the right number of Results?
                     self.assertEqual(num_res, test_data[archv_vrsn]['n_res'])
@@ -298,8 +356,7 @@ class FormatHandlerTests(unittest.TestCase):
         uuid = test_data['5']['uuid']
         with zipfile.ZipFile(test_data['5']['qzv_fp']) as zf:
             handler = FormatHandler(zf)
-            mock_DAG = MagicMock()
-            md, (num_r, contents) = handler.parse(zf, mock_DAG)
+            md, (num_r, contents) = handler.parse(zf)
             self.assertIs(type(md), _ResultMetadata)
             self.assertEqual(md.uuid, uuid)
             self.assertEqual(md.type, 'Visualization')
@@ -368,9 +425,13 @@ class ResultMetadataTests(unittest.TestCase):
 
 
 class ActionTests(unittest.TestCase):
-    action_fp = os.path.join(DATA_DIR, 'action.zip')
-    with zipfile.ZipFile(action_fp) as zf:
+    root_action_fp = os.path.join(DATA_DIR, 'v5_emperor_root_action.zip')
+    import_action_fp = os.path.join(DATA_DIR, 'v5_import_action.zip')
+    with zipfile.ZipFile(root_action_fp) as zf:
         act = _Action(zf, 'action.yaml')
+
+    with zipfile.ZipFile(import_action_fp) as zf:
+        imp_act = _Action(zf, 'action.yaml')
 
     def test_action_id(self):
         exp = '5bc4b090-abbc-46b0-a219-346c8026f7d7'
@@ -379,6 +440,16 @@ class ActionTests(unittest.TestCase):
     def test_action_type(self):
         exp = 'pipeline'
         self.assertEqual(self.act.action_type, exp)
+
+    def test_runtime(self):
+        exp_t = timedelta
+        exp = timedelta(seconds=2, microseconds=17110)
+        self.assertIs(type(self.act.runtime), exp_t)
+        self.assertEqual(self.act.runtime, exp)
+
+    def test_runtime_str(self):
+        exp = '2 seconds, and 17110 microseconds'
+        self.assertEqual(self.act.runtime_str, exp)
 
     def test_action(self):
         exp = 'core_metrics_phylogenetic'
@@ -398,6 +469,21 @@ class ActionTests(unittest.TestCase):
                'type=pipeline, plugin=diversity, '
                'action=core_metrics_phylogenetic)')
         self.assertEqual(repr(self.act), exp)
+
+    # NOTE: Import is not handled by a plugin, and has no inputs. Parsing logic
+    # provides values for the following properties which are not present in
+    # action.yaml
+    def test_action_for_import_node(self):
+        exp = 'import'
+        self.assertEqual(self.imp_act.action, exp)
+
+    def test_plugin_for_import_node(self):
+        exp = 'framework'
+        self.assertEqual(self.imp_act.plugin, exp)
+
+    def test_inputs_for_import_node(self):
+        exp = None
+        self.assertEqual(self.imp_act.inputs, exp)
 
 
 class CitationsTests(unittest.TestCase):
@@ -437,9 +523,6 @@ class CitationsTests(unittest.TestCase):
 
 
 class ProvNodeTests(unittest.TestCase):
-    # As implemented, ProvNodes must belong to a ProvDAG. Commit
-    # 1281878510acdc42cb5ba3ee40c9ad8b62dacf0e shows another approach with
-    # ProvDAGs responsible for assigning parentage to their ProvNodes
 
     def setUp(self):
         # Using a dag to back these tests, because the alternative is to
@@ -450,9 +533,9 @@ class ProvNodeTests(unittest.TestCase):
 
         with zipfile.ZipFile(test_data['5']['qzv_fp']) as zf:
             all_filenames = zf.namelist()
-            root_md_fnames = filter(is_provnode_data, all_filenames)
+            root_md_fnames = filter(is_root_provnode_data, all_filenames)
             root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
-            self.v5_ProvNode = ProvNode(self.v5_dag, zf, root_md_fps)
+            self.v5_ProvNode = ProvNode(zf, root_md_fps)
 
     def test_smoke(self):
         self.assertTrue(True)
@@ -487,7 +570,7 @@ class ProvNodeTests(unittest.TestCase):
 
     def test_str(self):
         v5_uuid = test_data['5']['uuid']
-        self.assertEqual(str(self.v5_ProvNode), f'ProvNode({v5_uuid})')
+        self.assertEqual(str(self.v5_ProvNode), f'{v5_uuid}')
 
     def test_repr(self):
         v5_uuid = test_data['5']['uuid']
@@ -501,46 +584,3 @@ class ProvNodeTests(unittest.TestCase):
     def test_framework_version(self):
         self.assertEqual(self.v5_ProvNode.framework_version,
                          test_data['5']['fwv'])
-
-    maxDiff = None
-
-    # TODO: This should probably be reduced to a minimum example
-    def test_traverse_uuids(self):
-        # This is disgusting, but avoids a baffling syntax error raised
-        # whenever I attempted to define exp as a single literal
-        exp = {'ffb7cee3-2f1f-4988-90cc-efd5184ef003':
-               {'89af91c0-033d-4e30-8ac4-f29a3b407dc1':
-                {'99fa3670-aa1a-45f6-ba8e-803c976a1163':
-                 {'a35830e1-4535-47c6-aa23-be295a57ee1c': None}}}}
-        second_half = {'bce3d09b-e296-4f2b-9af4-834db6412429':
-                       {'7ecf8954-e49a-4605-992e-99fcee397935':
-                        {'99fa3670-aa1a-45f6-ba8e-803c976a1163':
-                         {'a35830e1-4535-47c6-aa23-be295a57ee1c': None}}}}
-        exp['ffb7cee3-2f1f-4988-90cc-efd5184ef003'].update(second_half)
-        actual = self.v5_ProvNode.traverse_uuids()
-        self.assertEqual(actual, exp)
-
-    def test_parents_property_has_no_parents(self):
-        # qiime tools import node has no parents
-        parentless_node_id = 'a35830e1-4535-47c6-aa23-be295a57ee1c'
-        archive = self.v5_dag
-        repr(archive)
-        parentless_node = archive.get_result(parentless_node_id)
-        # _parents not initialized before call
-        self.assertEqual(parentless_node._parents, None)
-        # ProvNode.parents should get parents - here that's None
-        self.assertEqual(parentless_node.parents, None)
-        # _parents initialized now
-        self.assertEqual(parentless_node._parents, None)
-
-    def test_parents_property_has_parents(self):
-        self.v5_ProvNode._owner_dag = ProvDAG(test_data['5']['qzv_fp'])
-        exp_nodes = [self.v5_ProvNode._owner_dag._archv_contents[id]
-                     for id in ['89af91c0-033d-4e30-8ac4-f29a3b407dc1',
-                                'bce3d09b-e296-4f2b-9af4-834db6412429']]
-        # _parents not initialized before call
-        self.assertEqual(self.v5_ProvNode._parents, None)
-        # ProvNode.parents should get parents
-        self.assertEqual(self.v5_ProvNode.parents, exp_nodes)
-        # _parents initialized now
-        self.assertEqual(self.v5_ProvNode._parents, exp_nodes)

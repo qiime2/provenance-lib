@@ -2,12 +2,16 @@ from __future__ import annotations
 import codecs
 import pathlib
 import re
+from datetime import timedelta
 from typing import List, Dict, Tuple, Optional
 
 import bibtexparser as bp
+from networkx import DiGraph
 import yaml
 import zipfile
 
+# Alias string as UUID so we can specify types more clearly
+UUID = str
 
 _VERSION_MATCHER = (
     r'QIIME 2\n'
@@ -29,6 +33,7 @@ def citation_constructor(loader, node):
 
 def ref_constructor(loader, node):
     value = loader.construct_scalar(node)
+    # TODO: should these become _, or do we get value out of capturing them?
     environment, plugins, plugin_name = value.split(':')
     return plugin_name
 
@@ -43,7 +48,7 @@ yaml.SafeLoader.add_constructor('!cite', citation_constructor)
 yaml.SafeLoader.add_constructor('!ref', ref_constructor)
 
 
-def get_version(zf: zipfile, fp: Optional[str] = None) -> Tuple[str]:
+def get_version(zf: zipfile, fp: Optional[pathlib.Path] = None) -> Tuple[str]:
     """Parse a VERSION file - by default uses the VERSION at archive root"""
     if not fp:
         # All files in zf start with root uuid, so we'll grab it from the first
@@ -70,82 +75,104 @@ def get_version(zf: zipfile, fp: Optional[str] = None) -> Tuple[str]:
     return (archv_vrsn, frmwk_vrsn)
 
 
-class ProvDAG:
+class ProvDAG(DiGraph):
     """
     A single-rooted DAG of ProvNode objects, representing a single QIIME 2
     Archive.
     TODO: May also contain a non-hierarchical pool of unique ProvNodes?
     """
     _num_results: int
-    _archv_contents: Dict[str, ProvNode]
+    _archv_contents: Dict[UUID, ProvNode]
     _archive_md: _ResultMetadata
 
     # TODO: remove this? replace with a collection of terminal uuids
     @property
-    def root_uuid(self):
+    def root_uuid(self) -> UUID:
         """The UUID of the terminal node of one QIIME 2 Archive"""
         return self._archive_md.uuid
 
     # TODO: remove this? replace with a collection of terminal nodes
     @property
-    def root_node(self):
+    def root_node(self) -> ProvNode:
         """The terminal ProvNode of one QIIME 2 Archive"""
         return self.get_result(self.root_uuid)
 
-    def get_result(self, uuid):
+    def get_result(self, uuid) -> ProvNode:
         """Returns a ProvNode from this ProvDAG selected by UUID"""
         return self._archv_contents[uuid]
 
-    # TODO: remove this? traversal querying should be handled by nx?
-    # May still be useful for repr?
-    def _traverse_uuids_from_root(self):
-        return self.root_node.traverse_uuids()
-
-    def __str__(self):
+    def __str__(self) -> str:
         return repr(self._archive_md)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         # Traverse DAG, printing UUIDs
         # TODO: Improve this repr to remove id duplication
         r_str = self.__str__() + "\nContains Results:\n"
-        uuid_yaml = yaml.dump(self._traverse_uuids_from_root())
+        uuid_yaml = yaml.dump(self.traverse_uuids())
         r_str += uuid_yaml
         return r_str
 
-    def __init__(self, archive_fp: str):
-        self._archive_md: None
-        self._archv_contents: None
-        self._num_results = 0
+    def traverse_uuids(self, node_id: UUID = None) -> \
+            Dict[UUID, ProvNode]:
+        """ depth-first traversal of this ProvNode's ancestors """
+        # Use this DAG's root uuid by default
+        node_id = self.root_uuid if node_id is None else node_id
+        local_parents = dict()
+        if not self.nodes[node_id]['inputs']:
+            local_parents = {node_id: None}
+        else:
+            sub_dag = dict()
+            parents = self.nodes[node_id]['inputs']
+            parent_uuids = (list(parent.values())[0] for parent in parents)
+            for uuid in parent_uuids:
+                sub_dag.update(self.traverse_uuids(uuid))
+            local_parents[node_id] = sub_dag
+        return local_parents
 
+    def __init__(self, archive_fp: str):
+        super().__init__()
         with zipfile.ZipFile(archive_fp) as zf:
-            self.handler = FormatHandler(zf)
+            handler = FormatHandler(zf)
             self._archive_md, (self._num_results, self._archv_contents) = \
-                self.handler.parse(zf, owned_by=self)
+                handler.parse(zf)
+
+            # Nodes are literally UUIDs. Entire ProvNodes and select other data
+            # are stored as attributes.
+
+            # TODO: If our nodes are ProvNodes instead of uuids, do we get
+            # these attributes, queryable, "for free"?
+
+            con = self._archv_contents
+            node_contents = [
+                (n_id, dict(full_ProvNode_payload=con[n_id],
+                            type=con[n_id].sem_type,
+                            format=con[n_id].format,
+                            framework_version=con[n_id].framework_version,
+                            archive_version=con[n_id].archive_version,
+                            action_type=con[n_id]._action.action_type,
+                            plugin=con[n_id]._action.plugin,
+                            inputs=con[n_id]._action.inputs,
+                            runtime=con[n_id]._action.runtime
+                            )) for n_id in self._archv_contents]
+            self.add_nodes_from(node_contents)
+
+            ebunch = []
+            for node_id, data in self.nodes(data=True):
+                if data['inputs']:
+                    for input in data['inputs']:
+                        type = tuple(input.keys())[0]
+                        parent_uuid = tuple(input.values())[0]
+                        ebunch.append((parent_uuid, node_id,
+                                       {'type': type}))
+            self.add_edges_from(ebunch)
+            # TODO: De-duplicate the graph?
+            # Our digraph contains all directories in the archive,
+            # and doesn't handle aliases in the same way that q2view does.
+            # We'll need to consider the semantics here.
 
 
 class ProvNode:
     """ One node of a provenance DAG, describing one QIIME 2 Result """
-    _parents = None
-    _owner_dag = None
-
-    # TODO: handle with nx?
-    @property
-    def parents(self):
-        """ The list of ProvNodes used as inputs in creating this ProvNode """
-        # NOTE: We must delay gathering parentage data until the ProvDAG is
-        # fully populated (otherwise KeyError on the UUID of a not-yet-parsed
-        # ProvNode). Caching this lazily allows us to delay until the first
-        # call (likely the first DAG traversal)
-        if not self._parents:
-            try:
-                parent_dicts = [parent for parent in self._action.inputs]
-                parent_uuids = [
-                    list(uuid.values())[0] for uuid in parent_dicts]
-                self._parents = [self._owner_dag._archv_contents[uuid] for
-                                 uuid in parent_uuids]
-            except KeyError:
-                pass
-        return self._parents
 
     @property
     def uuid(self):
@@ -170,9 +197,8 @@ class ProvNode:
     # NOTE: This constructor is intentionally flexible, and will parse any
     # files handed to it. It is the responsibility of the ParserVx classes to
     # decide what files need to be passed.
-    def __init__(self, ownedBy, zf: zipfile,
-                 fps_for_this_result: List[pathlib.Path]):
-        self._owner_dag = ownedBy
+    def __init__(self, zf: zipfile,
+                 fps_for_this_result: List[pathlib.Path]) -> None:
         for fp in fps_for_this_result:
             if fp.name == 'VERSION':
                 self._archive_version, self._framework_version = \
@@ -180,69 +206,92 @@ class ProvNode:
             elif fp.name == 'metadata.yaml':
                 self._result_md = _ResultMetadata(zf, str(fp))
             elif fp.name == 'action.yaml':
+                # TODO: this should be public
                 self._action = _Action(zf, str(fp))
             elif fp.name == 'citations.bib':
+                # TODO: should this be public?
                 self._citations = _Citations(zf, str(fp))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'ProvNode({self.uuid}, {self.sem_type}, fmt={self.format})'
 
-    def __str__(self):
-        return f'ProvNode({self.uuid})'
+    def __str__(self) -> UUID:
+        return f'{self.uuid}'
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.uuid)
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return (self.__class__ == other.__class__
                 and self.uuid == other.uuid
                 )
 
-    # TODO: Drop with NetworkX, or keep it around for the repr?
-    def traverse_uuids(self):
-        """ depth-first traversal of this ProvNode's ancestors """
-        local_parents = dict()
-        if not self.parents:
-            local_parents = {self.uuid: None}
-        else:
-            sub_dag = dict()
-            for parent in self.parents:
-                sub_dag.update(parent.traverse_uuids())
-            local_parents[self.uuid] = sub_dag
-        return local_parents
-
 
 class _Action:
-    """ Provenance data for a single QIIME 2 Result from action.yaml """
-    _action_details = None
+    """ Provenance data from action.yaml for a single QIIME 2 Result """
 
     @property
-    def action_id(self):
+    def action_id(self) -> str:
         """ the UUID assigned to this Action (not its Results) """
         return self._execution_details['uuid']
 
     @property
-    def action_type(self):
-        """ the type of Action represented (e.g. Method, Pipeline, etc. ) """
+    def action_type(self) -> str:
+        """
+        The type of Action represented (e.g. Method, Pipeline, etc. )
+        Returns Import if an import - this is a useful sentinel for deciding
+        what type of action we're parsing (Action vs import)
+        """
         return self._action_details['type']
 
     @property
-    def action(self):
-        """ the action executed by this Action """
-        return self._action_details['action']
+    def runtime(self) -> timedelta:
+        """
+        The elapsed run time of the Action, as a datetime object
+        """
+        end = self._execution_details['runtime']['end']
+        start = self._execution_details['runtime']['start']
+        return end - start
 
     @property
-    def plugin(self):
-        """ the plugin which executed this Action """
-        return self._action_details['plugin']
+    def runtime_str(self) -> str:
+        """
+        The elapsed run time of the Action, in Seconds and microseconds
+        """
+        return self._execution_details['runtime']['duration']
+
+    # TODO: The semantics are clunky for the following properties when the
+    # "Action" is an import. The approach taken here is not comprehensive and
+    # very not DRY. See TODOs in ProvDAG for notes on possibly handling with
+    # schemas upstream
+    @property
+    def action(self) -> str:
+        """
+        The name of the action itself. Returns 'import' if this is an import.
+        """
+        action = self._action_details.get('action')
+        if self.action_type == 'import':
+            action = 'import'
+        return action
 
     @property
-    def inputs(self):
+    def plugin(self) -> str:
         """
-        a list of single-item dicts containing the types and UUIDs of this
-        action's inputs
+        The plugin which executed this Action. Returns 'framework' if this is
+        an import.
         """
-        return self._action_details['inputs']
+        plugin = self._action_details.get('plugin')
+        if self.action_type == 'import':
+            plugin = 'framework'
+        return plugin
+
+    @property
+    def inputs(self) -> Optional[List[Dict[str, UUID]]]:
+        """
+        a list of single-item {Type: UUID} dicts describing this
+        action's inputs. Returns None if this "action" is an Import
+        """
+        return self._action_details.get('inputs')
 
     def __init__(self, zf: zipfile, fp: str):
         self._action_dict = yaml.safe_load(zf.read(fp))
@@ -305,7 +354,7 @@ class ParserV0():
     # and include them only in subclasses where they are actually implemented
     # by the Archive Format? Tests that iterate can always catch other errors
     @classmethod
-    def parse_prov(self, zf: zipfile.ZipFile, owner_dag: ProvDAG) -> None:
+    def parse_prov(self, zf: zipfile.ZipFile) -> None:
         raise NotImplementedError("V0 Archives do not contain provenance data")
 
     @classmethod
@@ -321,8 +370,7 @@ class ParserV1(ParserV0):
     prov_filenames = ('metadata.yaml', 'action/action.yaml', 'VERSION')
 
     @classmethod
-    def parse_prov(self, zf: zipfile, owner_dag: ProvDAG) -> \
-            Tuple[int, Dict[str, ProvNode]]:
+    def parse_prov(self, zf: zipfile) -> Tuple[int, Dict[UUID, ProvNode]]:
         """
         Populates an _Archive with all relevant provenance data
         Takes an Archive (as a zipfile) as input.
@@ -359,12 +407,11 @@ class ParserV1(ParserV0):
                 fps_for_this_result = [prefix / name
                                        for name in self.prov_filenames]
                 num_results += 1
-                archv_contents[uuid] = ProvNode(owner_dag, zf,
-                                                fps_for_this_result)
+                archv_contents[uuid] = ProvNode(zf, fps_for_this_result)
         return (num_results, archv_contents)
 
     @classmethod
-    def _get_nonroot_uuid(self, fp: pathlib.Path) -> str:
+    def _get_nonroot_uuid(self, fp: pathlib.Path) -> UUID:
         """
         For non-root provenance files, get the Result's uuid from the path
         (avoiding the root Result's UUID which is in all paths)
@@ -392,7 +439,6 @@ class ParserV3(ParserV2):
     """
     version_string = 3
     prov_filenames = ParserV2.prov_filenames
-    # TODO: move set constructor over here? (and !cite constructor below?)
 
 
 class ParserV4(ParserV3):
@@ -440,7 +486,7 @@ class FormatHandler():
         self._archv_vrsn, self._frmwk_vrsn = get_version(zf)
         self.parser = self._FORMAT_REGISTRY[self._archv_vrsn]
 
-    def parse(self, zf: zipfile.ZipFile, owned_by: ProvDAG) -> \
-            Tuple[_ResultMetadata, Tuple[int, Dict[str, ProvNode]]]:
+    def parse(self, zf: zipfile.ZipFile) -> \
+            Tuple[_ResultMetadata, Tuple[int, Dict[UUID, ProvNode]]]:
         return (self.parser.get_root_md(zf),
-                self.parser.parse_prov(zf, owned_by))
+                self.parser.parse_prov(zf))

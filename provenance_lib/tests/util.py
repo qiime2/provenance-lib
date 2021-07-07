@@ -1,4 +1,4 @@
-def is_provnode_data(fp):
+def is_root_provnode_data(fp):
     """
     a filter predicate which returns metadata, action, citation,
     and VERSION fps with which we can construct a ProvNode

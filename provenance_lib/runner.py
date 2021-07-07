@@ -1,5 +1,6 @@
 # flake8: noqa
 import sys
+import yaml
 import zipfile
 
 sys.path.append('/home/chris/src/provenance_py')
@@ -29,10 +30,7 @@ if __name__ == '__main__':
           ' QIIME 2 Results, mostly ancestors')
     # print(dummy_DAG._archive_contents)
 
-    print(f'- has parents: {dummy_DAG.root_node.parents}')
-    print('- which have parents:')
-    for parent in dummy_DAG.root_node.parents:
-        print(f'\t- par: {parent.uuid} gps: {parent.parents}')
-    print('\t- etcetera, etcetera')
-
     print(f'\nIts prov DAG looks like\n{dummy_DAG}')
+
+    print('#########################################')
+    print(dummy_DAG.nodes['ffb7cee3-2f1f-4988-90cc-efd5184ef003']['inputs'])

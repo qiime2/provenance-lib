@@ -1,11 +1,18 @@
 from typing import List, TypedDict, Union
 
 # NoProvenance = collections.namedtuple('NoProvenance', ['uuid'])
-# ColorPrimitive = collections.namedtuple('ColorPrimitive', ['hex'])
-# LiteralString = collections.namedtuple('LiteralString', ['string'])
 
 # Alias string as UUID so we can specify types more clearly
 UUID = str
+
+
+def color_constructor(loader, node) -> str:
+    """
+    Constructor for !color tags.
+    TODO: What even are these things? They don't appear to be used in qiime2.
+    This will probably need to be rewritten from a simple string rendering
+    """
+    return loader.construct_scalar(node)
 
 
 def citation_key_constructor(loader, node) -> str:

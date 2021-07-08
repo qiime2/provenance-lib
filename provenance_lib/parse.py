@@ -14,10 +14,12 @@ import zipfile
 from .yaml_constructors import UUID
 from .yaml_constructors import (
     citation_key_constructor, metadata_path_constructor, ref_constructor,
+    set_constructor,
     )
 yaml.SafeLoader.add_constructor('!cite', citation_key_constructor)
 yaml.SafeLoader.add_constructor('!metadata', metadata_path_constructor)
 yaml.SafeLoader.add_constructor('!ref', ref_constructor)
+yaml.SafeLoader.add_constructor('!set', set_constructor)
 
 _VERSION_MATCHER = (
     r'QIIME 2\n'

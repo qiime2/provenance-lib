@@ -83,3 +83,11 @@ def ref_constructor(loader, node) -> Union[str, List[str]]:
         return plugin_name
     else:
         return keys
+
+
+def set_constructor(loader, node) -> str:
+    """
+    A constructor for !set yaml tags, returning a python set object
+    """
+    value = loader.construct_sequence(node)
+    return set(value)

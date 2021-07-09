@@ -1,6 +1,6 @@
-from typing import List, TypedDict, Union
+import warnings
 
-# NoProvenance = collections.namedtuple('NoProvenance', ['uuid'])
+from typing import List, TypedDict, Union
 
 # Alias string as UUID so we can specify types more clearly
 UUID = str
@@ -65,6 +65,26 @@ def metadata_path_constructor(loader, node) -> MetadataInfo:
         artifact_uuids = []
         rel_fp = raw
     return {'input_artifact_uuids': artifact_uuids, 'relative_fp': rel_fp}
+
+
+def no_provenance_constructor(loader, node) -> MetadataInfo:
+    """
+    Constructor for !no-provenance tags. These tags are produced when an input
+    has no /provenance dir, as is the case with v0 archives that have been
+    used in analyses in QIIME2 V1+. They look like this:
+
+    action:
+       inputs:
+       -   table: !no-provenance '34b07e56-27a5-4f03-ae57-ff427b50aaa1'
+
+    TODO: Is this the right place to warn? Is there anything else we need to do
+    with this information downstream? E.g. add an attribute to this node
+    indicating it is problematic, so it can be colored when drawing?
+    """
+    uuid = loader.construct_scalar(node)
+    warnings.warn(f"Artifact {uuid} was created prior to provenance tracking. "
+                  + "Provenance data will be incomplete.", UserWarning)
+    return uuid
 
 
 def ref_constructor(loader, node) -> Union[str, List[str]]:

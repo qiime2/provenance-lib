@@ -3,11 +3,12 @@ import yaml
 
 from ..yaml_constructors import (
     citation_key_constructor, metadata_path_constructor, ref_constructor,
-    set_constructor, color_constructor,
+    set_constructor, color_constructor, no_provenance_constructor,
     )
 yaml.SafeLoader.add_constructor('!color', color_constructor)
 yaml.SafeLoader.add_constructor('!cite', citation_key_constructor)
 yaml.SafeLoader.add_constructor('!metadata', metadata_path_constructor)
+yaml.SafeLoader.add_constructor('!no-provenance', no_provenance_constructor)
 yaml.SafeLoader.add_constructor('!ref', ref_constructor)
 yaml.SafeLoader.add_constructor('!set', set_constructor)
 
@@ -84,7 +85,16 @@ class MetadataPathConstrTests(unittest.TestCase):
 
 
 class NoProvenanceConstrTests(unittest.TestCase):
-    pass
+    def test_no_provenance_constructor(self):
+        tag = "!no-provenance '34b07e56-27a5-4f03-ae57-ff427b50aaa1'"
+        actual = yaml.safe_load(tag)
+        self.assertEqual(actual, '34b07e56-27a5-4f03-ae57-ff427b50aaa1')
+
+    def test_warning(self):
+        tag = "!no-provenance '34b07e56-27a5-4f03-ae57-ff427b50aaa1'"
+        with self.assertWarnsRegex(UserWarning,
+                                   'Artifact 34b07e.*prior to provenance'):
+            yaml.safe_load(tag)
 
 
 class SetRefConstrTests(unittest.TestCase):

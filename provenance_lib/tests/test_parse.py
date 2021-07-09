@@ -422,9 +422,9 @@ class ResultMetadataTests(unittest.TestCase):
 
 
 class ActionTests(unittest.TestCase):
-    root_action_fp = os.path.join(DATA_DIR, 'v5_emperor_root_action.zip')
-    import_action_fp = os.path.join(DATA_DIR, 'v5_import_action.zip')
-    artifact_as_md_fp = os.path.join(DATA_DIR, 'v5_artifact_as_md_action.zip')
+    root_action_fp = os.path.join(DATA_DIR, 'action_emperor_root_node_v5.zip')
+    import_action_fp = os.path.join(DATA_DIR, 'action_import_v5.zip')
+    artifact_as_md_fp = os.path.join(DATA_DIR, 'action_artifact_as_md_v5.zip')
     with zipfile.ZipFile(root_action_fp) as zf:
         act = _Action(zf, 'action.yaml')
 
@@ -471,9 +471,72 @@ class ActionTests(unittest.TestCase):
                {'pcoa': '1ed04b10-d29c-495f-996e-3d4db89434d2'},
                {'artifact_passed_as_metadata':
                 '415409a4-371d-4c69-9433-e3eaba5301b4'},
+               {'artifact_passed_as_metadata':
+                '11111111-371d-4c69-9433-e3eaba5301b4'},
                ]
         actual = self.art_as_md_act.parents
-        # print(actual)
+        self.assertEqual(actual, exp)
+
+    def test_get_one_artifact_passed_as_md(self):
+        get_artifacts = self.act._get_artifacts_passed_as_md
+        action_details = \
+            {'parameters':
+                [
+                 {'some_param': 'foo'},
+                 {'arbitrary_metadata_name':
+                  {'input_artifact_uuids': [],
+                   'relative_fp': 'some_metadata.tsv'}},
+                 {'other_metadata':
+                  {'input_artifact_uuids': ['301b4'],
+                   'relative_fp': 'other_metadata.tsv'}},
+                 ]}
+        actual = get_artifacts(action_details)
+        exp = [
+               {'artifact_passed_as_metadata': '301b4'},
+               ]
+        self.assertEqual(actual, exp)
+
+    def test_get_two_artifacts_passed_as_md(self):
+        get_artifacts = self.act._get_artifacts_passed_as_md
+        action_details = \
+            {'parameters':
+                [
+                 {'some_param': 'foo'},
+                 {'arbitrary_metadata_name':
+                  {'input_artifact_uuids': [],
+                   'relative_fp': 'some_metadata.tsv'}},
+                 {'other_metadata':
+                  {'input_artifact_uuids': ['4154', '301b4'],
+                   'relative_fp': 'other_metadata.tsv'}},
+                 ]}
+        actual = get_artifacts(action_details)
+        exp = [{'artifact_passed_as_metadata': '4154'},
+               {'artifact_passed_as_metadata': '301b4'},
+               ]
+        self.assertEqual(actual, exp)
+
+    def test_get_zero_artifacts_passed_as_md(self):
+        get_artifacts = self.act._get_artifacts_passed_as_md
+        action_details = \
+            {'parameters':
+                [
+                 {'some_param': 'foo'},
+                 {'arbitrary_metadata_name':
+                  {'input_artifact_uuids': [],
+                   'relative_fp': 'some_metadata.tsv'}},
+                 {'other_metadata':
+                  {'input_artifact_uuids': [],
+                   'relative_fp': 'other_metadata.tsv'}},
+                 ]}
+        actual = get_artifacts(action_details)
+        exp = []
+        self.assertEqual(actual, exp)
+
+    def test_get_artifacts_passed_as_md_no_params(self):
+        get_artifacts = self.act._get_artifacts_passed_as_md
+        action_details = {'non-parameters-key': 'here is a thing'}
+        actual = get_artifacts(action_details)
+        exp = []
         self.assertEqual(actual, exp)
 
     def test_repr(self):
@@ -524,7 +587,6 @@ class CitationsTests(unittest.TestCase):
         with zipfile.ZipFile(self.zips[2]) as zf:
             citations = _Citations(zf, self.bibs[2])
             for i, key in enumerate(citations.citations.keys()):
-                print(key, exp[i])
                 self.assertRegex(key, exp[i])
 
     def test_repr(self):

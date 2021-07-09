@@ -275,49 +275,53 @@ class _Action:
         archives_as_metadata = self._get_artifacts_passed_as_md()
         return parents + archives_as_metadata
 
-    def _get_artifacts_passed_as_md(self) -> List[Dict[str, UUID]]:
+    def _get_artifacts_passed_as_md(self, action_details=None) -> \
+            List[Dict[str, UUID]]:
         """
         When Artifacts are passed as Metadata, they are captured in action.py's
         action['parameters'], rather than in action['inputs'] with the other
         Artifacts. Replay wouldn't be as usable without these Artifact inputs,
         so our DAG must be able to track them as parents to a given node.
 
-        These artifacts are captured in single-item mappings of mappings in
-        action.py's action.parameters list, under a plugin-defined key.
-        Figuring out whether there is an Action passed as MD is gross. E.g.
+        Figuring out whether there is an Action passed as MD is gross, so this
+        function. For example:
 
         action:
             parameters:
-            -   sample_metadata: !metadata 'sample_metadata.tsv'
-            -   feature_metadata: !metadata '4154...301b4:feature_metadata.tsv'
+            -   arbitrary_metadata_name: !metadata 'sample_metadata.tsv'
+            -   other_metadata: !metadata '4154...301b4:feature_metadata.tsv'
 
         loads as:
 
         {'action': {'parameters': [{'some_param': 'foo'},
-                                   {'sample_metadata': {...}},
-                                   {'feature_metadata': {...}},]
+                                   {'arbitrary_metadata_name':
+                                    {'input_artifact_uuids': [],
+                                     'relative_fp': 'metadata.tsv'}},
+                                   {'other_metadata':
+                                    {'input_artifact_uuids': ['4154...301b4'],
+                                     'relative_fp': 'metadata.tsv'}},]}}
+        We can key into 'parameters', then must iterate over the list of
+        parameters capturing dict values that contain UUIDs.
 
-        We can key into 'parameters', but must then iterate over the list of
-        parameters looking for a value that matches the data structure produced
-        by our metadata_path_constructor. This MetadataInfo object can be
-        broken out into the {Type: UUID} mappings we need.
-
-        NOTE: When Actions are passed as MD, we don't have access to Type
-        information, so the filler 'Type' provided here will not match the
-        actual Type of the parent Artifact. The filler type should make it
-        possible for a ProvDAG to identify and relabel any artifacts passed
-        as metadata with their actual type, but that seems unnecessary, given
-        the nodes themselves already contain that data.
+        NOTE: When Actions are passed as MD, Semantic Type data isn't captured,
+        so the filler 'artifact_passed_as_metadata' 'Type' created here
+        will not match the actual Type of the parent Artifact. The filler type
+        should make it possible for a ProvDAG to identify and relabel any
+        artifacts passed as metadata with their actual type if needed.
         """
+        action_details = action_details if action_details is not None \
+            else self._action_details
         artifacts_as_metadata = []
-        all_params = self._action_details.get('parameters')
+        all_params = action_details.get('parameters')
         if all_params is None:
             return []
 
-        # If params (List[Dict]) exists, we find a param with a value that
-        # matches the yaml_constructors.MetadataInfo spec well enough
+        # PEP589 doesn't support isinstance checks against TypedDict objects,
+        # and structural pattern matching also relies on isinstance(),
+        # so if action['params'] exists, we look for params with a value that
+        # matches the yaml_constructors.MetadataInfo spec well enough, and
+        # grab any uuids associated with em.
         for param in all_params:
-            print(param)
             param_val = list(param.values())[0]
             if isinstance(param_val, dict) \
                and 'input_artifact_uuids' in param_val \

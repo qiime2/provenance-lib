@@ -98,11 +98,11 @@ class ProvDAG(DiGraph):
         # Use this DAG's root uuid by default
         node_id = self.root_uuid if node_id is None else node_id
         local_parents = dict()
-        if not self.nodes[node_id]['inputs']:
+        if not self.nodes[node_id]['parents']:
             local_parents = {node_id: None}
         else:
             sub_dag = dict()
-            parents = self.nodes[node_id]['inputs']
+            parents = self.nodes[node_id]['parents']
             parent_uuids = (list(parent.values())[0] for parent in parents)
             for uuid in parent_uuids:
                 sub_dag.update(self.traverse_uuids(uuid))
@@ -133,17 +133,17 @@ class ProvDAG(DiGraph):
                             archive_version=con[n_id].archive_version,
                             action_type=con[n_id].action.action_type,
                             plugin=con[n_id].action.plugin,
-                            inputs=con[n_id].action.inputs,
+                            parents=con[n_id].action.parents,
                             runtime=con[n_id].action.runtime
                             )) for n_id in self._archv_contents]
             self.add_nodes_from(node_contents)
 
             ebunch = []
             for node_id, data in self.nodes(data=True):
-                if data['inputs']:
-                    for input in data['inputs']:
-                        type = tuple(input.keys())[0]
-                        parent_uuid = tuple(input.values())[0]
+                if data['parents']:
+                    for parent in data['parents']:
+                        type = tuple(parent.keys())[0]
+                        parent_uuid = tuple(parent.values())[0]
                         ebunch.append((parent_uuid, node_id,
                                        {'type': type}))
             self.add_edges_from(ebunch)
@@ -240,10 +240,6 @@ class _Action:
         """
         return self._execution_details['runtime']['duration']
 
-    # TODO: The semantics are clunky for the following properties when the
-    # "Action" is an import. The approach taken here is not comprehensive and
-    # very not DRY. See TODOs in ProvDAG for notes on possibly handling with
-    # schemas upstream
     @property
     def action(self) -> str:
         """
@@ -266,12 +262,71 @@ class _Action:
         return plugin
 
     @property
-    def inputs(self) -> Optional[List[Dict[str, UUID]]]:
+    def parents(self) -> List[Dict[str, UUID]]:
         """
         a list of single-item {Type: UUID} dicts describing this
-        action's inputs. Returns None if this "action" is an Import
+        action's inputs, and including Artifacts passed as Metadata parameters.
+
+        Returns [] if this "action" is an Import
         """
-        return self._action_details.get('inputs')
+        inputs = self._action_details.get('inputs')
+        parents = [] if inputs is None else inputs
+
+        archives_as_metadata = self._get_artifacts_passed_as_md()
+        return parents + archives_as_metadata
+
+    def _get_artifacts_passed_as_md(self) -> List[Dict[str, UUID]]:
+        """
+        When Artifacts are passed as Metadata, they are captured in action.py's
+        action['parameters'], rather than in action['inputs'] with the other
+        Artifacts. Replay wouldn't be as usable without these Artifact inputs,
+        so our DAG must be able to track them as parents to a given node.
+
+        These artifacts are captured in single-item mappings of mappings in
+        action.py's action.parameters list, under a plugin-defined key.
+        Figuring out whether there is an Action passed as MD is gross. E.g.
+
+        action:
+            parameters:
+            -   sample_metadata: !metadata 'sample_metadata.tsv'
+            -   feature_metadata: !metadata '4154...301b4:feature_metadata.tsv'
+
+        loads as:
+
+        {'action': {'parameters': [{'some_param': 'foo'},
+                                   {'sample_metadata': {...}},
+                                   {'feature_metadata': {...}},]
+
+        We can key into 'parameters', but must then iterate over the list of
+        parameters looking for a value that matches the data structure produced
+        by our metadata_path_constructor. This MetadataInfo object can be
+        broken out into the {Type: UUID} mappings we need.
+
+        NOTE: When Actions are passed as MD, we don't have access to Type
+        information, so the filler 'Type' provided here will not match the
+        actual Type of the parent Artifact. The filler type should make it
+        possible for a ProvDAG to identify and relabel any artifacts passed
+        as metadata with their actual type, but that seems unnecessary, given
+        the nodes themselves already contain that data.
+        """
+        artifacts_as_metadata = []
+        all_params = self._action_details.get('parameters')
+        if all_params is None:
+            return []
+
+        # If params (List[Dict]) exists, we find a param with a value that
+        # matches the yaml_constructors.MetadataInfo spec well enough
+        for param in all_params:
+            print(param)
+            param_val = list(param.values())[0]
+            if isinstance(param_val, dict) \
+               and 'input_artifact_uuids' in param_val \
+               and 'relative_fp' in param_val:
+                artifacts_as_metadata += [
+                    {'artifact_passed_as_metadata': uuid} for uuid in
+                    param_val['input_artifact_uuids']]
+
+        return artifacts_as_metadata
 
     def __init__(self, zf: zipfile, fp: str):
         self._action_dict = yaml.safe_load(zf.read(fp))

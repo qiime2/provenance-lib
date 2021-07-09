@@ -125,9 +125,9 @@ class ProvDAGTests(unittest.TestCase):
         self.assertEqual(root_node['action_type'], 'pipeline')
         self.assertEqual(root_node['plugin'], 'diversity')
         self.assertIn({'table': '89af91c0-033d-4e30-8ac4-f29a3b407dc1'},
-                      root_node['inputs'])
+                      root_node['parents'])
         self.assertIn({'phylogeny': 'bce3d09b-e296-4f2b-9af4-834db6412429'},
-                      root_node['inputs'])
+                      root_node['parents'])
         self.assertEqual(root_node['runtime'],
                          timedelta(seconds=5, microseconds=249201))
 
@@ -424,11 +424,15 @@ class ResultMetadataTests(unittest.TestCase):
 class ActionTests(unittest.TestCase):
     root_action_fp = os.path.join(DATA_DIR, 'v5_emperor_root_action.zip')
     import_action_fp = os.path.join(DATA_DIR, 'v5_import_action.zip')
+    artifact_as_md_fp = os.path.join(DATA_DIR, 'v5_artifact_as_md_action.zip')
     with zipfile.ZipFile(root_action_fp) as zf:
         act = _Action(zf, 'action.yaml')
 
     with zipfile.ZipFile(import_action_fp) as zf:
         imp_act = _Action(zf, 'action.yaml')
+
+    with zipfile.ZipFile(artifact_as_md_fp) as zf:
+        art_as_md_act = _Action(zf, 'action.yaml')
 
     def test_action_id(self):
         exp = '5bc4b090-abbc-46b0-a219-346c8026f7d7'
@@ -456,10 +460,21 @@ class ActionTests(unittest.TestCase):
         exp = 'diversity'
         self.assertEqual(self.act.plugin, exp)
 
-    def test_inputs(self):
+    def test_parents(self):
         exp = [{'table': '706b6bce-8f19-4ae9-b8f5-21b14a814a1b'},
                {'phylogeny': 'ad7e5b50-065c-4fdd-8d9b-991e92caad22'}]
-        self.assertEqual(self.act.inputs, exp)
+        self.assertEqual(self.act.parents, exp)
+
+    def test_parents_with_artifact_passed_as_md(self):
+        exp = [{'tree': 'e710bdc5-e875-4876-b238-5451e3e8eb46'},
+               {'feature_table': 'abc22fdc-e7fa-4976-a980-8f2ff8c4bb58'},
+               {'pcoa': '1ed04b10-d29c-495f-996e-3d4db89434d2'},
+               {'artifact_passed_as_metadata':
+                '415409a4-371d-4c69-9433-e3eaba5301b4'},
+               ]
+        actual = self.art_as_md_act.parents
+        # print(actual)
+        self.assertEqual(actual, exp)
 
     def test_repr(self):
         exp = ('_Action(action_id=5bc4b090-abbc-46b0-a219-346c8026f7d7, '
@@ -478,9 +493,9 @@ class ActionTests(unittest.TestCase):
         exp = 'framework'
         self.assertEqual(self.imp_act.plugin, exp)
 
-    def test_inputs_for_import_node(self):
-        exp = None
-        self.assertEqual(self.imp_act.inputs, exp)
+    def test_parents_for_import_node(self):
+        exp = []
+        self.assertEqual(self.imp_act.parents, exp)
 
 
 class CitationsTests(unittest.TestCase):

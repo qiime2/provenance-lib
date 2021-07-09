@@ -32,7 +32,7 @@ def citation_key_constructor(loader, node) -> str:
 
 
 class MetadataInfo(TypedDict):
-    """ A static type definition metadata_path_constructor's return value """
+    """ A static type def for metadata_path_constructor's return value """
     input_artifact_uuids: List[UUID]
     relative_fp: str
 
@@ -40,7 +40,7 @@ class MetadataInfo(TypedDict):
 def metadata_path_constructor(loader, node) -> MetadataInfo:
     """
     A constructor for !metadata yaml tags, which come in the form
-    [<uuid_ref>[,<uuid_ref>]...:]<relative_filepath>
+    [<uuid_ref>[,<uuid_ref>][...]:]<relative_filepath>
 
     Most commonly, we see:
     !metadata 'sample_metadata.tsv'
@@ -54,7 +54,7 @@ def metadata_path_constructor(loader, node) -> MetadataInfo:
 
     The metadata files (including "Artifact metadata") are saved in the same
     dir as `action.yaml`. The UUIDs listed must be incorporated into our
-    provenance graph as inputs, so are returned in list form.
+    provenance graph as parents, so are returned in list form.
     """
     # TODO: add Artifact "metadata" to provenance as inputs/parents
     raw = loader.construct_scalar(node)

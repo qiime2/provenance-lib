@@ -307,9 +307,6 @@ class ParserVxTests(unittest.TestCase):
             'arch_root/provenance/artifacts/uuid123/action/action.yaml')
         exp = 'uuid123'
 
-        with self.assertRaisesRegex(NotImplementedError, 'V0'):
-            test_data['0']['parser']._get_nonroot_uuid(md_example)
-
         # Only parsers from v1 forward have this method
         parsers = [vrsn['parser'] for vrsn in list(test_data.values())[1:]]
 
@@ -495,13 +492,13 @@ class CitationsTests(unittest.TestCase):
         with zipfile.ZipFile(self.zips[0]) as zf:
             citations = _Citations(zf, self.bibs[0])
             # Is the _citations dict empty?
-            self.assertFalse(len(citations._citations))
+            self.assertFalse(len(citations.citations))
 
     def test_citation(self):
         with zipfile.ZipFile(self.zips[1]) as zf:
             exp = 'framework'
             citations = _Citations(zf, self.bibs[1])
-            for key in citations._citations.keys():
+            for key in citations.citations.keys():
                 self.assertRegex(key, exp)
 
     def test_many_citations(self):
@@ -511,7 +508,7 @@ class CitationsTests(unittest.TestCase):
                'BIOMV210DirFmt', 'BIOMV210Format']
         with zipfile.ZipFile(self.zips[2]) as zf:
             citations = _Citations(zf, self.bibs[2])
-            for i, key in enumerate(citations._citations.keys()):
+            for i, key in enumerate(citations.citations.keys()):
                 print(key, exp[i])
                 self.assertRegex(key, exp[i])
 

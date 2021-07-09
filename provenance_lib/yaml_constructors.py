@@ -56,7 +56,7 @@ def metadata_path_constructor(loader, node) -> MetadataInfo:
     dir as `action.yaml`. The UUIDs listed must be incorporated into our
     provenance graph as inputs, so are returned in list form.
     """
-    # TODO: NEXT - add Artifact "metadata" to provenance as inputs/parents
+    # TODO: add Artifact "metadata" to provenance as inputs/parents
     raw = loader.construct_scalar(node)
     if ':' in raw:
         artifact_uuids, rel_fp = raw.split(':')

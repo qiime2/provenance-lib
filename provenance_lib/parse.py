@@ -131,10 +131,10 @@ class ProvDAG(DiGraph):
                             format=con[n_id].format,
                             framework_version=con[n_id].framework_version,
                             archive_version=con[n_id].archive_version,
-                            action_type=con[n_id]._action.action_type,
-                            plugin=con[n_id]._action.plugin,
-                            inputs=con[n_id]._action.inputs,
-                            runtime=con[n_id]._action.runtime
+                            action_type=con[n_id].action.action_type,
+                            plugin=con[n_id].action.plugin,
+                            inputs=con[n_id].action.inputs,
+                            runtime=con[n_id].action.runtime
                             )) for n_id in self._archv_contents]
             self.add_nodes_from(node_contents)
 
@@ -188,11 +188,9 @@ class ProvNode:
             elif fp.name == 'metadata.yaml':
                 self._result_md = _ResultMetadata(zf, str(fp))
             elif fp.name == 'action.yaml':
-                # TODO: this should be public
-                self._action = _Action(zf, str(fp))
+                self.action = _Action(zf, str(fp))
             elif fp.name == 'citations.bib':
-                # TODO: should this be public?
-                self._citations = _Citations(zf, str(fp))
+                self.citations = _Citations(zf, str(fp))
 
     def __repr__(self) -> str:
         return f'ProvNode({self.uuid}, {self.sem_type}, fmt={self.format})'
@@ -293,10 +291,10 @@ class _Citations:
     """
     def __init__(self, zf: zipfile, fp: str):
         bib_db = bp.loads(zf.read(fp))
-        self._citations = {entry['ID']: entry for entry in bib_db.entries}
+        self.citations = {entry['ID']: entry for entry in bib_db.entries}
 
     def __repr__(self):
-        keys = [entry for entry in self._citations.keys()]
+        keys = [entry for entry in self.citations.keys()]
         return (f"Citations({keys})")
 
 
@@ -332,15 +330,15 @@ class ParserV0():
             raise ValueError("Malformed Archive: "
                              "no top-level metadata.yaml file")
 
-    # QUESTION: This is not an ABC. Is it best practice to drop these methods
-    # and include them only in subclasses where they are actually implemented
-    # by the Archive Format? Tests that iterate can always catch other errors
+    # TODO: This will prevent users from parsing v0 archives directly.
+    # Though reasonable in a one-archive replay scenario, this will cause
+    # problems if users want to "replay" an entire analysis that contains some
+    # v0 archives. The no_provenance_constructor warns instead, allowing v1+
+    # archives which contain v0 results in provenance to proceed. This seems
+    # like a more graceful approach to me; replay what we can, and warn the
+    # user that their replay will be incomplete.
     @classmethod
     def parse_prov(self, zf: zipfile.ZipFile) -> None:
-        raise NotImplementedError("V0 Archives do not contain provenance data")
-
-    @classmethod
-    def _get_nonroot_uuid(self, fp: pathlib.Path) -> str:
         raise NotImplementedError("V0 Archives do not contain provenance data")
 
 

@@ -19,7 +19,7 @@ if __name__ == '__main__':
     dummy_DAG = ProvDAG(archive_fp)
 
     r_uuid = dummy_DAG.root_uuid
-    deets = dummy_DAG.get_result(r_uuid)._action._action_details
+    deets = dummy_DAG.get_result(r_uuid).action._action_details
     plurg = deets['plugin']
     ackshun = deets['action']
 

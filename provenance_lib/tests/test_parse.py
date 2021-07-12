@@ -471,8 +471,6 @@ class ActionTests(unittest.TestCase):
                {'pcoa': '1ed04b10-d29c-495f-996e-3d4db89434d2'},
                {'artifact_passed_as_metadata':
                 '415409a4-371d-4c69-9433-e3eaba5301b4'},
-               {'artifact_passed_as_metadata':
-                '11111111-371d-4c69-9433-e3eaba5301b4'},
                ]
         actual = self.art_as_md_act.parents
         self.assertEqual(actual, exp)

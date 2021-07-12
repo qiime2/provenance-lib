@@ -59,7 +59,6 @@ class ProvDAG(DiGraph):
     """
     A single-rooted DAG of ProvNode objects, representing a single QIIME 2
     Archive.
-    TODO: May also contain a non-hierarchical pool of unique ProvNodes?
     """
     _num_results: int
     _archv_contents: Dict[UUID, ProvNode]

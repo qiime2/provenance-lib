@@ -56,7 +56,6 @@ def metadata_path_constructor(loader, node) -> MetadataInfo:
     dir as `action.yaml`. The UUIDs listed must be incorporated into our
     provenance graph as parents, so are returned in list form.
     """
-    # TODO: add Artifact "metadata" to provenance as inputs/parents
     raw = loader.construct_scalar(node)
     if ':' in raw:
         artifact_uuids, rel_fp = raw.split(':')
@@ -77,9 +76,8 @@ def no_provenance_constructor(loader, node) -> MetadataInfo:
        inputs:
        -   table: !no-provenance '34b07e56-27a5-4f03-ae57-ff427b50aaa1'
 
-    TODO: Is this the right place to warn? Is there anything else we need to do
-    with this information downstream? E.g. add an attribute to this node
-    indicating it is problematic, so it can be colored when drawing?
+    TODO: Add an attribute to this node indicating it is problematic, so it can
+    be colored when drawing. Also, to the ProvDAG?
     """
     uuid = loader.construct_scalar(node)
     warnings.warn(f"Artifact {uuid} was created prior to provenance tracking. "

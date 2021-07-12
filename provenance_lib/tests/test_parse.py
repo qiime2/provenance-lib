@@ -14,7 +14,7 @@ from ..parse import (
     ParserV0, ParserV1, ParserV2, ParserV3, ParserV4, ParserV5,
     get_version,
 )
-from .util import is_root_provnode_data
+from .util import is_root_provnode_data, ReallyEqualMixin
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 test_data = {
@@ -594,7 +594,7 @@ class CitationsTests(unittest.TestCase):
             self.assertEqual(repr(citations), exp)
 
 
-class ProvNodeTests(unittest.TestCase):
+class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
 
     def setUp(self):
         # Using a dag to back these tests, because the alternative is to
@@ -619,7 +619,7 @@ class ProvNodeTests(unittest.TestCase):
         self.assertEqual(self.v5_ProvNode.format, None)
 
     def test_self_eq(self):
-        self.assertEqual(self.v5_ProvNode, self.v5_ProvNode)
+        self.assertReallyEqual(self.v5_ProvNode, self.v5_ProvNode)
 
     def test_eq(self):
         # Mock has no matching UUID
@@ -628,17 +628,17 @@ class ProvNodeTests(unittest.TestCase):
 
         # Mock has bad UUID
         mock_node.uuid = 'gerbil'
-        self.assertNotEqual(self.v5_ProvNode, mock_node)
+        self.assertReallyNotEqual(self.v5_ProvNode, mock_node)
 
         # Matching UUIDs insufficient if classes differ
         mock_node.uuid = test_data['5']['uuid']
-        self.assertNotEqual(self.v5_ProvNode, mock_node)
+        self.assertReallyNotEqual(self.v5_ProvNode, mock_node)
         mock_node.__class__ = ProvNode
-        self.assertEqual(self.v5_ProvNode, mock_node)
+        self.assertReallyEqual(self.v5_ProvNode, mock_node)
 
     def test_is_hashable(self):
         exp_hash = hash(test_data['5']['uuid'])
-        self.assertEqual(hash(self.v5_ProvNode), exp_hash)
+        self.assertReallyEqual(hash(self.v5_ProvNode), exp_hash)
 
     def test_str(self):
         v5_uuid = test_data['5']['uuid']

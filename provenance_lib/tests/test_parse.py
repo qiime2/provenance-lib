@@ -17,7 +17,7 @@ from ..parse import (
 from .util import is_root_provnode_data, ReallyEqualMixin
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
-test_data = {
+TEST_DATA = {
     '0': {'parser': ParserV0,
           'av': '0',
           'fwv': '2.0.5',
@@ -75,7 +75,7 @@ class ProvDAGTests(unittest.TestCase):
     maxDiff = None
     fake_fp = os.path.join(DATA_DIR, 'not_a_filepath.qza')
     not_a_zip = os.path.join(DATA_DIR, 'not_a_zip.txt')
-    v5_provDag = ProvDAG(test_data['5']['qzv_fp'])
+    v5_provDag = ProvDAG(TEST_DATA['5']['qzv_fp'])
 
     # This should only trigger if something fails in setup or above
     # e.g. if v5_provDag fails to initialize
@@ -83,10 +83,10 @@ class ProvDAGTests(unittest.TestCase):
         self.assertTrue(True)
 
     def test_root_uuid_correct(self):
-        self.assertEqual(self.v5_provDag.root_uuid, test_data['5']['uuid'])
+        self.assertEqual(self.v5_provDag.root_uuid, TEST_DATA['5']['uuid'])
 
     def test_root_node_is_archive_root(self):
-        with zipfile.ZipFile(test_data['5']['qzv_fp']) as zf:
+        with zipfile.ZipFile(TEST_DATA['5']['qzv_fp']) as zf:
             all_filenames = zf.namelist()
             root_md_fnames = filter(is_root_provnode_data, all_filenames)
             root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
@@ -98,8 +98,8 @@ class ProvDAGTests(unittest.TestCase):
         # This call should be made once we've decided how to represent nodes,
         # e.g. nested or all-nodes/raw
         # At that time, remove one of these assertions
-        self.assertEqual(self.v5_provDag._num_results, test_data['5']['n_res'])
-        self.assertEqual(len(self.v5_provDag), test_data['5']['n_res'])
+        self.assertEqual(self.v5_provDag._num_results, TEST_DATA['5']['n_res'])
+        self.assertEqual(len(self.v5_provDag), TEST_DATA['5']['n_res'])
 
     def test_nonexistent_fp(self):
         with self.assertRaisesRegex(FileNotFoundError, 'not_a_filepath.qza'):
@@ -114,10 +114,10 @@ class ProvDAGTests(unittest.TestCase):
         self.assertIsInstance(self.v5_provDag, DiGraph)
 
     def test_has_nodes(self):
-        self.assertIn(test_data['5']['uuid'], self.v5_provDag.nodes)
+        self.assertIn(TEST_DATA['5']['uuid'], self.v5_provDag.nodes)
 
     def test_root_node_attributes(self):
-        root_node = self.v5_provDag.nodes[test_data['5']['uuid']]
+        root_node = self.v5_provDag.nodes[TEST_DATA['5']['uuid']]
         self.assertEqual(root_node['type'], 'Visualization')
         self.assertEqual(root_node['format'], None)
         self.assertEqual(root_node['framework_version'], '2018.11.0')
@@ -262,37 +262,37 @@ class ParserVxTests(unittest.TestCase):
     # TODO: 0 should have a real v0 archive. Currently a hacked V1 archive
 
     def test_get_root_md(self):
-        for archv_vrsn in test_data.keys():
-            fp = test_data[archv_vrsn]['qzv_fp']
-            root_uuid = test_data[archv_vrsn]['uuid']
+        for archv_vrsn in TEST_DATA.keys():
+            fp = TEST_DATA[archv_vrsn]['qzv_fp']
+            root_uuid = TEST_DATA[archv_vrsn]['uuid']
             with zipfile.ZipFile(fp) as zf:
-                root_md = test_data[archv_vrsn]['parser'].get_root_md(zf)
+                root_md = TEST_DATA[archv_vrsn]['parser'].get_root_md(zf)
                 self.assertEqual(root_md.uuid, root_uuid)
                 self.assertEqual(root_md.type,  'Visualization')
                 self.assertEqual(root_md.format, None)
 
     def test_get_root_md_no_md_yaml(self):
         v5_qzv_no_root_md = os.path.join(DATA_DIR, 'no_root_md_yaml.qzv')
-        for archv_vrsn in test_data.keys():
+        for archv_vrsn in TEST_DATA.keys():
             with zipfile.ZipFile(v5_qzv_no_root_md) as zf:
                 with self.assertRaisesRegex(ValueError, 'Malformed.*metadata'):
-                    test_data[archv_vrsn]['parser'].get_root_md(zf)
+                    TEST_DATA[archv_vrsn]['parser'].get_root_md(zf)
 
     def test_populate_archive(self):
-        for archv_vrsn in test_data.keys():
-            fp = test_data[archv_vrsn]['qzv_fp']
-            root_uuid = test_data[archv_vrsn]['uuid']
+        for archv_vrsn in TEST_DATA.keys():
+            fp = TEST_DATA[archv_vrsn]['qzv_fp']
+            root_uuid = TEST_DATA[archv_vrsn]['uuid']
             with zipfile.ZipFile(fp) as zf:
                 if archv_vrsn == '0':
                     with self.assertRaisesRegex(NotImplementedError,
                                                 'V0.*no.*provenance'):
-                        test_data[archv_vrsn]['parser'].parse_prov(zf)
+                        TEST_DATA[archv_vrsn]['parser'].parse_prov(zf)
                 else:
-                    num_res, contents = test_data[archv_vrsn]['parser'] \
+                    num_res, contents = TEST_DATA[archv_vrsn]['parser'] \
                                             .parse_prov(zf)
                     print(f'Debug: archive version #{archv_vrsn} failing')
                     # Does this archive have the right number of Results?
-                    self.assertEqual(num_res, test_data[archv_vrsn]['n_res'])
+                    self.assertEqual(num_res, TEST_DATA[archv_vrsn]['n_res'])
                     # Is contents a dict?
                     self.assertIs(type(contents), dict)
                     # Is contents keyed on uuids, containing ProvNodes?
@@ -308,7 +308,7 @@ class ParserVxTests(unittest.TestCase):
         exp = 'uuid123'
 
         # Only parsers from v1 forward have this method
-        parsers = [vrsn['parser'] for vrsn in list(test_data.values())[1:]]
+        parsers = [vrsn['parser'] for vrsn in list(TEST_DATA.values())[1:]]
 
         for parser in parsers:
             self.assertEqual(parser._get_nonroot_uuid(md_example), exp)
@@ -319,39 +319,39 @@ class FormatHandlerTests(unittest.TestCase):
 
     # Can we make a FormatHandler without anything blowing up?
     def test_smoke(self):
-        for arch_ver in test_data.keys():
-            qzv = test_data[arch_ver]['qzv_fp']
+        for arch_ver in TEST_DATA.keys():
+            qzv = TEST_DATA[arch_ver]['qzv_fp']
             with zipfile.ZipFile(qzv) as zf:
                 FormatHandler(zf)
         self.assertTrue(True)
 
     def test_archive_version(self):
-        for arch_ver in test_data.keys():
-            qzv = test_data[arch_ver]['qzv_fp']
+        for arch_ver in TEST_DATA.keys():
+            qzv = TEST_DATA[arch_ver]['qzv_fp']
             with zipfile.ZipFile(qzv) as zf:
                 handler = FormatHandler(zf)
                 self.assertEqual(handler.archive_version,
-                                 test_data[arch_ver]['av'])
+                                 TEST_DATA[arch_ver]['av'])
 
     def test_framework_version(self):
-        for arch_ver in test_data.keys():
-            qzv = test_data[arch_ver]['qzv_fp']
+        for arch_ver in TEST_DATA.keys():
+            qzv = TEST_DATA[arch_ver]['qzv_fp']
             with zipfile.ZipFile(qzv) as zf:
                 handler = FormatHandler(zf)
                 self.assertEqual(handler.framework_version,
-                                 test_data[arch_ver]['fwv'])
+                                 TEST_DATA[arch_ver]['fwv'])
 
     def test_correct_parser(self):
-        for arch_ver in test_data.keys():
-            qzv = test_data[arch_ver]['qzv_fp']
+        for arch_ver in TEST_DATA.keys():
+            qzv = TEST_DATA[arch_ver]['qzv_fp']
             with zipfile.ZipFile(qzv) as zf:
                 handler = FormatHandler(zf)
                 self.assertEqual(handler.parser,
-                                 test_data[arch_ver]['parser'])
+                                 TEST_DATA[arch_ver]['parser'])
 
     def test_parse(self):
-        uuid = test_data['5']['uuid']
-        with zipfile.ZipFile(test_data['5']['qzv_fp']) as zf:
+        uuid = TEST_DATA['5']['uuid']
+        with zipfile.ZipFile(TEST_DATA['5']['qzv_fp']) as zf:
             handler = FormatHandler(zf)
             md, (num_r, contents) = handler.parse(zf)
             self.assertIs(type(md), _ResultMetadata)
@@ -394,17 +394,17 @@ class GetVersionTests(unittest.TestCase):
                 get_version(zf)
 
     def test_version_nums(self):
-        for arch_ver in test_data.keys():
+        for arch_ver in TEST_DATA.keys():
             qzv = os.path.join(DATA_DIR, 'v' + arch_ver + '_uu_emperor.qzv')
             with zipfile.ZipFile(qzv) as zf:
                 exp_arch, exp_frmwk = get_version(zf)
-                self.assertEqual(exp_arch, test_data[arch_ver]['av'])
-                self.assertEqual(exp_frmwk, test_data[arch_ver]['fwv'])
+                self.assertEqual(exp_arch, TEST_DATA[arch_ver]['av'])
+                self.assertEqual(exp_frmwk, TEST_DATA[arch_ver]['fwv'])
 
 
 class ResultMetadataTests(unittest.TestCase):
-    v5_qzv = test_data['5']['qzv_fp']
-    v5_uuid = test_data['5']['uuid']
+    v5_qzv = TEST_DATA['5']['qzv_fp']
+    v5_uuid = TEST_DATA['5']['uuid']
     md_fp = f'{v5_uuid}/provenance/metadata.yaml'
     with zipfile.ZipFile(v5_qzv) as zf:
         v5_root_md = _ResultMetadata(zf, md_fp)
@@ -599,11 +599,11 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
     def setUp(self):
         # Using a dag to back these tests, because the alternative is to
         # hand-build two to three test nodes and mock a ProvDAG to hold them.
-        self.v5_dag = ProvDAG(test_data['5']['qzv_fp'])
+        self.v5_dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
         super().setUp()
         self.root_metadata_fps = None
 
-        with zipfile.ZipFile(test_data['5']['qzv_fp']) as zf:
+        with zipfile.ZipFile(TEST_DATA['5']['qzv_fp']) as zf:
             all_filenames = zf.namelist()
             root_md_fnames = filter(is_root_provnode_data, all_filenames)
             root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
@@ -614,7 +614,7 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
         self.assertIs(type(self.v5_ProvNode), ProvNode)
 
     def test_v5_viz_md(self):
-        self.assertEqual(self.v5_ProvNode.uuid, test_data['5']['uuid'])
+        self.assertEqual(self.v5_ProvNode.uuid, TEST_DATA['5']['uuid'])
         self.assertEqual(self.v5_ProvNode.sem_type, 'Visualization')
         self.assertEqual(self.v5_ProvNode.format, None)
 
@@ -631,28 +631,28 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
         self.assertReallyNotEqual(self.v5_ProvNode, mock_node)
 
         # Matching UUIDs insufficient if classes differ
-        mock_node.uuid = test_data['5']['uuid']
+        mock_node.uuid = TEST_DATA['5']['uuid']
         self.assertReallyNotEqual(self.v5_ProvNode, mock_node)
         mock_node.__class__ = ProvNode
         self.assertReallyEqual(self.v5_ProvNode, mock_node)
 
     def test_is_hashable(self):
-        exp_hash = hash(test_data['5']['uuid'])
+        exp_hash = hash(TEST_DATA['5']['uuid'])
         self.assertReallyEqual(hash(self.v5_ProvNode), exp_hash)
 
     def test_str(self):
-        v5_uuid = test_data['5']['uuid']
+        v5_uuid = TEST_DATA['5']['uuid']
         self.assertEqual(str(self.v5_ProvNode), f'{v5_uuid}')
 
     def test_repr(self):
-        v5_uuid = test_data['5']['uuid']
+        v5_uuid = TEST_DATA['5']['uuid']
         self.assertEqual(repr(self.v5_ProvNode),
                          f'ProvNode({v5_uuid}, Visualization, fmt=None)')
 
     def test_archive_version(self):
         self.assertEqual(self.v5_ProvNode.archive_version,
-                         test_data['5']['av'])
+                         TEST_DATA['5']['av'])
 
     def test_framework_version(self):
         self.assertEqual(self.v5_ProvNode.framework_version,
-                         test_data['5']['fwv'])
+                         TEST_DATA['5']['fwv'])

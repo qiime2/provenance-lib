@@ -1,4 +1,5 @@
 import unittest
+import warnings
 import yaml
 
 from ..yaml_constructors import (
@@ -18,6 +19,9 @@ class UnknownConstrTests(unittest.TestCase):
     Makes explicit the current handling of unimplemented custom tags
     In future, we may want to deal with these more graciously (e.g. warn), but
     for now we're going to fail fast
+
+    TODO: This isn't actually coupled to the behavior of safe_load in the code
+    Though it's a nice idea, it's not functional as implemented
     """
     def test_unknown_tag(self):
         tag = r"!foo 'this is not an implemented tag'"
@@ -87,14 +91,32 @@ class MetadataPathConstrTests(unittest.TestCase):
 class NoProvenanceConstrTests(unittest.TestCase):
     def test_no_provenance_constructor(self):
         tag = "!no-provenance '34b07e56-27a5-4f03-ae57-ff427b50aaa1'"
-        actual = yaml.safe_load(tag)
-        self.assertEqual(actual, '34b07e56-27a5-4f03-ae57-ff427b50aaa1')
-
-    def test_warning(self):
-        tag = "!no-provenance '34b07e56-27a5-4f03-ae57-ff427b50aaa1'"
         with self.assertWarnsRegex(UserWarning,
                                    'Artifact 34b07e.*prior to provenance'):
-            yaml.safe_load(tag)
+            actual = yaml.safe_load(tag)
+            self.assertEqual(actual, '34b07e56-27a5-4f03-ae57-ff427b50aaa1')
+
+    def test_multiple_warnings_fire(self):
+        tag_list = """
+        - !no-provenance '34b07e56-27a5-4f03-ae57-ff427b50aaa1'
+        - !no-provenance 'gerbil'
+        """
+        with warnings.catch_warnings(record=True) as w:
+            # Just in case something else has modified the filter state
+            warnings.simplefilter("default")
+            yaml.safe_load(tag_list)
+            # There should be exactly two warnings
+            self.assertEqual(len(w), 2)
+
+            # The first should be a Userwarnign containing these strings
+            self.assertEqual(UserWarning, w[0].category)
+            self.assertIn('Artifact 34b07e', str(w[0].message))
+            self.assertIn('prior to provenance', str(w[0].message))
+
+            # And the second should look similar
+            self.assertEqual(UserWarning, w[1].category)
+            self.assertIn('gerbil', str(w[1].message))
+            self.assertIn('prior to provenance', str(w[0].message))
 
 
 class SetRefConstrTests(unittest.TestCase):

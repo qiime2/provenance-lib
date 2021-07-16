@@ -3,7 +3,8 @@ import codecs
 import pathlib
 import re
 from datetime import timedelta
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, TypedDict, Union
+import warnings
 
 import bibtexparser as bp
 from networkx import DiGraph
@@ -13,39 +14,141 @@ import zipfile
 # Alias string as UUID so we can specify types more clearly
 UUID = str
 
+
+def citation_key_constructor(loader, node) -> str:
+    """
+    A constructor for !cite yaml tags, returning a bibtex key as a str.
+    All we need for now is a key string we can match in citations.bib,
+    so _we're not parsing these into component substrings_.
+
+    If that need arises in future, these are spec'ed in provenance.py as:
+    <domain>|<package>:<version>|[<identifier>|]<index>
+
+    and frequently look like this (note no identifier):
+    framework|qiime2:2020.6.0.dev0|0
+    """
+    value = loader.construct_scalar(node)
+    return value
+
+
+def color_constructor(loader, node) -> str:
+    """
+    Constructor for !color tags, returning an str.
+    Color was a primitive type representing a 3 or 6 digit color hex code,
+    matching ^#(?:[0-9a-fA-F]{3}){1,2}$
+
+    Per E. Bolyen,these were unused by any plugins. They were removed in
+    e58ed5f8ba453035169d560e0223e6a37774ae08, released in 2019.4
+    """
+    return loader.construct_scalar(node)
+
+
+class MetadataInfo(TypedDict):
+    """ A static type def for metadata_path_constructor's return value """
+    input_artifact_uuids: List[UUID]
+    relative_fp: str
+
+
+def metadata_path_constructor(loader, node) -> MetadataInfo:
+    """
+    A constructor for !metadata yaml tags, which come in the form
+    [<uuid_ref>[,<uuid_ref>][...]:]<relative_filepath>
+
+    Most commonly, we see:
+    !metadata 'sample_metadata.tsv'
+
+    In cases where Artifacts are used as metadata, we see:
+    !metadata '415409a4-371d-4c69-9433-e3eaba5301b4:feature_metadata.tsv'
+
+    In cases where multiple Artifacts as metadata were merged,
+    it is possible for multiple comma-separated uuids to precede the ':'
+    !metadata '<uuid1>,<uuid2>,...,<uuidn>:feature_metadata.tsv'
+
+    The metadata files (including "Artifact metadata") are saved in the same
+    dir as `action.yaml`. The UUIDs listed must be incorporated into our
+    provenance graph as parents, so are returned in list form.
+    """
+    raw = loader.construct_scalar(node)
+    if ':' in raw:
+        artifact_uuids, rel_fp = raw.split(':')
+        artifact_uuids = artifact_uuids.split(',')
+    else:
+        artifact_uuids = []
+        rel_fp = raw
+    return {'input_artifact_uuids': artifact_uuids, 'relative_fp': rel_fp}
+
+
+def no_provenance_constructor(loader, node) -> MetadataInfo:
+    """
+    Constructor for !no-provenance tags. These tags are produced when an input
+    has no /provenance dir, as is the case with v0 archives that have been
+    used in analyses in QIIME2 V1+. They look like this:
+
+    action:
+       inputs:
+       -   table: !no-provenance '34b07e56-27a5-4f03-ae57-ff427b50aaa1'
+
+    TODO: Add an attribute to this node indicating it is problematic, so it can
+    be colored when drawing. Also, to the ProvDAG?
+    """
+    uuid = loader.construct_scalar(node)
+    warnings.warn(f"Artifact {uuid} was created prior to provenance tracking. "
+                  + "Provenance data will be incomplete.", UserWarning)
+    return uuid
+
+
+def ref_constructor(loader, node) -> Union[str, List[str]]:
+    """
+    A constructor for !ref yaml tags. These tags describe yaml values that
+    reference other namespaces within the document, using colons to separate
+    namespaces. For example:
+    !ref 'environment:plugins:sample-classifier'
+
+    At present, ForwardRef tags are only used in the framework to 'link' the
+    plugin name to the plugin version and other details in the 'execution'
+    namespace of action.yaml
+
+    This constructor explicitly handles this type of !ref by extracting and
+    returning the plugin name to simplify parsing, while supporting the return
+    of a generic list of 'keys' (e.g. ['environment', 'framework', 'version'])
+    in the event ForwardRef is used more broadly in future.
+    """
+    value = loader.construct_scalar(node)
+    keys = value.split(':')
+    if keys[0:2] == ['environment', 'plugins']:
+        plugin_name = keys[2]
+        return plugin_name
+    else:
+        return keys
+
+
+def set_constructor(loader, node) -> str:
+    """
+    A constructor for !set yaml tags, returning a python set object
+    """
+    value = loader.construct_sequence(node)
+    return set(value)
+
+
+# NOTE: New yaml tag constructors must be added to this registry, or tags will
+# raise ConstructorErrors
+CONSTRUCTOR_REGISTRY = {
+    '!cite': citation_key_constructor,
+    '!color': color_constructor,
+    '!metadata': metadata_path_constructor,
+    '!no-provenance': no_provenance_constructor,
+    '!ref': ref_constructor,
+    '!set': set_constructor,
+    }
+
+for key in CONSTRUCTOR_REGISTRY:
+    yaml.SafeLoader.add_constructor(key, CONSTRUCTOR_REGISTRY[key])
+
 _VERSION_MATCHER = (
     r'QIIME 2\n'
     r'archive: [0-9]{1,2}$\n'
     r'framework: '
     r'(?:20[0-9]{2}|2)\.(?:[1-9][0-2]?|0)\.[0-9](?:\.dev[0-9]?)?\Z')
-
-# TODO: Move constructors into a separate module
-# from yaml_constructors import (
-#     metadata_constructor, citation_constructor, ref_constructor)
-
-
-# TODO: The framework exposes many additional custom tags not yet handled
-# here. Check qiime2/core/archive/provenance.py for everything
-def citation_constructor(loader, node):
-    value = loader.construct_scalar(node)
-    return value
-
-
-def ref_constructor(loader, node):
-    value = loader.construct_scalar(node)
-    # TODO: should these become _, or do we get value out of capturing them?
-    environment, plugins, plugin_name = value.split(':')
-    return plugin_name
-
-
-def metadata_constructor(loader, node):
-    value = loader.construct_scalar(node)
-    return value
-
-
-yaml.SafeLoader.add_constructor('!metadata', metadata_constructor)
-yaml.SafeLoader.add_constructor('!cite', citation_constructor)
-yaml.SafeLoader.add_constructor('!ref', ref_constructor)
 
 
 def get_version(zf: zipfile, fp: Optional[pathlib.Path] = None) -> Tuple[str]:
@@ -79,7 +182,6 @@ class ProvDAG(DiGraph):
     """
     A single-rooted DAG of ProvNode objects, representing a single QIIME 2
     Archive.
-    TODO: May also contain a non-hierarchical pool of unique ProvNodes?
     """
     _num_results: int
     _archv_contents: Dict[UUID, ProvNode]
@@ -118,11 +220,11 @@ class ProvDAG(DiGraph):
         # Use this DAG's root uuid by default
         node_id = self.root_uuid if node_id is None else node_id
         local_parents = dict()
-        if not self.nodes[node_id]['inputs']:
+        if not self.nodes[node_id]['parents']:
             local_parents = {node_id: None}
         else:
             sub_dag = dict()
-            parents = self.nodes[node_id]['inputs']
+            parents = self.nodes[node_id]['parents']
             parent_uuids = (list(parent.values())[0] for parent in parents)
             for uuid in parent_uuids:
                 sub_dag.update(self.traverse_uuids(uuid))
@@ -140,7 +242,13 @@ class ProvDAG(DiGraph):
             # are stored as attributes.
 
             # TODO: If our nodes are ProvNodes instead of uuids, do we get
-            # these attributes, queryable, "for free"?
+            # these attributes, queryable, "for free"? Do we only get
+            # "enhanced" node equality checking? And if so, is that really a
+            # value? Related - how does nx.union_some_dags work? If node
+            # attributes are .updated, then uuid might make this less painful.
+            # Otherwise, we're replacing one ProvNode with another, and we
+            # might have to re-implement nx's union logic to preference the
+            # non-empty provNode, which I think should be avoided.
 
             con = self._archv_contents
             node_contents = [
@@ -149,19 +257,39 @@ class ProvDAG(DiGraph):
                             format=con[n_id].format,
                             framework_version=con[n_id].framework_version,
                             archive_version=con[n_id].archive_version,
-                            action_type=con[n_id]._action.action_type,
-                            plugin=con[n_id]._action.plugin,
-                            inputs=con[n_id]._action.inputs,
-                            runtime=con[n_id]._action.runtime
+                            has_provenance=con[n_id].has_provenance,
                             )) for n_id in self._archv_contents]
             self.add_nodes_from(node_contents)
 
+            # Add attributes which only exist if provenance was captured
+            for node in self.nodes:
+                provnode = self.nodes[node]['full_ProvNode_payload']
+                if provnode.has_provenance:
+                    action_properties = dict(
+                        action_type=provnode.action.action_type,
+                        plugin=provnode.action.plugin,
+                        parents=provnode.action.parents,
+                        runtime=provnode.action.runtime,
+                    )
+                    self.nodes[node].update(action_properties)
+
+            # NOTE: When parsing v1+ archives, v0 ancestor nodes without
+            # tracked provenance (e.g. !no-provenance inputs) are discovered
+            # only as parents to the current inputs, and are added to our DAG
+            # when we add in-edges to "real" provenance nodes below.
+
+            # As such, dag.nodes[<uuid>] returns an empty dict if the node has
+            # no provenance. The has_provenance attribute allows red-flagging
+            # of nodes with something like this, even if we end up adding
+            # other attributes (e.g. type) to our no-provenance nodes:
+            # `if not dag.nodes[<uuid>].get(has_provenance)`
+
             ebunch = []
             for node_id, data in self.nodes(data=True):
-                if data['inputs']:
-                    for input in data['inputs']:
-                        type = tuple(input.keys())[0]
-                        parent_uuid = tuple(input.values())[0]
+                if data.get('parents'):
+                    for parent in data['parents']:
+                        type = tuple(parent.keys())[0]
+                        parent_uuid = tuple(parent.values())[0]
                         ebunch.append((parent_uuid, node_id,
                                        {'type': type}))
             self.add_edges_from(ebunch)
@@ -175,24 +303,28 @@ class ProvNode:
     """ One node of a provenance DAG, describing one QIIME 2 Result """
 
     @property
-    def uuid(self):
+    def uuid(self) -> UUID:
         return self._result_md.uuid
 
     @property
-    def sem_type(self):
+    def sem_type(self) -> str:
         return self._result_md.type
 
     @property
-    def format(self):
+    def format(self) -> Optional[str]:
         return self._result_md.format
 
     @property
-    def archive_version(self):
+    def archive_version(self) -> int:
         return self._archive_version
 
     @property
-    def framework_version(self):
+    def framework_version(self) -> str:
         return self._framework_version
+
+    @property
+    def has_provenance(self) -> bool:
+        return self.archive_version != '0'
 
     # NOTE: This constructor is intentionally flexible, and will parse any
     # files handed to it. It is the responsibility of the ParserVx classes to
@@ -206,11 +338,9 @@ class ProvNode:
             elif fp.name == 'metadata.yaml':
                 self._result_md = _ResultMetadata(zf, str(fp))
             elif fp.name == 'action.yaml':
-                # TODO: this should be public
-                self._action = _Action(zf, str(fp))
+                self.action = _Action(zf, str(fp))
             elif fp.name == 'citations.bib':
-                # TODO: should this be public?
-                self._citations = _Citations(zf, str(fp))
+                self.citations = _Citations(zf, str(fp))
 
     def __repr__(self) -> str:
         return f'ProvNode({self.uuid}, {self.sem_type}, fmt={self.format})'
@@ -260,10 +390,6 @@ class _Action:
         """
         return self._execution_details['runtime']['duration']
 
-    # TODO: The semantics are clunky for the following properties when the
-    # "Action" is an import. The approach taken here is not comprehensive and
-    # very not DRY. See TODOs in ProvDAG for notes on possibly handling with
-    # schemas upstream
     @property
     def action(self) -> str:
         """
@@ -286,12 +412,75 @@ class _Action:
         return plugin
 
     @property
-    def inputs(self) -> Optional[List[Dict[str, UUID]]]:
+    def parents(self) -> List[Dict[str, UUID]]:
         """
         a list of single-item {Type: UUID} dicts describing this
-        action's inputs. Returns None if this "action" is an Import
+        action's inputs, and including Artifacts passed as Metadata parameters.
+
+        Returns [] if this "action" is an Import
         """
-        return self._action_details.get('inputs')
+        inputs = self._action_details.get('inputs')
+        parents = [] if inputs is None else inputs
+
+        archives_as_metadata = self._get_artifacts_passed_as_md()
+        return parents + archives_as_metadata
+
+    def _get_artifacts_passed_as_md(self, action_details=None) -> \
+            List[Dict[str, UUID]]:
+        """
+        When Artifacts are passed as Metadata, they are captured in action.py's
+        action['parameters'], rather than in action['inputs'] with the other
+        Artifacts. Replay wouldn't be as usable without these Artifact inputs,
+        so our DAG must be able to track them as parents to a given node.
+
+        Figuring out whether there is an Action passed as MD is gross, so this
+        function. For example:
+
+        action:
+            parameters:
+            -   arbitrary_metadata_name: !metadata 'sample_metadata.tsv'
+            -   other_metadata: !metadata '4154...301b4:feature_metadata.tsv'
+
+        loads as:
+
+        {'action': {'parameters': [{'some_param': 'foo'},
+                                   {'arbitrary_metadata_name':
+                                    {'input_artifact_uuids': [],
+                                     'relative_fp': 'metadata.tsv'}},
+                                   {'other_metadata':
+                                    {'input_artifact_uuids': ['4154...301b4'],
+                                     'relative_fp': 'metadata.tsv'}},]}}
+        We can key into 'parameters', then must iterate over the list of
+        parameters capturing dict values that contain UUIDs.
+
+        NOTE: When Actions are passed as MD, Semantic Type data isn't captured,
+        so the filler 'artifact_passed_as_metadata' 'Type' created here
+        will not match the actual Type of the parent Artifact. The filler type
+        should make it possible for a ProvDAG to identify and relabel any
+        artifacts passed as metadata with their actual type if needed.
+        """
+        action_details = action_details if action_details is not None \
+            else self._action_details
+        artifacts_as_metadata = []
+        all_params = action_details.get('parameters')
+        if all_params is None:
+            return []
+
+        # PEP589 doesn't support isinstance checks against TypedDict objects,
+        # and structural pattern matching also relies on isinstance(),
+        # so if action['params'] exists, we look for params with a value that
+        # matches the yaml_constructors.MetadataInfo spec well enough, and
+        # grab any uuids associated with em.
+        for param in all_params:
+            param_val = list(param.values())[0]
+            if isinstance(param_val, dict) \
+               and 'input_artifact_uuids' in param_val \
+               and 'relative_fp' in param_val:
+                artifacts_as_metadata += [
+                    {'artifact_passed_as_metadata': uuid} for uuid in
+                    param_val['input_artifact_uuids']]
+
+        return artifacts_as_metadata
 
     def __init__(self, zf: zipfile, fp: str):
         self._action_dict = yaml.safe_load(zf.read(fp))
@@ -311,10 +500,10 @@ class _Citations:
     """
     def __init__(self, zf: zipfile, fp: str):
         bib_db = bp.loads(zf.read(fp))
-        self._citations = {entry['ID']: entry for entry in bib_db.entries}
+        self.citations = {entry['ID']: entry for entry in bib_db.entries}
 
     def __repr__(self):
-        keys = [entry for entry in self._citations.keys()]
+        keys = [entry for entry in self.citations]
         return (f"Citations({keys})")
 
 
@@ -337,6 +526,7 @@ class ParserV0():
     Parser for V0 archives. These have no provenance, so we only parse metadata
     """
     version_string = 0
+    prov_filenames = ('metadata.yaml', 'VERSION')
 
     @classmethod
     def get_root_md(self, zf: zipfile.ZipFile) \
@@ -350,16 +540,18 @@ class ParserV0():
             raise ValueError("Malformed Archive: "
                              "no top-level metadata.yaml file")
 
-    # QUESTION: This is not an ABC. Is it best practice to drop these methods
-    # and include them only in subclasses where they are actually implemented
-    # by the Archive Format? Tests that iterate can always catch other errors
     @classmethod
-    def parse_prov(self, zf: zipfile.ZipFile) -> None:
-        raise NotImplementedError("V0 Archives do not contain provenance data")
-
-    @classmethod
-    def _get_nonroot_uuid(self, fp: pathlib.Path) -> str:
-        raise NotImplementedError("V0 Archives do not contain provenance data")
+    def parse_prov(self, zf: zipfile.ZipFile) -> \
+            Tuple[int, Dict[UUID, ProvNode]]:
+        archv_contents = {}
+        num_results = 1
+        uuid = pathlib.Path(zf.namelist()[0]).parts[0]
+        warnings.warn(f"Artifact {uuid} was created prior to provenance" +
+                      "tracking. Provenance data will be incomplete.",
+                      UserWarning)
+        prov_data_fps = [pathlib.Path(uuid) / fp for fp in self.prov_filenames]
+        archv_contents[uuid] = ProvNode(zf, prov_data_fps)
+        return (num_results, archv_contents)
 
 
 class ParserV1(ParserV0):
@@ -370,10 +562,10 @@ class ParserV1(ParserV0):
     prov_filenames = ('metadata.yaml', 'action/action.yaml', 'VERSION')
 
     @classmethod
-    def parse_prov(self, zf: zipfile) -> Tuple[int, Dict[UUID, ProvNode]]:
+    def parse_prov(self, zf: zipfile.ZipFile) -> \
+            Tuple[int, Dict[UUID, ProvNode]]:
         """
-        Populates an _Archive with all relevant provenance data
-        Takes an Archive (as a zipfile) as input.
+        Parses provenance data for one Archive.
 
         By convention, the filepaths within these Archives begin with:
         <archive_root_uuid>/provenance/...

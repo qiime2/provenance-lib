@@ -19,7 +19,7 @@ if __name__ == '__main__':
     dummy_DAG = ProvDAG(archive_fp)
 
     r_uuid = dummy_DAG.root_uuid
-    deets = dummy_DAG.get_result(r_uuid)._action._action_details
+    deets = dummy_DAG.get_result(r_uuid).action._action_details
     plurg = deets['plugin']
     ackshun = deets['action']
 
@@ -33,4 +33,4 @@ if __name__ == '__main__':
     print(f'\nIts prov DAG looks like\n{dummy_DAG}')
 
     print('#########################################')
-    print(dummy_DAG.nodes['ffb7cee3-2f1f-4988-90cc-efd5184ef003']['inputs'])
+    print(dummy_DAG.nodes['ffb7cee3-2f1f-4988-90cc-efd5184ef003']['parents'])

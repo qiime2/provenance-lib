@@ -1,0 +1,2 @@
+[run]
+omit = provenance_lib/runner.py

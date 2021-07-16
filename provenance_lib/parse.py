@@ -129,7 +129,7 @@ def set_constructor(loader, node) -> str:
 
 # NOTE: New yaml tag constructors must be added to this registry, or tags will
 # raise ConstructorErrors
-constructor_registry = {
+CONSTRUCTOR_REGISTRY = {
     '!cite': citation_key_constructor,
     '!color': color_constructor,
     '!metadata': metadata_path_constructor,
@@ -138,8 +138,8 @@ constructor_registry = {
     '!set': set_constructor,
     }
 
-for key in constructor_registry:
-    yaml.SafeLoader.add_constructor(key, constructor_registry[key])
+for key in CONSTRUCTOR_REGISTRY:
+    yaml.SafeLoader.add_constructor(key, CONSTRUCTOR_REGISTRY[key])
 
 _VERSION_MATCHER = (
     r'QIIME 2\n'
@@ -241,7 +241,11 @@ class ProvDAG(DiGraph):
             # TODO: If our nodes are ProvNodes instead of uuids, do we get
             # these attributes, queryable, "for free"? Do we only get
             # "enhanced" node equality checking? And if so, is that really a
-            # value?
+            # value? Related - how does nx.union_some_dags work? If node
+            # attributes are .updated, then uuid might make this less painful.
+            # Otherwise, we're replacing one ProvNode with another, and we
+            # might have to re-implement nx's union logic to preference the
+            # non-empty provNode, which I think should be avoided.
 
             con = self._archv_contents
             node_contents = [
@@ -250,16 +254,36 @@ class ProvDAG(DiGraph):
                             format=con[n_id].format,
                             framework_version=con[n_id].framework_version,
                             archive_version=con[n_id].archive_version,
-                            action_type=con[n_id].action.action_type,
-                            plugin=con[n_id].action.plugin,
-                            parents=con[n_id].action.parents,
-                            runtime=con[n_id].action.runtime
+                            has_provenance=con[n_id].has_provenance,
                             )) for n_id in self._archv_contents]
             self.add_nodes_from(node_contents)
 
+            # Add attributes which only exist if provenance was captured
+            for node in self.nodes:
+                provnode = self.nodes[node]['full_ProvNode_payload']
+                if provnode.has_provenance:
+                    action_properties = dict(
+                        action_type=provnode.action.action_type,
+                        plugin=provnode.action.plugin,
+                        parents=provnode.action.parents,
+                        runtime=provnode.action.runtime,
+                    )
+                    self.nodes[node].update(action_properties)
+
+            # NOTE: When parsing v1+ archives, v0 ancestor nodes without
+            # tracked provenance (e.g. !no-provenance inputs) are discovered
+            # only as parents to the current inputs, and are added to our DAG
+            # when we add in-edges to "real" provenance nodes below.
+
+            # As such, dag.nodes[<uuid>] returns an empty dict if the node has
+            # no provenance. The has_provenance attribute allows red-flagging
+            # of nodes with something like this, even if we end up adding
+            # other attributes (e.g. type) to our no-provenance nodes:
+            # `if not dag.nodes[<uuid>].get(has_provenance)`
+
             ebunch = []
             for node_id, data in self.nodes(data=True):
-                if data['parents']:
+                if data.get('parents'):
                     for parent in data['parents']:
                         type = tuple(parent.keys())[0]
                         parent_uuid = tuple(parent.values())[0]
@@ -276,24 +300,28 @@ class ProvNode:
     """ One node of a provenance DAG, describing one QIIME 2 Result """
 
     @property
-    def uuid(self):
+    def uuid(self) -> UUID:
         return self._result_md.uuid
 
     @property
-    def sem_type(self):
+    def sem_type(self) -> str:
         return self._result_md.type
 
     @property
-    def format(self):
+    def format(self) -> Optional[str]:
         return self._result_md.format
 
     @property
-    def archive_version(self):
+    def archive_version(self) -> int:
         return self._archive_version
 
     @property
-    def framework_version(self):
+    def framework_version(self) -> str:
         return self._framework_version
+
+    @property
+    def has_provenance(self) -> bool:
+        return self.archive_version != '0'
 
     # NOTE: This constructor is intentionally flexible, and will parse any
     # files handed to it. It is the responsibility of the ParserVx classes to
@@ -472,7 +500,7 @@ class _Citations:
         self.citations = {entry['ID']: entry for entry in bib_db.entries}
 
     def __repr__(self):
-        keys = [entry for entry in self.citations.keys()]
+        keys = [entry for entry in self.citations]
         return (f"Citations({keys})")
 
 
@@ -495,6 +523,7 @@ class ParserV0():
     Parser for V0 archives. These have no provenance, so we only parse metadata
     """
     version_string = 0
+    prov_filenames = ('metadata.yaml', 'VERSION')
 
     @classmethod
     def get_root_md(self, zf: zipfile.ZipFile) \
@@ -508,16 +537,18 @@ class ParserV0():
             raise ValueError("Malformed Archive: "
                              "no top-level metadata.yaml file")
 
-    # TODO: This will prevent users from parsing v0 archives directly.
-    # Though reasonable in a one-archive replay scenario, this will cause
-    # problems if users want to "replay" an entire analysis that contains some
-    # v0 archives. The no_provenance_constructor warns instead, allowing v1+
-    # archives which contain v0 results in provenance to proceed. This seems
-    # like a more graceful approach to me; replay what we can, and warn the
-    # user that their replay will be incomplete.
     @classmethod
-    def parse_prov(self, zf: zipfile.ZipFile) -> None:
-        raise NotImplementedError("V0 Archives do not contain provenance data")
+    def parse_prov(self, zf: zipfile.ZipFile) -> \
+            Tuple[int, Dict[UUID, ProvNode]]:
+        archv_contents = {}
+        num_results = 1
+        uuid = pathlib.Path(zf.namelist()[0]).parts[0]
+        warnings.warn(f"Artifact {uuid} was created prior to provenance" +
+                      "tracking. Provenance data will be incomplete.",
+                      UserWarning)
+        prov_data_fps = [pathlib.Path(uuid) / fp for fp in self.prov_filenames]
+        archv_contents[uuid] = ProvNode(zf, prov_data_fps)
+        return (num_results, archv_contents)
 
 
 class ParserV1(ParserV0):
@@ -528,10 +559,10 @@ class ParserV1(ParserV0):
     prov_filenames = ('metadata.yaml', 'action/action.yaml', 'VERSION')
 
     @classmethod
-    def parse_prov(self, zf: zipfile) -> Tuple[int, Dict[UUID, ProvNode]]:
+    def parse_prov(self, zf: zipfile.ZipFile) -> \
+            Tuple[int, Dict[UUID, ProvNode]]:
         """
-        Populates an _Archive with all relevant provenance data
-        Takes an Archive (as a zipfile) as input.
+        Parses provenance data for one Archive.
 
         By convention, the filepaths within these Archives begin with:
         <archive_root_uuid>/provenance/...

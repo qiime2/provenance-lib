@@ -102,8 +102,6 @@ class YamlConstructorTests(unittest.TestCase):
         self.assertEqual(actual, 'framework|qiime2:2020.6.0.dev0|0')
 
     def test_color_primitive_constructor(self):
-        # TODO: I have no idea what ColorPrimitives are. Is this constructor
-        # reasonable?
         tag = r"!color '#57f289'"
         actual = yaml.safe_load(tag)
         self.assertEqual(actual, '#57f289')

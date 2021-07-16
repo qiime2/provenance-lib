@@ -33,9 +33,12 @@ def citation_key_constructor(loader, node) -> str:
 
 def color_constructor(loader, node) -> str:
     """
-    Constructor for !color tags.
-    TODO: What even are these things? They don't appear to be used in qiime2.
-    This will probably need to be rewritten from a simple string rendering
+    Constructor for !color tags, returning an str.
+    Color was a primitive type representing a 3 or 6 digit color hex code,
+    matching ^#(?:[0-9a-fA-F]{3}){1,2}$
+
+    Per E. Bolyen,these were unused by any plugins. They were removed in
+    e58ed5f8ba453035169d560e0223e6a37774ae08, released in 2019.4
     """
     return loader.construct_scalar(node)
 

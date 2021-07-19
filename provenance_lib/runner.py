@@ -1,7 +1,8 @@
 # flake8: noqa
 import sys
-import yaml
 import zipfile
+
+import yaml
 
 sys.path.append('/home/chris/src/provenance_py')
 

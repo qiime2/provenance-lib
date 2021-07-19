@@ -9,6 +9,7 @@ import bibtexparser as bp
 from networkx import DiGraph
 import yaml
 
+from .checksum_validator import ChecksumDiff, validate_checksums
 from .version_parser import get_version
 
 # Alias string as UUID so we can specify types more clearly
@@ -225,6 +226,7 @@ class ProvDAG(DiGraph):
                             framework_version=con[n_id].framework_version,
                             archive_version=con[n_id].archive_version,
                             has_provenance=con[n_id].has_provenance,
+                            provenance_is_valid=con[n_id].provenance_is_valid,
                             )) for n_id in self._archv_contents]
             self.add_nodes_from(node_contents)
 
@@ -239,6 +241,10 @@ class ProvDAG(DiGraph):
                         runtime=provnode.action.runtime,
                     )
                     self.nodes[node].update(action_properties)
+                # TODO: smoketest the following chunk
+                if not provnode.provenance_is_valid:
+                    self.nodes[node].update({'checksum_diff':
+                                             provnode.checksum_diff})
 
             # NOTE: When parsing v1+ archives, v0 ancestor nodes without
             # tracked provenance (e.g. !no-provenance inputs) are discovered
@@ -293,11 +299,19 @@ class ProvNode:
     def has_provenance(self) -> bool:
         return self.archive_version != '0'
 
-    # NOTE: This constructor is intentionally flexible, and will parse any
-    # files handed to it. It is the responsibility of the ParserVx classes to
-    # decide what files need to be passed.
     def __init__(self, zf: zipfile,
                  fps_for_this_result: List[pathlib.Path]) -> None:
+        """
+        Constructs a ProvNode from a zipfile and some filepaths.
+
+        This constructor is intentionally flexible, and will parse any
+        files handed to it. It is the responsibility of the ParserVx classes to
+        decide what files need to be passed.
+
+        When `checksums.md5` is present, it validates the Archive.
+        For Archive formats prior to v5, we assume correctness.
+        """
+        self.provenance_is_valid = True
         for fp in fps_for_this_result:
             if fp.name == 'VERSION':
                 self._archive_version, self._framework_version = \
@@ -308,6 +322,23 @@ class ProvNode:
                 self.action = _Action(zf, str(fp))
             elif fp.name == 'citations.bib':
                 self.citations = _Citations(zf, str(fp))
+            elif fp.name == 'checksums.md5':
+                # TODO: Test the following chunk
+                # Check warnings are as expected
+                # Check that our ProvNodes have expected .provenance_is_valid
+                diff = validate_checksums(zf)
+                if diff != ChecksumDiff({}, {}, {}):
+                    # self._result_md may not have been parsed yet, so get uuid
+                    root_uuid = pathlib.Path(zf.namelist()[0]).parts[0]
+                    warnings.warn(
+                        f"Checksums are invalid for Archive{root_uuid}. "
+                        "Archive may be corrupt or provenance may be false."
+                        f"Files added since archive creation: {diff[0]}"
+                        f"Files removed since archive creation: {diff[1]}"
+                        f"Files changed since archive creation: {diff[2]}",
+                        UserWarning)
+                    self.provenance_is_valid = False
+                    self.checksum_diff = diff
 
     def __repr__(self) -> str:
         return f'ProvNode({self.uuid}, {self.sem_type}, fmt={self.format})'

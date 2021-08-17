@@ -18,9 +18,11 @@ def validate_checksums(zf: zipfile.ZipFile) -> ChecksumDiff:
     Compares these against the checksums stored in checksums.md5, returning
     a summary ChecksumDiff
 
-    For archive formats prior to v5, returns an empty diff b/c no checksums.md5
+    For archive formats prior to v5, returns an empty diff b/c checksums.md5
+    does not exist
+
+    Code adapted from qiime2/core/archive/archiver.py
     """
-    # Code adapted from qiime2/core/archive/archiver.py
     archive_version, _ = get_version(zf)
     if int(archive_version) < 5:
         return ChecksumDiff({}, {}, {})
@@ -50,6 +52,8 @@ def md5sum_directory(zf: zipfile.ZipFile) -> dict:
 
     This mimics the output in checksums.md5 (without sorted descent), but is
     not generalizable beyond QIIME 2 archives
+
+    Code adapted from qiime2/core/util.py
     """
     sums = dict()
     for file in zf.namelist():
@@ -62,6 +66,12 @@ def md5sum_directory(zf: zipfile.ZipFile) -> dict:
 
 
 def md5sum(zf: zipfile.ZipFile, filepath: str) -> str:
+    """
+    Given a ZipFile object and relative filepath within the zip archive,
+    returns the md5sum of the file
+
+    Code adapted from qiime2/core/util.py
+    """
     md5 = hashlib.md5()
     with zf.open(filepath) as fh:
         for chunk in iter(lambda: fh.read(io.DEFAULT_BUFFER_SIZE), b""):
@@ -70,6 +80,17 @@ def md5sum(zf: zipfile.ZipFile, filepath: str) -> str:
 
 
 def from_checksum_format(line: bytes) -> Tuple[str, str]:
+    """
+    Given one line of bytes from a checksums.md5 file,
+    parses the line and returns the filepath and that file's recorded checksum
+
+    We expect a line to look roughly like this:
+    2eb067afb7ba4eefe89a0416ab16f688  provenance/metadata.yaml
+
+    ...with checksum followed by relative filepath (excluding root UUID dir)
+
+    Code adapted from qiime2/core/util.py
+    """
     line = str(line, 'utf-8').rstrip('\n')
     parts = line.split('  ', 1)
     if len(parts) < 2:

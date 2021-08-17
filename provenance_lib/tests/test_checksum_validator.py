@@ -41,8 +41,8 @@ class ValidateChecksumTests(unittest.TestCase):
             zout = zipfile.ZipFile(str(tmp_arc), 'w')
             for item in zin.infolist():
                 buffer = zin.read(item.filename)
-                # Original tests use VERSION. Here, that raises a confounding
-                # error, so we're switching to `metadata.yaml`
+                # Framework tests use VERSION. Here, that raises a confounding
+                # error, so we're using `metadata.yaml` instead
                 vzn_filename = str(fp_pfx / 'metadata.yaml')
                 if (item.filename != vzn_filename):
                     zout.writestr(item, buffer)
@@ -52,7 +52,7 @@ class ValidateChecksumTests(unittest.TestCase):
             diff = None
 
             with zipfile.ZipFile(tmp_arc, 'a') as zf:
-                # We'll also dd a new file
+                # We'll also add a new file
                 new_fn = str(fp_pfx / 'tamper.txt')
                 zf.writestr(new_fn, 'extra file')
 

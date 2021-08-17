@@ -241,7 +241,7 @@ class ProvDAG(DiGraph):
                         runtime=provnode.action.runtime,
                     )
                     self.nodes[node].update(action_properties)
-                # TODO: smoketest the following chunk
+                # TODO: smoketest the following chunk in test_parse.py
                 if not provnode.provenance_is_valid:
                     self.nodes[node].update({'checksum_diff':
                                              provnode.checksum_diff})
@@ -308,7 +308,8 @@ class ProvNode:
         files handed to it. It is the responsibility of the ParserVx classes to
         decide what files need to be passed.
 
-        When `checksums.md5` is present, it validates the Archive.
+        For Archive Versions in which `checksums.md5` is present,
+        it validates the Archive.
         For Archive formats prior to v5, we assume correctness.
         """
         self.provenance_is_valid = True
@@ -323,7 +324,7 @@ class ProvNode:
             elif fp.name == 'citations.bib':
                 self.citations = _Citations(zf, str(fp))
             elif fp.name == 'checksums.md5':
-                # TODO: Test the following chunk
+                # TODO: NEXT Test the following chunk
                 # Check warnings are as expected
                 # Check that our ProvNodes have expected .provenance_is_valid
                 diff = validate_checksums(zf)
@@ -464,11 +465,12 @@ class _Action:
         if all_params is None:
             return []
 
+        # Ideally, we would check for a yaml_constructors.MetadataInfo object.
         # PEP589 doesn't support isinstance checks against TypedDict objects,
-        # and structural pattern matching also relies on isinstance(),
-        # so if action['params'] exists, we look for params with a value that
-        # matches the yaml_constructors.MetadataInfo spec well enough, and
-        # grab any uuids associated with em.
+        # and structural pattern matching relies on isinstance(), though, so
+        # we do our best. If action['params'] exists, we look for params with
+        # a value that matches the yaml_constructors.MetadataInfo spec well
+        # enough, and grab any uuids associated with them.
         for param in all_params:
             param_val = list(param.values())[0]
             if isinstance(param_val, dict) \

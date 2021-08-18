@@ -8,6 +8,9 @@ from ..checksum_validator import (
     validate_checksums, md5sum_directory, md5sum, from_checksum_format,
 )
 from .test_parse import TEST_DATA
+from .util import (
+    generate_archive_with_file_removed,
+)
 
 
 class ValidateChecksumTests(unittest.TestCase):
@@ -36,27 +39,18 @@ class ValidateChecksumTests(unittest.TestCase):
         - add a new file called '<uuid>/tamper.txt`
         - overwrite `<uuid>/data/index.html` with '999\n'
         """
-        with tempfile.TemporaryDirectory() as tmpd:
-            # Deleting files from zip archives is hard, so we'll
-            # Make a temporary copy of our archive without a 'metadata.yaml'
-            # adapted from https://stackoverflow.com/a/513889/9872253
-            tmp_arc = pathlib.Path(tmpd) / 'mangled.qzv'
-            fp_pfx = pathlib.Path(TEST_DATA['5']['uuid'])
-            zin = zipfile.ZipFile(TEST_DATA['5']['qzv_fp'], 'r')
-            zout = zipfile.ZipFile(str(tmp_arc), 'w')
-            for item in zin.infolist():
-                buffer = zin.read(item.filename)
-                # Framework tests use VERSION. Here, that raises a confounding
-                # error, so we're using `metadata.yaml` instead
-                vzn_filename = str(fp_pfx / 'metadata.yaml')
-                if (item.filename != vzn_filename):
-                    zout.writestr(item, buffer)
-            zout.close()
-            zin.close()
+        # Framework tests use VERSION. Here, that raises a confounding
+        # error, so we're using `metadata.yaml` instead
+        original_archive = TEST_DATA['5']['qzv_fp']
+        root_uuid = TEST_DATA['5']['uuid']
+        fp_pfx = pathlib.Path(root_uuid)
+        drop_file = pathlib.Path('metadata.yaml')
+        with generate_archive_with_file_removed(
+            qzv_fp=original_archive,
+            root_uuid=root_uuid,
+                file_to_drop=drop_file) as chopped_archive:
 
-            diff = None
-
-            with zipfile.ZipFile(tmp_arc, 'a') as zf:
+            with zipfile.ZipFile(chopped_archive, 'a') as zf:
                 # We'll also add a new file
                 new_fn = str(fp_pfx / 'tamper.txt')
                 zf.writestr(new_fn, 'extra file')
@@ -64,7 +58,7 @@ class ValidateChecksumTests(unittest.TestCase):
                 # and overwrite an existing file with junk
                 extant_fn = str(fp_pfx / 'data' / 'index.html')
                 # we expect a warning that we're overwriting the filename
-                # this cm stops the warning from propagating up stderr/out
+                # this cm stops the warning from propagating up to stderr/out
                 with self.assertWarnsRegex(UserWarning, 'Duplicate name'):
                     with zf.open(extant_fn, 'w') as myfile:
                         myfile.write(b'999\n')

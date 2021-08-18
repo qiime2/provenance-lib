@@ -324,18 +324,15 @@ class ProvNode:
             elif fp.name == 'citations.bib':
                 self.citations = _Citations(zf, str(fp))
             elif fp.name == 'checksums.md5':
-                # TODO: NEXT Test the following chunk
-                # Check warnings are as expected
-                # Check that our ProvNodes have expected .provenance_is_valid
                 diff = validate_checksums(zf)
                 if diff != ChecksumDiff({}, {}, {}):
                     # self._result_md may not have been parsed yet, so get uuid
                     root_uuid = pathlib.Path(zf.namelist()[0]).parts[0]
                     warnings.warn(
-                        f"Checksums are invalid for Archive{root_uuid}. "
-                        "Archive may be corrupt or provenance may be false."
-                        f"Files added since archive creation: {diff[0]}"
-                        f"Files removed since archive creation: {diff[1]}"
+                        f"Checksums are invalid for Archive {root_uuid}\n"
+                        "Archive may be corrupt or provenance may be false.\n"
+                        f"Files added since archive creation: {diff[0]}\n"
+                        f"Files removed since archive creation: {diff[1]}\n"
                         f"Files changed since archive creation: {diff[2]}",
                         UserWarning)
                     self.provenance_is_valid = False
@@ -648,7 +645,6 @@ class ParserV5(ParserV4):
     """
     version_string = 5
     prov_filenames = (*ParserV4.prov_filenames, 'checksums.md5')
-    # TODO: Add checksum validation (imported from framework) here
 
 
 class FormatHandler():

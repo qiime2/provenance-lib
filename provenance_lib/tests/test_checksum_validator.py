@@ -29,11 +29,16 @@ class ValidateChecksumTests(unittest.TestCase):
 
     def test_checksums_mismatch(self):
         """
-        Mangle an intact v5 Archive and confirm we catch the changes
+        Mangle an intact v5 Archive so that its checksums.md5 is invalid,
+        and then confirm that we're catching all the changes we've made
+        Specifically:
+        - remove the root `<uuid>/metadata.yaml`
+        - add a new file called '<uuid>/tamper.txt`
+        - overwrite `<uuid>/data/index.html` with '999\n'
         """
         with tempfile.TemporaryDirectory() as tmpd:
             # Deleting files from zip archives is hard, so we'll
-            # Make a temporary copy of our archive without a 'VERSION' file
+            # Make a temporary copy of our archive without a 'metadata.yaml'
             # adapted from https://stackoverflow.com/a/513889/9872253
             tmp_arc = pathlib.Path(tmpd) / 'mangled.qzv'
             fp_pfx = pathlib.Path(TEST_DATA['5']['uuid'])

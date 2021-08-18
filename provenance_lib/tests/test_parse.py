@@ -2,6 +2,7 @@ import os
 import pathlib
 import unittest
 from datetime import timedelta
+import tempfile
 from unittest.mock import MagicMock
 import warnings
 import zipfile
@@ -683,3 +684,75 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
     def test_framework_version(self):
         self.assertEqual(self.v5_ProvNode.framework_version,
                          TEST_DATA['5']['fwv'])
+
+    def test_invalid_provenance(self):
+        """
+        Mangle an intact v5 Archive so that its checksums.md5 is invalid,
+        and then build a ProvNode with it to confirm the ProvNode constructor
+        handles broken checksums appropriately
+
+        Specifically:
+        - remove the root `<uuid>/metadata.yaml`
+        - add a new file called '<uuid>/tamper.txt`
+        - overwrite `<uuid>/data/index.html` with '999\n'
+
+        Cribbed from test_checksum_validator, because I'm not sure it's
+        possible to return things from within a context manager.
+        TODO: Can we factor this mangling work out into tests/util.py?
+        """
+        with tempfile.TemporaryDirectory() as tmpd:
+            # Deleting files from zip archives is hard, so we'll
+            # Make a temporary copy of our archive without a 'metadata.yaml'
+            # adapted from https://stackoverflow.com/a/513889/9872253
+            tmp_arc = pathlib.Path(tmpd) / 'mangled.qzv'
+            fp_pfx = pathlib.Path(TEST_DATA['5']['uuid'])
+            zin = zipfile.ZipFile(TEST_DATA['5']['qzv_fp'], 'r')
+            zout = zipfile.ZipFile(str(tmp_arc), 'w')
+            for item in zin.infolist():
+                buffer = zin.read(item.filename)
+                vzn_filename = str(fp_pfx / 'metadata.yaml')
+                if (item.filename != vzn_filename):
+                    zout.writestr(item, buffer)
+            zout.close()
+            zin.close()
+
+            with zipfile.ZipFile(tmp_arc, 'a') as zf:
+                # We'll also add a new file
+                new_fn = str(fp_pfx / 'tamper.txt')
+                zf.writestr(new_fn, 'extra file')
+
+                # and overwrite an existing file with junk
+                extant_fn = str(fp_pfx / 'data' / 'index.html')
+                # we expect a warning that we're overwriting the filename
+                # this CM stops the warning from propagating up to stderr/out
+                with self.assertWarnsRegex(UserWarning, 'Duplicate name'):
+                    with zf.open(extant_fn, 'w') as myfile:
+                        myfile.write(b'999\n')
+
+                # Is our bad-checksums warning message correct?
+                uuid = TEST_DATA['5']['uuid']
+                expected = ('(?s)'
+                            f'Checksums are invalid for Archive {uuid}.*\n'
+                            'Archive may be corrupt.*\n'
+                            'Files added.*tamper.*296583.*\n'
+                            'Files removed.*metadata.*2eb067.*\n'
+                            'Files changed.*data.*index.*065031.*f47bc3.*'
+                            )
+                with self.assertWarnsRegex(UserWarning, expected):
+                    a_node = ProvNode(zf, [pathlib.Path('checksums.md5')])
+
+                # Have we set provenance_is_valid correctly?
+                self.assertEqual(a_node.provenance_is_valid, False)
+
+                # Is the diff correct?
+                diff = a_node.checksum_diff
+                self.assertEqual(list(diff.removed.keys()),
+                                 ['metadata.yaml'])
+                self.assertEqual(
+                    diff.added,
+                    {'tamper.txt': '296583001b00d2b811b5871b19e0ad28'})
+                self.assertEqual(
+                    diff.changed,
+                    {'data/index.html': ('065031e17943cd0780f197874c4f011e',
+                                         'f47bc36040d5c7db08e4b3a457dcfbb2')
+                     })

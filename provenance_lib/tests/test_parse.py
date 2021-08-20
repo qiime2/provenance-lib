@@ -1,22 +1,24 @@
 import os
-import codecs
 import pathlib
 import unittest
 from datetime import timedelta
 from unittest.mock import MagicMock
 import warnings
+import zipfile
 
 from networkx import DiGraph
 import yaml
-import zipfile
 
 from ..parse import (
-    _VERSION_MATCHER, ProvDAG, ProvNode, FormatHandler,
+    ProvDAG, ProvNode, FormatHandler,
     _Action, _Citations, _ResultMetadata,
     ParserV0, ParserV1, ParserV2, ParserV3, ParserV4, ParserV5,
-    get_version,
 )
-from .util import is_root_provnode_data, ReallyEqualMixin
+
+from .util import (
+    is_root_provnode_data, generate_archive_with_file_removed,
+    ReallyEqualMixin,
+)
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 TEST_DATA = {
@@ -303,76 +305,52 @@ class ProvDAGTests(unittest.TestCase):
                           '\n')
                          )
 
+    def test_archive_has_invalid_checksums(self):
+        """
+        Remove a file from an intact v5 Archive so that its checksums.md5 is
+        invalid, and then build a ProvDAG with it to confirm the ProvDAG
+        constructor handles broken checksums appropriately
 
-class ArchiveVersionMatcherTests(unittest.TestCase):
-    """Testing for the _VERSION_MATCHER regex in parse.py"""
+        This mangling is simpler than that performed in test_checksum_validator
+        or in the ProvNode tests, because most cases have been checked
+        elsewhere.
+        """
+        drop_file = pathlib.Path('data') / 'index.html'
+        with generate_archive_with_file_removed(
+            qzv_fp=TEST_DATA['5']['qzv_fp'],
+            root_uuid=TEST_DATA['5']['uuid'],
+                file_to_drop=drop_file) as chopped_archive:
 
-    def test_version_too_short(self):
-        shorty = (
-            r'QIIME 2\n'
-            r'archive: 4'
-        )
-        self.assertNotRegex(shorty, _VERSION_MATCHER)
+            # Is our bad-checksums warning message correct?
+            uuid = TEST_DATA['5']['uuid']
+            expected = (f'(?s)Checksums are invalid for Archive {uuid}.*')
+            with self.assertWarnsRegex(UserWarning, expected):
+                a_dag = ProvDAG(chopped_archive)
 
-    def test_version_too_long(self):
-        longy = (
-            r'QIIME 2\n'
-            r'archive: 4\n'
-            r'framework: 2019.8.1.dev0\n'
-            r'This line should not be here'
-        )
-        self.assertNotRegex(longy, _VERSION_MATCHER)
+            # Have we set provenance_is_valid correctly?
+            root_node = a_dag.nodes[uuid]
+            print(root_node)
+            self.assertEqual(root_node['provenance_is_valid'], False)
 
-    splitvm = codecs.decode(_VERSION_MATCHER, 'unicode-escape').split(sep='\n')
-    re_l1, re_l2, re_l3 = splitvm
+            # Is the diff correct?
+            diff = root_node['checksum_diff']
+            self.assertEqual(list(diff.removed.keys()),
+                             ['data/index.html'])
+            self.assertEqual(diff.added, {})
+            self.assertEqual(diff.changed, {})
 
-    def test_line1_good(self):
-        self.assertRegex('QIIME 2\n', self.re_l1)
+    def test_v5_with_missing_checksums_md5(self):
+        drop_file = pathlib.Path('checksums.md5')
+        with generate_archive_with_file_removed(
+            qzv_fp=TEST_DATA['5']['qzv_fp'],
+            root_uuid=TEST_DATA['5']['uuid'],
+                file_to_drop=drop_file) as chopped_archive:
 
-    def test_line1_bad(self):
-        self.assertNotRegex('SHIMMY 2\n', self.re_l1)
-
-    def test_archive_version_1digit_numeric(self):
-        self.assertRegex('archive: 1\n', self.re_l2)
-
-    def test_archive_version_2digit_numeric(self):
-        self.assertRegex('archive: 12\n', self.re_l2)
-
-    def test_archive_version_bad(self):
-        self.assertNotRegex('agama agama\n', self.re_l2)
-
-    def test_archive_version_3digit_numeric(self):
-        self.assertNotRegex('archive: 123\n', self.re_l2)
-
-    def test_archive_version_nonnumeric(self):
-        self.assertNotRegex('archive: 1a\n', self.re_l2)
-
-    def test_fmwk_version_good_semver(self):
-        self.assertRegex('framework: 2.0.6', self.re_l3)
-
-    def test_fmwk_version_good_semver_dev(self):
-        self.assertRegex('framework: 2.0.6.dev0', self.re_l3)
-
-    def test_fmwk_version_good_year_month_patch(self):
-        self.assertRegex('framework: 2020.2.0', self.re_l3)
-
-    def test_fmwk_version_good_year_month_patch_2digit_month(self):
-        self.assertRegex('framework: 2018.11.0', self.re_l3)
-
-    def test_fmwk_version_good_year_month_patch_dev(self):
-        self.assertRegex('framework: 2020.2.0.dev1', self.re_l3)
-
-    def test_fmwk_version_good_ymp_2digit_month_dev(self):
-        self.assertRegex('framework: 2020.11.0.dev0', self.re_l3)
-
-    def test_fmwk_version_invalid_month(self):
-        self.assertNotRegex('framework: 2020.13.0', self.re_l3)
-
-    def test_fmwk_version_invalid_month_leading_zero(self):
-        self.assertNotRegex('framework: 2020.03.0', self.re_l3)
-
-    def test_fmwk_version_invalid_year(self):
-        self.assertNotRegex('framework: 1953.3.0', self.re_l3)
+            # Is our bad-checksums warning message correct?
+            uuid = TEST_DATA['5']['uuid']
+            expected = (f'no item.*{uuid}.*Archive may be corrupt')
+            with self.assertWarnsRegex(UserWarning, expected):
+                ProvDAG(chopped_archive)
 
 
 class ParserVxTests(unittest.TestCase):
@@ -479,44 +457,6 @@ class FormatHandlerTests(unittest.TestCase):
             self.assertEqual(num_r, 15)
             self.assertIn(uuid, contents)
             self.assertIs(type(contents[uuid]), ProvNode)
-
-
-class GetVersionTests(unittest.TestCase):
-    v5_no_version = os.path.join(DATA_DIR, 'VERSION_missing.qzv')
-    v5_qzv_version_bad = os.path.join(DATA_DIR, 'VERSION_bad.qzv')
-    v5_qzv_version_short = os.path.join(DATA_DIR, 'VERSION_short.qzv')
-    v5_qzv_version_long = os.path.join(DATA_DIR, 'VERSION_long.qzv')
-
-    # High-level checks only. Detailed tests of the VERSION_MATCHER regex are
-    # in test_archive_formats.VersionMatcherTests to reduce overhead
-
-    def test_get_version_no_VERSION_file(self):
-        with zipfile.ZipFile(self.v5_no_version) as zf:
-            with self.assertRaisesRegex(ValueError, 'VERSION.*nonexistent'):
-                get_version(zf)
-
-    def test_get_version_VERSION_bad(self):
-        with zipfile.ZipFile(self.v5_qzv_version_bad) as zf:
-            with self.assertRaisesRegex(ValueError, 'VERSION.*out of spec'):
-                get_version(zf)
-
-    def test_short_VERSION(self):
-        with zipfile.ZipFile(self.v5_qzv_version_short) as zf:
-            with self.assertRaisesRegex(ValueError, 'VERSION.*out of spec'):
-                get_version(zf)
-
-    def test_long_VERSION(self):
-        with zipfile.ZipFile(self.v5_qzv_version_long) as zf:
-            with self.assertRaisesRegex(ValueError, 'VERSION.*out of spec'):
-                get_version(zf)
-
-    def test_version_nums(self):
-        for arch_ver in TEST_DATA:
-            qzv = os.path.join(DATA_DIR, 'v' + arch_ver + '_uu_emperor.qzv')
-            with zipfile.ZipFile(qzv) as zf:
-                exp_arch, exp_frmwk = get_version(zf)
-                self.assertEqual(exp_arch, TEST_DATA[arch_ver]['av'])
-                self.assertEqual(exp_frmwk, TEST_DATA[arch_ver]['fwv'])
 
 
 class ResultMetadataTests(unittest.TestCase):
@@ -794,3 +734,66 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
     def test_framework_version(self):
         self.assertEqual(self.v5_ProvNode.framework_version,
                          TEST_DATA['5']['fwv'])
+
+    def test_invalid_provenance(self):
+        """
+        Mangle an intact v5 Archive so that its checksums.md5 is invalid,
+        and then build a ProvNode with it to confirm the ProvNode constructor
+        handles broken checksums appropriately
+
+        Specifically:
+        - remove the root `<uuid>/metadata.yaml`
+        - add a new file called '<uuid>/tamper.txt`
+        - overwrite `<uuid>/data/index.html` with '999\n'
+
+        Modified from test_checksum_validator.test_checksums_mismatch
+        """
+        original_archive = TEST_DATA['5']['qzv_fp']
+        drop_file = pathlib.Path('metadata.yaml')
+        root_uuid = TEST_DATA['5']['uuid']
+        fp_pfx = pathlib.Path(root_uuid)
+        with generate_archive_with_file_removed(
+            qzv_fp=original_archive,
+            root_uuid=root_uuid,
+                file_to_drop=drop_file) as chopped_archive:
+
+            # We'll also add a new file
+            with zipfile.ZipFile(chopped_archive, 'a') as zf:
+                new_fn = str(fp_pfx / 'tamper.txt')
+                zf.writestr(new_fn, 'extra file')
+
+                # and overwrite an existing file with junk
+                extant_fn = str(fp_pfx / 'data' / 'index.html')
+                # we expect a warning that we're overwriting the filename
+                # this CM stops the warning from propagating up to stderr/out
+                with self.assertWarnsRegex(UserWarning, 'Duplicate name'):
+                    with zf.open(extant_fn, 'w') as myfile:
+                        myfile.write(b'999\n')
+
+                # Is our bad-checksums warning message correct?
+                uuid = TEST_DATA['5']['uuid']
+                expected = ('(?s)'
+                            f'Checksums are invalid for Archive {uuid}.*\n'
+                            'Archive may be corrupt.*\n'
+                            'Files added.*tamper.*296583.*\n'
+                            'Files removed.*metadata.*2eb067.*\n'
+                            'Files changed.*data.*index.*065031.*f47bc3.*'
+                            )
+                with self.assertWarnsRegex(UserWarning, expected):
+                    a_node = ProvNode(zf, [pathlib.Path('checksums.md5')])
+
+                # Have we set provenance_is_valid correctly?
+                self.assertEqual(a_node.provenance_is_valid, False)
+
+                # Is the diff correct?
+                diff = a_node.checksum_diff
+                self.assertEqual(list(diff.removed.keys()),
+                                 ['metadata.yaml'])
+                self.assertEqual(
+                    diff.added,
+                    {'tamper.txt': '296583001b00d2b811b5871b19e0ad28'})
+                self.assertEqual(
+                    diff.changed,
+                    {'data/index.html': ('065031e17943cd0780f197874c4f011e',
+                                         'f47bc36040d5c7db08e4b3a457dcfbb2')
+                     })

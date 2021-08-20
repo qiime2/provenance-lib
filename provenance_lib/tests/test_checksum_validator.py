@@ -233,13 +233,29 @@ class FromChecksumFormatTests(unittest.TestCase):
     def test_from_hard(self):
         line = (
             rb'\939aaaae6098ebdab049b0f3abe7b68c  filepath/\n/with/\\newline' +
-            b'\n'  # ewline from a checksum "file"
+            b'\n'  # newline from a checksum "file"
         )
-        print(type(line))
         fp, chks = from_checksum_format(line)
 
         self.assertEqual(fp, 'filepath/\n/with/\\newline')
         self.assertEqual(chks, '939aaaae6098ebdab049b0f3abe7b68c')
+
+    def test_filepath_with_leading_backslash(self):
+        line = (
+            rb'\939aaaae6098ebdab049b0f3abe7b68c  \filepath/\n/with/\\newline'
+            + b'\n'  # Newline from a checksum "file"
+        )
+        fp, chks = from_checksum_format(line)
+
+        self.assertEqual(fp, '\\filepath/\n/with/\\newline')
+        self.assertEqual(chks, '939aaaae6098ebdab049b0f3abe7b68c')
+
+    def test_filepath_with_leading_backslashes(self):
+        line = (
+            rb'\939aaaae6098ebdab049b0f3abe7b68c  \\filepath/\n/with/\\newline'
+            + b'\n'  # Newline from a checksum "file"
+        )
+        fp, chks = from_checksum_format(line)
 
     def test_from_legacy_format(self):
         fp, chks = from_checksum_format(

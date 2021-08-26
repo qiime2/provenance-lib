@@ -11,3 +11,6 @@ test: lint
 
 test-cov: lint
 	pytest --cov-report=term-missing --cov=provenance_lib
+
+mypy:
+	mypy -p provenance_lib

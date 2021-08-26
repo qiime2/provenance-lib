@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from typing import Generator
 import pathlib
 import tempfile
 import zipfile
@@ -22,7 +23,7 @@ def is_root_provnode_data(fp):
 @contextmanager
 def generate_archive_with_file_removed(qzv_fp: str, root_uuid: UUID,
                                        file_to_drop: pathlib.Path) -> \
-                                           pathlib.Path:
+                                           Generator[pathlib.Path, None, None]:
     """
     Deleting files from zip archives is hard, so this makes a temporary
     copy of qzf_fp with fp_to_drop removed and returns a handle to this archive
@@ -35,7 +36,6 @@ def generate_archive_with_file_removed(qzv_fp: str, root_uuid: UUID,
 
     adapted from https://stackoverflow.com/a/513889/9872253
     """
-    tmpdir = tempfile.TemporaryDirectory()
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_arc = pathlib.Path(tmpdir) / 'mangled.qzv'
         fp_pfx = pathlib.Path(root_uuid)

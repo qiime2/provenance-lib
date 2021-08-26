@@ -1,7 +1,7 @@
 from __future__ import annotations
 import pathlib
 from datetime import timedelta
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Mapping, Tuple, Optional
 import warnings
 import zipfile
 
@@ -57,7 +57,7 @@ class ProvDAG(DiGraph):
         return r_str
 
     def traverse_uuids(self, node_id: UUID = None) -> \
-            Dict[UUID, ProvNode]:
+            Mapping[UUID, Optional[ProvNode]]:
         """ depth-first traversal of this ProvNode's ancestors """
         # Use this DAG's root uuid by default
         node_id = self.root_uuid if node_id is None else node_id
@@ -65,12 +65,12 @@ class ProvDAG(DiGraph):
         if not self.nodes[node_id]['parents']:
             local_parents = {node_id: None}
         else:
-            sub_dag = dict()
+            sub_dag = dict()  # type: Dict[UUID, Optional[ProvNode]]
             parents = self.nodes[node_id]['parents']
             parent_uuids = (list(parent.values())[0] for parent in parents)
             for uuid in parent_uuids:
                 sub_dag.update(self.traverse_uuids(uuid))
-            local_parents[node_id] = sub_dag
+            local_parents[node_id] = sub_dag  # type: ignore
         return local_parents
 
     def __init__(self, archive_fp: str):
@@ -161,7 +161,7 @@ class ProvNode:
         return self._result_md.format
 
     @property
-    def archive_version(self) -> int:
+    def archive_version(self) -> str:
         return self._archive_version
 
     @property
@@ -172,7 +172,7 @@ class ProvNode:
     def has_provenance(self) -> bool:
         return self.archive_version != '0'
 
-    def __init__(self, zf: zipfile,
+    def __init__(self, zf: zipfile.ZipFile,
                  fps_for_this_result: List[pathlib.Path]) -> None:
         """
         Constructs a ProvNode from a zipfile and some filepaths.
@@ -197,6 +197,7 @@ class ProvNode:
             elif fp.name == 'citations.bib':
                 self.citations = _Citations(zf, str(fp))
             elif fp.name == 'checksums.md5':
+                self.checksum_diff: Optional[ChecksumDiff]
                 try:
                     diff = validate_checksums(zf)
                     if diff != ChecksumDiff({}, {}, {}):
@@ -370,7 +371,7 @@ class _Action:
 
         return artifacts_as_metadata
 
-    def __init__(self, zf: zipfile, fp: str):
+    def __init__(self, zf: zipfile.ZipFile, fp: str):
         self._action_dict = yaml.safe_load(zf.read(fp))
         self._action_details = self._action_dict['action']
         self._execution_details = self._action_dict['execution']
@@ -386,7 +387,7 @@ class _Citations:
     citations for a single QIIME 2 Result, as a dict of dicts where each
     inner dictionary represents one citation keyed on the citation's bibtex ID
     """
-    def __init__(self, zf: zipfile, fp: str):
+    def __init__(self, zf: zipfile.ZipFile, fp: str):
         bib_db = bp.loads(zf.read(fp))
         self.citations = {entry['ID']: entry for entry in bib_db.entries}
 
@@ -397,7 +398,7 @@ class _Citations:
 
 class _ResultMetadata:
     """ Basic metadata about a single QIIME 2 Result from metadata.yaml """
-    def __init__(self, zf: zipfile, md_fp: str):
+    def __init__(self, zf: zipfile.ZipFile, md_fp: str):
         _md_dict = yaml.safe_load(zf.read(md_fp))
         self.uuid = _md_dict['uuid']
         self.type = _md_dict['type']
@@ -416,7 +417,7 @@ class ParserV0():
     version_string = 0
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames should not be included here.
-    expected_files = ('metadata.yaml', 'VERSION')
+    expected_files = ('metadata.yaml', 'VERSION')  # type: Tuple[str, ...]
 
     @classmethod
     def get_root_md(self, zf: zipfile.ZipFile) \
@@ -448,6 +449,7 @@ class ParserV1(ParserV0):
     """
     Parser for V1 archives. These track provenance, so we parse it.
     """
+    expected_files: Tuple[str, ...]
     version_string = 1
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames should not be included here.
@@ -541,6 +543,7 @@ class ParserV4(ParserV3):
     Parser for V4 archives. Adds citations to dir structure, changes to
     action.yaml incl transformers
     """
+    expected_files: Tuple[str, ...]
     version_string = 4
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames should not be included here.
@@ -551,6 +554,7 @@ class ParserV5(ParserV4):
     """
     Parser for V5 archives. Adds checksums.md5
     """
+    expected_files: Tuple[str, ...]
     version_string = 5
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames should not be included here.

@@ -84,7 +84,7 @@ class ProvDAGTests(unittest.TestCase):
     maxDiff = None
     fake_fp = os.path.join(DATA_DIR, 'not_a_filepath.qza')
     not_a_zip = os.path.join(DATA_DIR, 'not_a_zip.txt')
-    v5_provDag = ProvDAG(TEST_DATA['5']['qzv_fp'])
+    v5_provDag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
 
     # This should only trigger if something fails in setup or above
     # e.g. if v5_provDag fails to initialize
@@ -353,7 +353,7 @@ class ResultMetadataTests(unittest.TestCase):
     v5_qzv = TEST_DATA['5']['qzv_fp']
     v5_uuid = TEST_DATA['5']['uuid']
     md_fp = f'{v5_uuid}/provenance/metadata.yaml'
-    with zipfile.ZipFile(v5_qzv) as zf:
+    with zipfile.ZipFile(str(v5_qzv)) as zf:
         v5_root_md = _ResultMetadata(zf, md_fp)
 
     def test_smoke(self):

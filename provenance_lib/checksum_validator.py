@@ -79,7 +79,7 @@ def md5sum(zf: zipfile.ZipFile, filepath: str) -> str:
     return md5.hexdigest()
 
 
-def from_checksum_format(line: bytes) -> Tuple[str, str]:
+def from_checksum_format(line_bytes: bytes) -> Tuple[str, str]:
     """
     Given one line of bytes from a checksums.md5 file,
     parses the line and returns the filepath and that file's recorded checksum
@@ -91,7 +91,7 @@ def from_checksum_format(line: bytes) -> Tuple[str, str]:
 
     Code adapted from qiime2/core/util.py
     """
-    line = str(line, 'utf-8').rstrip('\n')
+    line = str(line_bytes, 'utf-8').rstrip('\n')
     parts = line.split('  ', 1)
     if len(parts) < 2:
         parts = line.split(' *', 1)

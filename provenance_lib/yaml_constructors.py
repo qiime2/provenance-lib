@@ -1,4 +1,4 @@
-from typing import List, TypedDict, Union
+from typing import Any, List, Set, TypedDict, Union
 import warnings
 
 # Alias string as UUID so we can specify types more clearly
@@ -112,7 +112,7 @@ def ref_constructor(loader, node) -> Union[str, List[str]]:
         return keys
 
 
-def set_constructor(loader, node) -> str:
+def set_constructor(loader, node) -> Set[Any]:
     """
     A constructor for !set yaml tags, returning a python set object
     """

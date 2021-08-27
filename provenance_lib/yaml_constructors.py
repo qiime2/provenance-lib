@@ -1,4 +1,4 @@
-from typing import Any, List, Set, TypedDict, Union
+from typing import Any, List, NamedTuple, Set, Union
 import warnings
 
 # Alias string as UUID so we can specify types more clearly
@@ -33,8 +33,10 @@ def color_constructor(loader, node) -> str:
     return loader.construct_scalar(node)
 
 
-class MetadataInfo(TypedDict):
-    """ A static type def for metadata_path_constructor's return value """
+class MetadataInfo(NamedTuple):
+    """
+    A namedtuple representation of the data in one !metadata yaml tag.
+    """
     input_artifact_uuids: List[UUID]
     relative_fp: str
 
@@ -43,6 +45,9 @@ def metadata_path_constructor(loader, node) -> MetadataInfo:
     """
     A constructor for !metadata yaml tags, which come in the form
     [<uuid_ref>[,<uuid_ref>][...]:]<relative_filepath>
+
+    Returns a MetadataInfo object containing a list of UUIDs, and the relative
+    filepath where the metadata was written into the zip archive
 
     Most commonly, we see:
     !metadata 'sample_metadata.tsv'
@@ -65,10 +70,10 @@ def metadata_path_constructor(loader, node) -> MetadataInfo:
     else:
         artifact_uuids = []
         rel_fp = raw
-    return {'input_artifact_uuids': artifact_uuids, 'relative_fp': rel_fp}
+    return MetadataInfo(artifact_uuids, rel_fp)
 
 
-def no_provenance_constructor(loader, node) -> MetadataInfo:
+def no_provenance_constructor(loader, node) -> UUID:
     """
     Constructor for !no-provenance tags. These tags are produced when an input
     has no /provenance dir, as is the case with v0 archives that have been

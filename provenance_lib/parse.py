@@ -11,7 +11,7 @@ import yaml
 
 from .checksum_validator import ChecksumDiff, validate_checksums
 from .version_parser import get_version
-from .yaml_constructors import CONSTRUCTOR_REGISTRY
+from .yaml_constructors import CONSTRUCTOR_REGISTRY, MetadataInfo
 
 # Alias string as UUID so we can specify types more clearly
 UUID = str
@@ -354,20 +354,12 @@ class _Action:
         artifacts_as_metadata = []
         all_params = action_details.get('parameters')
         if all_params is not None:
-            # PEP589 doesn't support isinstance checks against TypedDict
-            # objects, and structural pattern matching relies on isinstance(),
-            # so we can't just check for a yaml_constructors.MetadataInfo
-            # object. Instead, we look for params with a value that matches the
-            # MetadataInfo spec well enough, and grab any uuids associated with
-            # them.
             for param in all_params:
                 param_val = list(param.values())[0]
-                if isinstance(param_val, dict) \
-                   and 'input_artifact_uuids' in param_val \
-                   and 'relative_fp' in param_val:
+                if isinstance(param_val, MetadataInfo):
                     artifacts_as_metadata += [
                         {'artifact_passed_as_metadata': uuid} for uuid in
-                        param_val['input_artifact_uuids']]
+                        param_val.input_artifact_uuids]
 
         return artifacts_as_metadata
 

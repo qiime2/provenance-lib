@@ -2,6 +2,8 @@ import unittest
 import warnings
 import yaml
 
+from ..yaml_constructors import MetadataInfo
+
 
 class YamlConstructorTests(unittest.TestCase):
     """
@@ -44,17 +46,15 @@ class YamlConstructorTests(unittest.TestCase):
     def test_metadata_path_constructor(self):
         tag = r"!metadata 'metadata.tsv'"
         actual = yaml.safe_load(tag)
-        self.assertEqual(actual, {'input_artifact_uuids': [],
-                                  'relative_fp': 'metadata.tsv'})
+        self.assertEqual(actual, MetadataInfo([], 'metadata.tsv'))
 
     def test_metadata_path_constructor_one_Artifact_as_md(self):
         tag = r"!metadata '415409a4-stuff-e3eaba5301b4:feature_metadata.tsv'"
         actual = yaml.safe_load(tag)
         self.assertEqual(
             actual,
-            {'input_artifact_uuids': ['415409a4-stuff-e3eaba5301b4'],
-             'relative_fp': 'feature_metadata.tsv'}
-             )
+            MetadataInfo(['415409a4-stuff-e3eaba5301b4'],
+                         'feature_metadata.tsv'))
 
     def test_metadata_path_constructor_many_Artifacts_as_md(self):
         tag = (r"!metadata '415409a4-stuff-e3eaba5301b4,"
@@ -63,10 +63,9 @@ class YamlConstructorTests(unittest.TestCase):
         actual = yaml.safe_load(tag)
         self.assertEqual(
             actual,
-            {'input_artifact_uuids': ['415409a4-stuff-e3eaba5301b4',
-                                      '12345-other-stuff-67890'],
-             'relative_fp': 'feature_metadata.tsv'}
-             )
+            MetadataInfo(['415409a4-stuff-e3eaba5301b4',
+                          '12345-other-stuff-67890'],
+                         'feature_metadata.tsv'))
 
     def test_no_provenance_constructor(self):
         tag = "!no-provenance '34b07e56-27a5-4f03-ae57-ff427b50aaa1'"

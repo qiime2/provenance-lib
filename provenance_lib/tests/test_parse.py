@@ -12,6 +12,7 @@ from ..parse import (
     _Action, _Citations, _ResultMetadata,
     ParserV0, ParserV1, ParserV2, ParserV3, ParserV4, ParserV5,
 )
+from ..yaml_constructors import MetadataInfo
 
 from .util import (
     is_root_provnode_data, generate_archive_with_file_removed,
@@ -424,16 +425,14 @@ class ActionTests(unittest.TestCase):
 
     def test_get_one_artifact_passed_as_md(self):
         get_artifacts = self.act._get_artifacts_passed_as_md
+        md1 = MetadataInfo([], 'some_metadata.tsv')
+        md2 = MetadataInfo(['301b4'], 'other_metadata.tsv')
         action_details = \
             {'parameters':
                 [
                  {'some_param': 'foo'},
-                 {'arbitrary_metadata_name':
-                  {'input_artifact_uuids': [],
-                   'relative_fp': 'some_metadata.tsv'}},
-                 {'other_metadata':
-                  {'input_artifact_uuids': ['301b4'],
-                   'relative_fp': 'other_metadata.tsv'}},
+                 {'arbitrary_metadata_name': md1},
+                 {'other_metadata': md2},
                  ]}
         actual = get_artifacts(action_details)
         exp = [
@@ -443,16 +442,14 @@ class ActionTests(unittest.TestCase):
 
     def test_get_two_artifacts_passed_as_md(self):
         get_artifacts = self.act._get_artifacts_passed_as_md
+        md1 = MetadataInfo([], 'some_metadata.tsv')
+        md2 = MetadataInfo(['4154', '301b4'], 'other_metadata.tsv')
         action_details = \
             {'parameters':
                 [
                  {'some_param': 'foo'},
-                 {'arbitrary_metadata_name':
-                  {'input_artifact_uuids': [],
-                   'relative_fp': 'some_metadata.tsv'}},
-                 {'other_metadata':
-                  {'input_artifact_uuids': ['4154', '301b4'],
-                   'relative_fp': 'other_metadata.tsv'}},
+                 {'arbitrary_metadata_name': md1},
+                 {'other_metadata': md2},
                  ]}
         actual = get_artifacts(action_details)
         exp = [{'artifact_passed_as_metadata': '4154'},

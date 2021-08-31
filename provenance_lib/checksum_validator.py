@@ -8,6 +8,8 @@ from typing import Tuple
 from .version_parser import get_version
 
 
+# TODO: Should this be a dataclass or similar? This would allow us to clean
+# up the validation currently being performed in the ProvNode __init__
 ChecksumDiff = collections.namedtuple(
     'ChecksumDiff', ['added', 'removed', 'changed'])
 

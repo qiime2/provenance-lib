@@ -74,6 +74,14 @@ class ProvDAG(DiGraph):
         return local_parents
 
     def __init__(self, archive_fp: str):
+        """
+        Create a ProvDAG (digraph) by:
+            0. Creating an empty nx.digraph
+            1. parsing the raw data from the zip archive
+            2. adding nodes with their associated guaranteed data
+            3. adding provenance-dependent data to nodes with provenance
+            4. Connect nodes with edges
+        """
         super().__init__()
         with zipfile.ZipFile(archive_fp) as zf:
             handler = FormatHandler(zf)
@@ -199,6 +207,7 @@ class ProvNode:
             elif fp.name == 'checksums.md5':
                 self.checksum_diff: Optional[ChecksumDiff]
                 try:
+                    # TODO: factor this checking out into checksum_validator.py
                     diff = validate_checksums(zf)
                     if diff != ChecksumDiff({}, {}, {}):
                         # self._result_md may not have been parsed, so get uuid
@@ -222,6 +231,27 @@ class ProvNode:
                         UserWarning)
                     self.provenance_is_valid = False
                     self.checksum_diff = None
+
+        # If the _Action constructor finds metadata files, this will parse them
+        # TODO: This should be a user-facing option, right?
+        # Isn't Metadata parsing only useful if we want to use the
+        # same metadata for our replay as we did in the original.
+        # This would require identical UUIDs, as well as an
+        # identical mapping of metadata to those UUIDs.
+        # This seems like a neat trick, but not a common use case?
+        self._metadata = self._parse_metadata(zf)
+
+    def _parse_metadata(self, zf: zipfile.ZipFile,
+                        mock_action_details: Dict[str, List] = None
+                        ) -> Dict[str, pd.DataFrame]:
+        """
+        For now at least, this parses all Metadata and MetadataColumns into
+        pd.DataFrames. In the future, we may need a simple type that can hold
+        the name of the original associated parameter, the type (MetadataColumn
+        or Metadata), and the appropriate Series or Dataframe respectively.
+        """
+        # TODO: NEXT parse metadata into our object
+	 pass
 
     def __repr__(self) -> str:
         return f'ProvNode({self.uuid}, {self.sem_type}, fmt={self.format})'
@@ -272,14 +302,14 @@ class _Action:
         return self._execution_details['runtime']['duration']
 
     @property
-    def action(self) -> str:
+    def action_name(self) -> str:
         """
         The name of the action itself. Returns 'import' if this is an import.
         """
-        action = self._action_details.get('action')
+        action_name = self._action_details.get('action')
         if self.action_type == 'import':
-            action = 'import'
-        return action
+            action_name = 'import'
+        return action_name
 
     @property
     def plugin(self) -> str:
@@ -306,6 +336,8 @@ class _Action:
         archives_as_metadata = self._get_artifacts_passed_as_md()
         return parents + archives_as_metadata
 
+    # TODO NEXT: Do we want to move this into ProvNode? It would sit with the
+    # metadata parsing method, which could reduce the need for code duplication
     def _get_artifacts_passed_as_md(
         self, action_details: Dict[str, List] = None) -> \
             List[Dict[str, UUID]]:
@@ -371,7 +403,7 @@ class _Action:
 
     def __repr__(self):
         return (f"_Action(action_id={self.action_id}, type={self.action_type},"
-                f" plugin={self.plugin}, action={self.action})")
+                f" plugin={self.plugin}, action={self.action_name})")
 
 
 class _Citations:

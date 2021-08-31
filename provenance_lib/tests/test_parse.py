@@ -402,7 +402,7 @@ class ActionTests(unittest.TestCase):
 
     def test_action(self):
         exp = 'core_metrics_phylogenetic'
-        self.assertEqual(self.act.action, exp)
+        self.assertEqual(self.act.action_name, exp)
 
     def test_plugin(self):
         exp = 'diversity'
@@ -492,7 +492,7 @@ class ActionTests(unittest.TestCase):
     # action.yaml
     def test_action_for_import_node(self):
         exp = 'import'
-        self.assertEqual(self.imp_act.action, exp)
+        self.assertEqual(self.imp_act.action_name, exp)
 
     def test_plugin_for_import_node(self):
         exp = 'framework'
@@ -551,12 +551,6 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
         super().setUp()
         self.root_metadata_fps = None
 
-        with zipfile.ZipFile(TEST_DATA['0']['qzv_fp']) as zf:
-            root_md_fnames = [pathlib.Path(TEST_DATA['0']['uuid']) / fp for
-                              fp in ('metadata.yaml', 'VERSION')]
-            root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
-            self.v0_ProvNode = ProvNode(zf, root_md_fps)
-
         with zipfile.ZipFile(TEST_DATA['5']['qzv_fp']) as zf:
             all_filenames = zf.namelist()
             root_md_fnames = filter(is_root_provnode_data, all_filenames)
@@ -567,8 +561,15 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
         self.assertTrue(True)
         self.assertIs(type(self.v5_ProvNode), ProvNode)
 
-    def test_viz_properties(self):
+    def test_properties_with_viz(self):
+        # TODO: test a qza?
         # TODO: expand to other versions once we're globally loading ProvDAGs
+        with zipfile.ZipFile(TEST_DATA['0']['qzv_fp']) as zf:
+            root_md_fnames = [pathlib.Path(TEST_DATA['0']['uuid']) / fp for
+                              fp in ('metadata.yaml', 'VERSION')]
+            root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
+            self.v0_ProvNode = ProvNode(zf, root_md_fps)
+
         nodes = {'0': self.v0_ProvNode,
                  '5': self.v5_ProvNode,
                  }
@@ -684,3 +685,6 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                     {'data/index.html': ('065031e17943cd0780f197874c4f011e',
                                          'f47bc36040d5c7db08e4b3a457dcfbb2')
                      })
+
+    def test_parse_metadata(self):
+        pass

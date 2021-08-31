@@ -28,7 +28,7 @@ def color_constructor(loader, node) -> str:
     matching ^#(?:[0-9a-fA-F]{3}){1,2}$
 
     Per E. Bolyen,these were unused by any plugins. They were removed in
-    e58ed5f8ba453035169d560e0223e6a37774ae08, released in 2019.4
+    e58ed5f8ba453035169d560e0223e6a37774ae08, which was released in 2019.4
     """
     return loader.construct_scalar(node)
 

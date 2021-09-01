@@ -1,5 +1,6 @@
 from __future__ import annotations
 import pathlib
+import pandas as pd
 from datetime import timedelta
 from typing import List, Dict, Mapping, Tuple, Optional
 import warnings
@@ -239,7 +240,12 @@ class ProvNode:
         # This would require identical UUIDs, as well as an
         # identical mapping of metadata to those UUIDs.
         # This seems like a neat trick, but not a common use case?
-        self._metadata = self._parse_metadata(zf)
+
+        # This only makes sense if we have provenance to track. Otherwise,
+        # there is no action.yaml to interrogate.
+        # TODO: test what happens if archive has had action.yaml removed
+        if self.has_provenance:
+            self._metadata = self._parse_metadata(zf)
 
     def _parse_metadata(self, zf: zipfile.ZipFile,
                         mock_action_details: Dict[str, List] = None
@@ -250,8 +256,21 @@ class ProvNode:
         the name of the original associated parameter, the type (MetadataColumn
         or Metadata), and the appropriate Series or Dataframe respectively.
         """
-        # TODO: NEXT parse metadata into our object
-	 pass
+        action_details = mock_action_details \
+            if mock_action_details is not None else self.action._action_details
+        all_metadata = dict()
+        if (all_params := action_details.get('parameters')) is not None:
+            for param in all_params:
+                param_val = list(param.values())[0]
+                if isinstance(param_val, MetadataInfo):
+                    # the name of the Metadata or MdCol that was registered:
+                    param_name = list(param)[0]
+                    md_fp = param_val.relative_fp
+                    # TODO: NEXT parse metadata into our object
+                    all_metadata.update({param_name: md_fp})
+
+                    print(all_metadata)
+        return all_metadata
 
     def __repr__(self) -> str:
         return f'ProvNode({self.uuid}, {self.sem_type}, fmt={self.format})'
@@ -322,6 +341,7 @@ class _Action:
             plugin = 'framework'
         return plugin
 
+    # TODO: Move up to ProvNode
     @property
     def parents(self) -> List[Dict[str, UUID]]:
         """
@@ -384,8 +404,7 @@ class _Action:
         action_details = action_details if action_details is not None \
             else self._action_details
         artifacts_as_metadata = []
-        all_params = action_details.get('parameters')
-        if all_params is not None:
+        if (all_params := action_details.get('parameters')) is not None:
             for param in all_params:
                 param_val = list(param.values())[0]
                 if isinstance(param_val, MetadataInfo):
@@ -393,6 +412,7 @@ class _Action:
                         {'artifact_passed_as_metadata': uuid} for uuid in
                         param_val.input_artifact_uuids]
 
+                    print(artifacts_as_metadata)
         return artifacts_as_metadata
 
     def __init__(self, zf: zipfile.ZipFile, fp: str):

@@ -408,6 +408,7 @@ class ActionTests(unittest.TestCase):
         exp = 'diversity'
         self.assertEqual(self.act.plugin, exp)
 
+    # TODO: Move to ProvNode from here:
     def test_parents(self):
         exp = [{'table': '706b6bce-8f19-4ae9-b8f5-21b14a814a1b'},
                {'phylogeny': 'ad7e5b50-065c-4fdd-8d9b-991e92caad22'}]
@@ -480,6 +481,7 @@ class ActionTests(unittest.TestCase):
         actual = get_artifacts(action_details)
         exp = []
         self.assertEqual(actual, exp)
+    # TODO: Move to ProvNode to here
 
     def test_repr(self):
         exp = ('_Action(action_id=5bc4b090-abbc-46b0-a219-346c8026f7d7, '
@@ -668,7 +670,13 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                             'Files changed.*data.*index.*065031.*f47bc3.*'
                             )
                 with self.assertWarnsRegex(UserWarning, expected):
-                    a_node = ProvNode(zf, [pathlib.Path('checksums.md5')])
+                    # NOTE: Using a minimal list of filenames for speed.
+                    a_node = ProvNode(
+                        zf,
+                        [pathlib.Path('checksums.md5'),
+                         fp_pfx / 'VERSION',
+                         fp_pfx / 'provenance' / 'action' / 'action.yaml'
+                         ])
 
                 # Have we set provenance_is_valid correctly?
                 self.assertEqual(a_node.provenance_is_valid, False)
@@ -687,4 +695,4 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                      })
 
     def test_parse_metadata(self):
-        pass
+        self.assertTrue(False)

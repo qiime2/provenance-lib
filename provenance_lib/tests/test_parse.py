@@ -694,5 +694,42 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                                          'f47bc36040d5c7db08e4b3a457dcfbb2')
                      })
 
+    def test_get_metadata_from_action(self):
+        find_md = self.v5_ProvNode._get_metadata_from_Action
+        md1 = MetadataInfo([], 'some_metadata.tsv')
+        md2 = MetadataInfo(['301b4'], 'other_metadata.tsv')
+        md3 = MetadataInfo(['4154', '5555b'], 'merged_metadata.tsv')
+        action_details = \
+            {'parameters':
+                [
+                 {'some_param': 'foo'},
+                 {'arbitrary_metadata_name': md1},
+                 {'other_metadata': md2},
+                 {'double_md': md3},
+                 ]}
+        all_md, artifacts_as_md = find_md(action_details)
+        exp = {'arbitrary_metadata_name': 'some_metadata.tsv',
+               'other_metadata': 'other_metadata.tsv',
+               'double_md': 'merged_metadata.tsv',
+               }
+        self.assertEqual(all_md, exp)
+        self.assertEqual(artifacts_as_md, None)
+
+    def test_get_metadata_from_action_with_actual_node(self):
+        find_md = self.v5_ProvNode._get_metadata_from_Action
+        all_md, artifacts_as_md = find_md()
+        exp = {'metadata': 'metadata.tsv'}
+        self.assertEqual(all_md, exp)
+        self.assertEqual(artifacts_as_md, None)
+
+    def test_get_metadata_from_action_with_no_params(self):
+        find_md = self.v5_ProvNode._get_metadata_from_Action
+        action_details = \
+            {'parameters': []}
+        all_md, artifacts_as_md = find_md(action_details)
+        exp = {}
+        self.assertEqual(all_md, exp)
+        self.assertEqual(artifacts_as_md, None)
+
     def test_parse_metadata(self):
         self.assertTrue(False)

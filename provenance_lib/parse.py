@@ -256,6 +256,17 @@ class ProvNode:
         the name of the original associated parameter, the type (MetadataColumn
         or Metadata), and the appropriate Series or Dataframe respectively.
         """
+        # TODO: Open this up again once we're testing
+        # action_details = mock_action_details \
+        #     if mock_action_details is not None
+        # else self.action._action_details
+        all_md, artifacts_passed_as_md = self._get_metadata_from_Action()
+        # TODO: NEXT parse metadata into our object, returning a
+        # {param_name: pd.DF}
+
+    def _get_metadata_from_Action(
+        self, mock_action_details: Dict[str, List] = None) \
+            -> Tuple[Dict[str, str], List[Dict[str, UUID]]]:
         action_details = mock_action_details \
             if mock_action_details is not None else self.action._action_details
         all_metadata = dict()
@@ -266,11 +277,10 @@ class ProvNode:
                     # the name of the Metadata or MdCol that was registered:
                     param_name = list(param)[0]
                     md_fp = param_val.relative_fp
-                    # TODO: NEXT parse metadata into our object
                     all_metadata.update({param_name: md_fp})
 
-                    print(all_metadata)
-        return all_metadata
+        arts_as_md = None
+        return all_metadata, arts_as_md
 
     def __repr__(self) -> str:
         return f'ProvNode({self.uuid}, {self.sem_type}, fmt={self.format})'
@@ -412,7 +422,8 @@ class _Action:
                         {'artifact_passed_as_metadata': uuid} for uuid in
                         param_val.input_artifact_uuids]
 
-                    print(artifacts_as_metadata)
+                    # TODO: REMOVE
+                    # print(artifacts_as_metadata)
         return artifacts_as_metadata
 
     def __init__(self, zf: zipfile.ZipFile, fp: str):

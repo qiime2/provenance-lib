@@ -220,7 +220,6 @@ class ProvDAGTests(unittest.TestCase):
 
             # Have we set provenance_is_valid correctly?
             root_node = a_dag.nodes[uuid]
-            print(root_node)
             self.assertEqual(root_node['provenance_is_valid'], False)
 
             # Is the diff correct?
@@ -276,7 +275,6 @@ class ParserVxTests(unittest.TestCase):
                 else:
                     num_res, contents = \
                         TEST_DATA[archv_vrsn]['parser'].parse_prov(zf)
-                print(f'Debug: archive version #{archv_vrsn} failing')
                 # Does this archive have the right number of Results?
                 self.assertEqual(num_res, TEST_DATA[archv_vrsn]['n_res'])
                 # Is contents a dict?
@@ -302,7 +300,6 @@ class ParserVxTests(unittest.TestCase):
 
 
 class FormatHandlerTests(unittest.TestCase):
-
     # Can we make a FormatHandler without anything blowing up?
     def test_smoke(self):
         for arch_ver in TEST_DATA:
@@ -625,7 +622,6 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                  {'double_md': md3},
                  ]}
         all_md, artifacts_as_md = find_md(action_details)
-        print(artifacts_as_md)
         all_exp = {'arbitrary_metadata_name': 'some_metadata.tsv',
                    'other_metadata': 'other_metadata.tsv',
                    'double_md': 'merged_metadata.tsv',

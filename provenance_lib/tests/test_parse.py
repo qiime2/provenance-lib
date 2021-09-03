@@ -83,9 +83,10 @@ TEST_DATA = {
 class ProvDAGTests(unittest.TestCase):
     # Remove the character limit when reporting failing tests for this class
     maxDiff = None
-    fake_fp = os.path.join(DATA_DIR, 'not_a_filepath.qza')
-    not_a_zip = os.path.join(DATA_DIR, 'not_a_zip.txt')
-    v5_provDag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
+
+    @classmethod
+    def setUpClass(cls):
+        cls.v5_provDag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
 
     # This should only trigger if something fails in setup or above
     # e.g. if v5_provDag fails to initialize
@@ -112,13 +113,15 @@ class ProvDAGTests(unittest.TestCase):
         self.assertEqual(len(self.v5_provDag), TEST_DATA['5']['n_res'])
 
     def test_nonexistent_fp(self):
+        fake_fp = os.path.join(DATA_DIR, 'not_a_filepath.qza')
         with self.assertRaisesRegex(FileNotFoundError, 'not_a_filepath.qza'):
-            ProvDAG(self.fake_fp)
+            ProvDAG(fake_fp)
 
     def test_not_a_zip_archive(self):
+        not_a_zip = os.path.join(DATA_DIR, 'not_a_zip.txt')
         with self.assertRaisesRegex(zipfile.BadZipFile,
                                     'File is not a zip file'):
-            ProvDAG(self.not_a_zip)
+            ProvDAG(not_a_zip)
 
     def test_is_digraph(self):
         self.assertIsInstance(self.v5_provDag, DiGraph)
@@ -348,11 +351,13 @@ class FormatHandlerTests(unittest.TestCase):
 
 
 class ResultMetadataTests(unittest.TestCase):
-    v5_qzv = TEST_DATA['5']['qzv_fp']
-    v5_uuid = TEST_DATA['5']['uuid']
-    md_fp = f'{v5_uuid}/provenance/metadata.yaml'
-    with zipfile.ZipFile(str(v5_qzv)) as zf:
-        v5_root_md = _ResultMetadata(zf, md_fp)
+    @classmethod
+    def setUpClass(cls):
+        v5_qzv = TEST_DATA['5']['qzv_fp']
+        cls.v5_uuid = TEST_DATA['5']['uuid']
+        md_fp = f'{cls.v5_uuid}/provenance/metadata.yaml'
+        with zipfile.ZipFile(str(v5_qzv)) as zf:
+            cls.v5_root_md = _ResultMetadata(zf, md_fp)
 
     def test_smoke(self):
         self.assertEqual(self.v5_root_md.uuid, self.v5_uuid)
@@ -367,13 +372,16 @@ class ResultMetadataTests(unittest.TestCase):
 
 
 class ActionTests(unittest.TestCase):
-    root_action_fp = os.path.join(DATA_DIR, 'action_emperor_root_node_v5.zip')
-    import_action_fp = os.path.join(DATA_DIR, 'action_import_v5.zip')
-    with zipfile.ZipFile(root_action_fp) as zf:
-        act = _Action(zf, 'action.yaml')
+    @classmethod
+    def setUpClass(cls):
+        root_action_fp = os.path.join(DATA_DIR,
+                                      'action_emperor_root_node_v5.zip')
+        import_action_fp = os.path.join(DATA_DIR, 'action_import_v5.zip')
+        with zipfile.ZipFile(root_action_fp) as zf:
+            cls.act = _Action(zf, 'action.yaml')
 
-    with zipfile.ZipFile(import_action_fp) as zf:
-        imp_act = _Action(zf, 'action.yaml')
+        with zipfile.ZipFile(import_action_fp) as zf:
+            cls.imp_act = _Action(zf, 'action.yaml')
 
     def test_action_id(self):
         exp = '5bc4b090-abbc-46b0-a219-346c8026f7d7'
@@ -407,9 +415,8 @@ class ActionTests(unittest.TestCase):
                'action=core_metrics_phylogenetic)')
         self.assertEqual(repr(self.act), exp)
 
-    # NOTE: Import is not handled by a plugin, and has no inputs. Parsing logic
-    # provides values for the following properties which are not present in
-    # action.yaml
+    # NOTE: Import is not handled by a plugin, so the parser provides values
+    # for the action_name and plugin properties not present in action.yaml
     def test_action_for_import_node(self):
         exp = 'import'
         self.assertEqual(self.imp_act.action_name, exp)
@@ -420,9 +427,11 @@ class ActionTests(unittest.TestCase):
 
 
 class CitationsTests(unittest.TestCase):
-    cite_strs = ['cite_none', 'cite_one', 'cite_many']
-    bibs = [bib+'.bib' for bib in cite_strs]
-    zips = [os.path.join(DATA_DIR, bib+'.zip') for bib in cite_strs]
+    @classmethod
+    def setUpClass(cls):
+        cite_strs = ['cite_none', 'cite_one', 'cite_many']
+        cls.bibs = [bib+'.bib' for bib in cite_strs]
+        cls.zips = [os.path.join(DATA_DIR, bib+'.zip') for bib in cite_strs]
 
     def test_empty_bib(self):
         with zipfile.ZipFile(self.zips[0]) as zf:
@@ -455,21 +464,22 @@ class CitationsTests(unittest.TestCase):
 
 
 class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
-    # TODO: If possible, we should load ProvDAGs for v0-v5 and make them
-    # globally available to these test classes. This should allow us to
-    # reduce test time and run more tests iteratively.
-    # This class and ProvDAGTests, at least, would benefit
+    # TODO: load ProvNodes for v0-v5 and make them globally available to these
+    # test classes. This class and ProvDAGTests, at least, would benefit
 
-    # Using a dag to back these tests, because the alternative is to
-    # hand-build two to three test nodes and mock a ProvDAG to hold them.
-    v5_dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
-    root_metadata_fps = None
+    @classmethod
+    def setUpClass(cls):
+        with zipfile.ZipFile(TEST_DATA['5']['qzv_fp']) as zf:
+            all_filenames = zf.namelist()
+            root_md_fnames = filter(is_root_provnode_data, all_filenames)
+            root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
+            cls.v5_ProvNode = ProvNode(zf, root_md_fps)
 
-    with zipfile.ZipFile(TEST_DATA['5']['qzv_fp']) as zf:
-        all_filenames = zf.namelist()
-        root_md_fnames = filter(is_root_provnode_data, all_filenames)
-        root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
-        v5_ProvNode = ProvNode(zf, root_md_fps)
+            import_node_id = 'a35830e1-4535-47c6-aa23-be295a57ee1c'
+            import_node_fnames = filter(lambda x: import_node_id in x,
+                                        all_filenames)
+            import_node_fps = [pathlib.Path(fp) for fp in import_node_fnames]
+            cls.import_node = ProvNode(zf, import_node_fps)
 
     def test_smoke(self):
         self.assertTrue(True)
@@ -676,10 +686,8 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
         self.assertEqual(actual, exp)
 
     def test_parents_for_import_node(self):
-        import_node_id = 'a35830e1-4535-47c6-aa23-be295a57ee1c'
-        import_node = self.v5_dag.nodes[import_node_id]
         exp = []
-        self.assertEqual(import_node['parents'], exp)
+        self.assertEqual(self.import_node.parents, exp)
 
 #    def test_parse_metadata(self):
 #        self.assertTrue(False)

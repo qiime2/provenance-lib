@@ -120,8 +120,8 @@ class ProvDAG(DiGraph):
                     action_properties = dict(
                         action_type=provnode.action.action_type,
                         plugin=provnode.action.plugin,
-                        parents=provnode.action.parents,
                         runtime=provnode.action.runtime,
+                        parents=provnode.parents,
                     )
                     self.nodes[node].update(action_properties)
                 if not provnode.provenance_is_valid:
@@ -180,6 +180,20 @@ class ProvNode:
     @property
     def has_provenance(self) -> bool:
         return self.archive_version != '0'
+
+    @property
+    def parents(self) -> List[Dict[str, UUID]]:
+        """
+        a list of single-item {Type: UUID} dicts describing this
+        action's inputs, and including Artifacts passed as Metadata parameters.
+
+        Returns [] if this "action" is an Import
+        """
+        inputs = self.action._action_details.get('inputs')
+        parents = [] if inputs is None else inputs
+
+        artifacts_as_metadata = self._artifacts_passed_as_md
+        return parents + artifacts_as_metadata
 
     def __init__(self, zf: zipfile.ZipFile,
                  fps_for_this_result: List[pathlib.Path]) -> None:
@@ -243,44 +257,100 @@ class ProvNode:
 
         # This only makes sense if we have provenance to track. Otherwise,
         # there is no action.yaml to interrogate.
-        # TODO: test what happens if archive has had action.yaml removed
+        # TODO NEXT: test what happens if archive has had action.yaml removed
         if self.has_provenance:
+            self._all_metadata_files, self._artifacts_passed_as_md = \
+                self._get_metadata_from_Action()
             self._metadata = self._parse_metadata(zf)
-
-    def _parse_metadata(self, zf: zipfile.ZipFile,
-                        mock_action_details: Dict[str, List] = None
-                        ) -> Dict[str, pd.DataFrame]:
-        """
-        For now at least, this parses all Metadata and MetadataColumns into
-        pd.DataFrames. In the future, we may need a simple type that can hold
-        the name of the original associated parameter, the type (MetadataColumn
-        or Metadata), and the appropriate Series or Dataframe respectively.
-        """
-        # TODO: Open this up again once we're testing
-        # action_details = mock_action_details \
-        #     if mock_action_details is not None
-        # else self.action._action_details
-        all_md, artifacts_passed_as_md = self._get_metadata_from_Action()
-        # TODO: NEXT parse metadata into our object, returning a
-        # {param_name: pd.DF}
 
     def _get_metadata_from_Action(
         self, mock_action_details: Dict[str, List] = None) \
             -> Tuple[Dict[str, str], List[Dict[str, UUID]]]:
+        """
+        Gathers data related to Metadata and MetadataColumn-based metadata
+        files from an in-memory representation of an action.yaml file.
+
+        Specifically:
+
+        - it captures filepath and parameter-name data for _all_
+        metadata files, so that these can be located for parsing, and then
+        associated with the correct parameters during replay.
+
+        - it captures uuids for all artifacts passed to this action as
+        metadata, and associates them with a consistent/identifiable filler
+        type (see NOTE below), so they can be included as parents of this node.
+
+        Returns a two-tuple (all_metadata, artifacts_as_metadata) where:
+        - all-metadata conforms to {parameter_name: relative_filename}
+        - artifacts_as_metadata is a list of single-item dictionaries
+        conforming to [{'artifact_passed_as_metadata': <uuid>}, ...]
+
+        By default, this operates on this ProvNode's action._action_details.
+        The optional `action_details` parameter is provided only to simplify
+        testing, allowing us to pass hardcoded 'action_details' dictionaries.
+
+        Input data looks like this:
+
+        {'action': {'parameters': [{'some_param': 'foo'},
+                                   {'arbitrary_metadata_name':
+                                    {'input_artifact_uuids': [],
+                                     'relative_fp': 'sample_metadata.tsv'}},
+                                   {'other_metadata':
+                                    {'input_artifact_uuids': ['4154...301b4'],
+                                     'relative_fp': 'feature_metadata.tsv'}},
+                                   ]
+                    }}
+
+        as loaded from this YAML:
+
+        action:
+            parameters:
+            -   some_param: 'foo'
+            -   arbitrary_metadata_name: !metadata 'sample_metadata.tsv'
+            -   other_metadata: !metadata '4154...301b4:feature_metadata.tsv'
+
+        NOTE: When Artifacts are passed as Metadata, they are captured in
+        action.py's action['parameters'], rather than in action['inputs'] with
+        the other Artifacts. As a result, Semantic Type data is not captured.
+        This function returns a hardcoded filler 'Type' for all UUIDs
+        discovered here: 'artifact_passed_as_metadata'. This will not match the
+        actual Type of the parent Artifact, but should make it possible for a
+        ProvDAG to identify and relabel any artifacts passed as metadata with
+        their actual type if needed. Replay likely wouldn't be achievable
+        without these Artifact inputs, so our DAG must be able to track them as
+        parents to a given node.
+        """
         action_details = mock_action_details \
             if mock_action_details is not None else self.action._action_details
         all_metadata = dict()
+        artifacts_as_metadata = []
         if (all_params := action_details.get('parameters')) is not None:
             for param in all_params:
                 param_val = list(param.values())[0]
                 if isinstance(param_val, MetadataInfo):
-                    # the name of the Metadata or MdCol that was registered:
                     param_name = list(param)[0]
                     md_fp = param_val.relative_fp
                     all_metadata.update({param_name: md_fp})
 
-        arts_as_md = None
-        return all_metadata, arts_as_md
+                    artifacts_as_metadata += [
+                        {'artifact_passed_as_metadata': uuid} for uuid in
+                        param_val.input_artifact_uuids]
+
+        return all_metadata, artifacts_as_metadata
+
+    def _parse_metadata(self, zf: zipfile.ZipFile) -> Dict[str, pd.DataFrame]:
+        """
+        Parses all metadata files captured from Metadata and MetadataColumns
+        (identifiable by !metadata tags) into pd.DataFrames.
+
+        In the future, we may need a simple type that can hold the name of the
+        original associated parameter, the type (MetadataColumn or Metadata),
+        and the appropriate Series or Dataframe respectively.
+        """
+        all_md = self._all_metadata_files
+        # TODO: NEXT parse metadata into our object, returning a
+        # {param_name: pd.DF}
+        return all_md
 
     def __repr__(self) -> str:
         return f'ProvNode({self.uuid}, {self.sem_type}, fmt={self.format})'
@@ -350,81 +420,6 @@ class _Action:
         if self.action_type == 'import':
             plugin = 'framework'
         return plugin
-
-    # TODO: Move up to ProvNode
-    @property
-    def parents(self) -> List[Dict[str, UUID]]:
-        """
-        a list of single-item {Type: UUID} dicts describing this
-        action's inputs, and including Artifacts passed as Metadata parameters.
-
-        Returns [] if this "action" is an Import
-        """
-        inputs = self._action_details.get('inputs')
-        parents = [] if inputs is None else inputs
-
-        archives_as_metadata = self._get_artifacts_passed_as_md()
-        return parents + archives_as_metadata
-
-    # TODO NEXT: Do we want to move this into ProvNode? It would sit with the
-    # metadata parsing method, which could reduce the need for code duplication
-    def _get_artifacts_passed_as_md(
-        self, action_details: Dict[str, List] = None) -> \
-            List[Dict[str, UUID]]:
-        """
-        Returns a list of single-item dictionaries conforming to:
-        {'artifact_passed_as_metadata': <uuid>}, representing all artifacts
-        passed into this action as metadata.
-
-        By default, this will operate on self._action_details. The optional
-        `action_details` parameter is provided only to simplify testing,
-        allowing us to pass hardcoded 'action_details' dictionaries.
-
-        We expect data like this:
-
-        {'action': {'parameters': [{'some_param': 'foo'},
-                                   {'arbitrary_metadata_name':
-                                    {'input_artifact_uuids': [],
-                                     'relative_fp': 'sample_metadata.tsv'}},
-                                   {'other_metadata':
-                                    {'input_artifact_uuids': ['4154...301b4'],
-                                     'relative_fp': 'feature_metadata.tsv'}},
-                                   ]
-                    }}
-
-        as loaded from this YAML:
-
-        action:
-            parameters:
-            -   some_param: 'foo'
-            -   arbitrary_metadata_name: !metadata 'sample_metadata.tsv'
-            -   other_metadata: !metadata '4154...301b4:feature_metadata.tsv'
-
-        NOTE: When Artifacts are passed as Metadata, they are captured in
-        action.py's action['parameters'], rather than in action['inputs'] with
-        the other Artifacts. As a result, Semantic Type data is not captured.
-        This function returns a hardcoded filler 'Type' for all UUIDs
-        discovered here: 'artifact_passed_as_metadata'. This will not match the
-        actual Type of the parent Artifact, but should make it possible for a
-        ProvDAG to identify and relabel any artifacts passed as metadata with
-        their actual type if needed. Replay likely wouldn't be achievable
-        without these Artifact inputs, so our DAG must be able to track them as
-        parents to a given node.
-        """
-        action_details = action_details if action_details is not None \
-            else self._action_details
-        artifacts_as_metadata = []
-        if (all_params := action_details.get('parameters')) is not None:
-            for param in all_params:
-                param_val = list(param.values())[0]
-                if isinstance(param_val, MetadataInfo):
-                    artifacts_as_metadata += [
-                        {'artifact_passed_as_metadata': uuid} for uuid in
-                        param_val.input_artifact_uuids]
-
-                    # TODO: REMOVE
-                    # print(artifacts_as_metadata)
-        return artifacts_as_metadata
 
     def __init__(self, zf: zipfile.ZipFile, fp: str):
         self._action_dict = yaml.safe_load(zf.read(fp))

@@ -372,15 +372,11 @@ class ResultMetadataTests(unittest.TestCase):
 class ActionTests(unittest.TestCase):
     root_action_fp = os.path.join(DATA_DIR, 'action_emperor_root_node_v5.zip')
     import_action_fp = os.path.join(DATA_DIR, 'action_import_v5.zip')
-    artifact_as_md_fp = os.path.join(DATA_DIR, 'action_artifact_as_md_v5.zip')
     with zipfile.ZipFile(root_action_fp) as zf:
         act = _Action(zf, 'action.yaml')
 
     with zipfile.ZipFile(import_action_fp) as zf:
         imp_act = _Action(zf, 'action.yaml')
-
-    with zipfile.ZipFile(artifact_as_md_fp) as zf:
-        art_as_md_act = _Action(zf, 'action.yaml')
 
     def test_action_id(self):
         exp = '5bc4b090-abbc-46b0-a219-346c8026f7d7'
@@ -408,81 +404,6 @@ class ActionTests(unittest.TestCase):
         exp = 'diversity'
         self.assertEqual(self.act.plugin, exp)
 
-    # TODO: Move to ProvNode from here:
-    def test_parents(self):
-        exp = [{'table': '706b6bce-8f19-4ae9-b8f5-21b14a814a1b'},
-               {'phylogeny': 'ad7e5b50-065c-4fdd-8d9b-991e92caad22'}]
-        self.assertEqual(self.act.parents, exp)
-
-    def test_parents_with_artifact_passed_as_md(self):
-        exp = [{'tree': 'e710bdc5-e875-4876-b238-5451e3e8eb46'},
-               {'feature_table': 'abc22fdc-e7fa-4976-a980-8f2ff8c4bb58'},
-               {'pcoa': '1ed04b10-d29c-495f-996e-3d4db89434d2'},
-               {'artifact_passed_as_metadata':
-                '415409a4-371d-4c69-9433-e3eaba5301b4'},
-               ]
-        actual = self.art_as_md_act.parents
-        self.assertEqual(actual, exp)
-
-    def test_get_one_artifact_passed_as_md(self):
-        get_artifacts = self.act._get_artifacts_passed_as_md
-        md1 = MetadataInfo([], 'some_metadata.tsv')
-        md2 = MetadataInfo(['301b4'], 'other_metadata.tsv')
-        action_details = \
-            {'parameters':
-                [
-                 {'some_param': 'foo'},
-                 {'arbitrary_metadata_name': md1},
-                 {'other_metadata': md2},
-                 ]}
-        actual = get_artifacts(action_details)
-        exp = [
-               {'artifact_passed_as_metadata': '301b4'},
-               ]
-        self.assertEqual(actual, exp)
-
-    def test_get_two_artifacts_passed_as_md(self):
-        get_artifacts = self.act._get_artifacts_passed_as_md
-        md1 = MetadataInfo([], 'some_metadata.tsv')
-        md2 = MetadataInfo(['4154', '301b4'], 'other_metadata.tsv')
-        action_details = \
-            {'parameters':
-                [
-                 {'some_param': 'foo'},
-                 {'arbitrary_metadata_name': md1},
-                 {'other_metadata': md2},
-                 ]}
-        actual = get_artifacts(action_details)
-        exp = [{'artifact_passed_as_metadata': '4154'},
-               {'artifact_passed_as_metadata': '301b4'},
-               ]
-        self.assertEqual(actual, exp)
-
-    def test_get_zero_artifacts_passed_as_md(self):
-        get_artifacts = self.act._get_artifacts_passed_as_md
-        action_details = \
-            {'parameters':
-                [
-                 {'some_param': 'foo'},
-                 {'arbitrary_metadata_name':
-                  {'input_artifact_uuids': [],
-                   'relative_fp': 'some_metadata.tsv'}},
-                 {'other_metadata':
-                  {'input_artifact_uuids': [],
-                   'relative_fp': 'other_metadata.tsv'}},
-                 ]}
-        actual = get_artifacts(action_details)
-        exp = []
-        self.assertEqual(actual, exp)
-
-    def test_get_artifacts_passed_as_md_no_params(self):
-        get_artifacts = self.act._get_artifacts_passed_as_md
-        action_details = {'non-parameters-key': 'here is a thing'}
-        actual = get_artifacts(action_details)
-        exp = []
-        self.assertEqual(actual, exp)
-    # TODO: Move to ProvNode to here
-
     def test_repr(self):
         exp = ('_Action(action_id=5bc4b090-abbc-46b0-a219-346c8026f7d7, '
                'type=pipeline, plugin=diversity, '
@@ -499,10 +420,6 @@ class ActionTests(unittest.TestCase):
     def test_plugin_for_import_node(self):
         exp = 'framework'
         self.assertEqual(self.imp_act.plugin, exp)
-
-    def test_parents_for_import_node(self):
-        exp = []
-        self.assertEqual(self.imp_act.parents, exp)
 
 
 class CitationsTests(unittest.TestCase):
@@ -708,28 +625,67 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                  {'double_md': md3},
                  ]}
         all_md, artifacts_as_md = find_md(action_details)
-        exp = {'arbitrary_metadata_name': 'some_metadata.tsv',
-               'other_metadata': 'other_metadata.tsv',
-               'double_md': 'merged_metadata.tsv',
-               }
-        self.assertEqual(all_md, exp)
-        self.assertEqual(artifacts_as_md, None)
+        print(artifacts_as_md)
+        all_exp = {'arbitrary_metadata_name': 'some_metadata.tsv',
+                   'other_metadata': 'other_metadata.tsv',
+                   'double_md': 'merged_metadata.tsv',
+                   }
+        a_as_md_exp = [{'artifact_passed_as_metadata': '301b4'},
+                       {'artifact_passed_as_metadata': '4154'},
+                       {'artifact_passed_as_metadata': '5555b'},
+                       ]
+        self.assertEqual(all_md, all_exp)
+        self.assertEqual(artifacts_as_md, a_as_md_exp)
 
     def test_get_metadata_from_action_with_actual_node(self):
         find_md = self.v5_ProvNode._get_metadata_from_Action
         all_md, artifacts_as_md = find_md()
         exp = {'metadata': 'metadata.tsv'}
         self.assertEqual(all_md, exp)
-        self.assertEqual(artifacts_as_md, None)
+        self.assertEqual(artifacts_as_md, [])
 
     def test_get_metadata_from_action_with_no_params(self):
+        # Not sure which of these test data are possible in action.yaml, but
+        # we'll check them both just in case
         find_md = self.v5_ProvNode._get_metadata_from_Action
         action_details = \
             {'parameters': []}
         all_md, artifacts_as_md = find_md(action_details)
-        exp = {}
-        self.assertEqual(all_md, exp)
-        self.assertEqual(artifacts_as_md, None)
+        self.assertEqual(all_md, {})
+        self.assertEqual(artifacts_as_md, [])
 
-    def test_parse_metadata(self):
-        self.assertTrue(False)
+        action_details = {'non-parameters-key': 'here is a thing'}
+        all_md, artifacts_as_md = find_md(action_details)
+        self.assertEqual(all_md, {})
+        self.assertEqual(artifacts_as_md, [])
+
+    def test_parents(self):
+        exp = [{'table': '89af91c0-033d-4e30-8ac4-f29a3b407dc1'},
+               {'phylogeny': 'bce3d09b-e296-4f2b-9af4-834db6412429'}]
+        self.assertEqual(self.v5_ProvNode.parents, exp)
+
+    def test_parents_with_artifact_passed_as_md(self):
+        pfx = pathlib.Path('action_artifact_as_md')
+        artifact_as_md_fp = os.path.join(DATA_DIR, str(pfx) + '.zip')
+        with zipfile.ZipFile(artifact_as_md_fp) as zf:
+            art_as_md_node = ProvNode(zf,
+                                      [pfx / 'VERSION',
+                                       pfx / 'action.yaml'])
+
+        exp = [{'tree': 'e710bdc5-e875-4876-b238-5451e3e8eb46'},
+               {'feature_table': 'abc22fdc-e7fa-4976-a980-8f2ff8c4bb58'},
+               {'pcoa': '1ed04b10-d29c-495f-996e-3d4db89434d2'},
+               {'artifact_passed_as_metadata':
+                '415409a4-371d-4c69-9433-e3eaba5301b4'},
+               ]
+        actual = art_as_md_node.parents
+        self.assertEqual(actual, exp)
+
+    def test_parents_for_import_node(self):
+        import_node_id = 'a35830e1-4535-47c6-aa23-be295a57ee1c'
+        import_node = self.v5_dag.nodes[import_node_id]
+        exp = []
+        self.assertEqual(import_node['parents'], exp)
+
+#    def test_parse_metadata(self):
+#        self.assertTrue(False)

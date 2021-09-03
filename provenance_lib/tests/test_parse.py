@@ -460,18 +460,16 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
     # reduce test time and run more tests iteratively.
     # This class and ProvDAGTests, at least, would benefit
 
-    def setUp(self):
-        # Using a dag to back these tests, because the alternative is to
-        # hand-build two to three test nodes and mock a ProvDAG to hold them.
-        self.v5_dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
-        super().setUp()
-        self.root_metadata_fps = None
+    # Using a dag to back these tests, because the alternative is to
+    # hand-build two to three test nodes and mock a ProvDAG to hold them.
+    v5_dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
+    root_metadata_fps = None
 
-        with zipfile.ZipFile(TEST_DATA['5']['qzv_fp']) as zf:
-            all_filenames = zf.namelist()
-            root_md_fnames = filter(is_root_provnode_data, all_filenames)
-            root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
-            self.v5_ProvNode = ProvNode(zf, root_md_fps)
+    with zipfile.ZipFile(TEST_DATA['5']['qzv_fp']) as zf:
+        all_filenames = zf.namelist()
+        root_md_fnames = filter(is_root_provnode_data, all_filenames)
+        root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
+        v5_ProvNode = ProvNode(zf, root_md_fps)
 
     def test_smoke(self):
         self.assertTrue(True)

@@ -13,11 +13,18 @@ def is_root_provnode_data(fp):
     a filter predicate which returns metadata, action, citation,
     and VERSION fps with which we can construct a ProvNode
     """
-    return 'provenance' in fp and 'artifacts' not in fp and (
-        'metadata.yaml' in fp or
-        'action.yaml' in fp or
-        'citations.bib' in fp or
-        'VERSION')
+    # Handle provenance files...
+    if 'provenance' in fp and 'artifacts' not in fp \
+        and ('action.yaml' in fp or
+             'citations.bib' in fp
+             ):
+        return True
+
+    # then handle files available at root, which require a cast
+    if pathlib.Path(fp).parts[1] in ('VERSION',
+                                     'metadata.yaml',
+                                     'checksums.md5'):
+        return True
 
 
 @contextmanager

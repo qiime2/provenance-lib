@@ -86,31 +86,39 @@ class ProvDAGTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.v5_provDag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
+        cls.dags = dict()
+        for k in list(TEST_DATA):
+            cls.dags[k] = ProvDAG(str(TEST_DATA[k]['qzv_fp']))
 
     # This should only trigger if something fails in setup or above
-    # e.g. if v5_provDag fails to initialize
+    # e.g. if a ProvDag fails to initialize
     def test_smoke(self):
         self.assertTrue(True)
 
     def test_root_uuid_correct(self):
-        self.assertEqual(self.v5_provDag.root_uuid, TEST_DATA['5']['uuid'])
+        for dag_version in self.dags:
+            self.assertEqual(self.dags[dag_version].root_uuid,
+                             TEST_DATA[dag_version]['uuid'])
 
     def test_root_node_is_archive_root(self):
-        with zipfile.ZipFile(TEST_DATA['5']['qzv_fp']) as zf:
-            all_filenames = zf.namelist()
-            root_md_fnames = filter(is_root_provnode_data, all_filenames)
-            root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
-            v5_ProvNode = ProvNode(zf, root_md_fps)
-            self.assertEqual(v5_ProvNode, self.v5_provDag.root_node)
+        for dag_version in self.dags:
+            with zipfile.ZipFile(TEST_DATA[dag_version]['qzv_fp']) as zf:
+                all_filenames = zf.namelist()
+                root_md_fnames = filter(is_root_provnode_data, all_filenames)
+                root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
+                node = ProvNode(zf, root_md_fps)
+                self.assertEqual(node, self.dags[dag_version].root_node)
 
     def test_number_of_actions(self):
         # TODO: remove _num_results and rely on node.len()?
         # This call should be made once we've decided how to represent nodes,
         # e.g. nested or all-nodes/raw
         # At that time, remove one of these assertions
-        self.assertEqual(self.v5_provDag._num_results, TEST_DATA['5']['n_res'])
-        self.assertEqual(len(self.v5_provDag), TEST_DATA['5']['n_res'])
+        for dag_version in self.dags:
+            self.assertEqual(self.dags[dag_version]._num_results,
+                             TEST_DATA[dag_version]['n_res'])
+            self.assertEqual(len(self.dags[dag_version]),
+                             TEST_DATA[dag_version]['n_res'])
 
     def test_nonexistent_fp(self):
         fake_fp = os.path.join(DATA_DIR, 'not_a_filepath.qza')
@@ -124,13 +132,18 @@ class ProvDAGTests(unittest.TestCase):
             ProvDAG(not_a_zip)
 
     def test_is_digraph(self):
-        self.assertIsInstance(self.v5_provDag, DiGraph)
+        for dag_version in self.dags:
+            self.assertIsInstance(self.dags[dag_version], DiGraph)
 
     def test_has_nodes(self):
-        self.assertIn(TEST_DATA['5']['uuid'], self.v5_provDag.nodes)
+        for dag_version in self.dags:
+            self.assertIn(TEST_DATA[dag_version]['uuid'],
+                          self.dags[dag_version].nodes)
 
-    def test_root_node_attributes(self):
-        root_node = self.v5_provDag.nodes[TEST_DATA['5']['uuid']]
+    def test_v5root_node_attributes(self):
+        # Many of these attributes are being tested across version formats in
+        # the ProvNode tests. We're not going to worry about all the details
+        root_node = self.dags['5'].nodes[TEST_DATA['5']['uuid']]
         self.assertEqual(root_node['type'], 'Visualization')
         self.assertEqual(root_node['format'], None)
         self.assertEqual(root_node['framework_version'], '2018.11.0')
@@ -144,37 +157,41 @@ class ProvDAGTests(unittest.TestCase):
         self.assertEqual(root_node['runtime'],
                          timedelta(seconds=5, microseconds=249201))
 
-    def test_has_edges(self):
-        self.assertTrue(self.v5_provDag.has_edge(
+    def test_V5_has_edges(self):
+        self.assertTrue(self.dags['5'].has_edge(
             '89af91c0-033d-4e30-8ac4-f29a3b407dc1',
             'ffb7cee3-2f1f-4988-90cc-efd5184ef003'))
-        self.assertTrue(self.v5_provDag.has_edge(
+        self.assertTrue(self.dags['5'].has_edge(
             'bce3d09b-e296-4f2b-9af4-834db6412429',
             'ffb7cee3-2f1f-4988-90cc-efd5184ef003'))
 
-    def test_edge_types(self):
+    def test_v5_edge_types(self):
         self.assertEqual('table',
-                         self.v5_provDag
+                         self.dags['5']
                          ['89af91c0-033d-4e30-8ac4-f29a3b407dc1']
                          ['ffb7cee3-2f1f-4988-90cc-efd5184ef003']
                          ['type'])
         self.assertEqual('phylogeny',
-                         self.v5_provDag
+                         self.dags['5']
                          ['bce3d09b-e296-4f2b-9af4-834db6412429']
                          ['ffb7cee3-2f1f-4988-90cc-efd5184ef003']
                          ['type'])
 
     def test_str(self):
-        self.assertRegex(str(self.v5_provDag),
-                         '(?s)UUID:\t\tffb7cee3.*Type.*Data Format')
+        for dag_vzn in self.dags:
+            uuid = TEST_DATA[dag_vzn]['uuid']
+            self.assertRegex(str(self.dags[dag_vzn]),
+                             f'(?s)UUID:\t\t{uuid}.*Type.*Data Format')
 
     def test_repr(self):
-        self.assertRegex(
-            repr(self.v5_provDag),
-            '(?s)UUID:\t\tffb7cee3.*Type.*Data Format.*Contains')
+        for dag_vzn in self.dags:
+            uuid = TEST_DATA[dag_vzn]['uuid']
+            self.assertRegex(
+                repr(self.dags[dag_vzn]),
+                f'(?s)UUID:\t\t{uuid}.*Type.*Data Format.*Contains')
 
     # TODO: This should probably be reduced to a minimum example
-    def test_traverse_uuids(self):
+    def test_v5_traverse_uuids(self):
         exp = {'ffb7cee3-2f1f-4988-90cc-efd5184ef003':
                {'89af91c0-033d-4e30-8ac4-f29a3b407dc1':
                 {'99fa3670-aa1a-45f6-ba8e-803c976a1163':
@@ -183,11 +200,11 @@ class ProvDAGTests(unittest.TestCase):
                 {'7ecf8954-e49a-4605-992e-99fcee397935':
                  {'99fa3670-aa1a-45f6-ba8e-803c976a1163':
                   {'a35830e1-4535-47c6-aa23-be295a57ee1c': None}}}}}
-        actual = self.v5_provDag.traverse_uuids()
+        actual = self.dags['5'].traverse_uuids()
         self.assertEqual(actual, exp)
 
-    def test_repr_contains(self):
-        self.assertRegex(repr(self.v5_provDag),
+    def test_v5_repr_contains(self):
+        self.assertRegex(repr(self.dags['5']),
                          ('ffb7cee3-2f1f-4988-90cc-efd5184ef003:\n'
                           '  89af91c0-033d-4e30-8ac4-f29a3b407dc1:\n'
                           '    99fa3670-aa1a-45f6-ba8e-803c976a1163:\n'
@@ -199,7 +216,7 @@ class ProvDAGTests(unittest.TestCase):
                           '\n')
                          )
 
-    def test_archive_has_invalid_checksums(self):
+    def test_v5_archive_has_invalid_checksums(self):
         """
         Remove a file from an intact v5 Archive so that its checksums.md5 is
         invalid, and then build a ProvDAG with it to confirm the ProvDAG
@@ -469,83 +486,74 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
 
     @classmethod
     def setUpClass(cls):
-        with zipfile.ZipFile(TEST_DATA['5']['qzv_fp']) as zf:
-            all_filenames = zf.namelist()
-            root_md_fnames = filter(is_root_provnode_data, all_filenames)
-            root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
-            cls.v5_ProvNode = ProvNode(zf, root_md_fps)
-
-            import_node_id = 'a35830e1-4535-47c6-aa23-be295a57ee1c'
-            import_node_fnames = filter(lambda x: import_node_id in x,
-                                        all_filenames)
-            import_node_fps = [pathlib.Path(fp) for fp in import_node_fnames]
-            cls.import_node = ProvNode(zf, import_node_fps)
+        cls.nodes = dict()
+        for k in list(TEST_DATA):
+            with zipfile.ZipFile(TEST_DATA[k]['qzv_fp']) as zf:
+                all_filenames = zf.namelist()
+                root_md_fnames = filter(is_root_provnode_data, all_filenames)
+                root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
+                cls.nodes[k] = ProvNode(zf, root_md_fps)
 
     def test_smoke(self):
         self.assertTrue(True)
-        self.assertIs(type(self.v5_ProvNode), ProvNode)
+        for node_vzn in self.nodes:
+            self.assertIs(type(self.nodes[node_vzn]), ProvNode)
 
     def test_properties_with_viz(self):
         # TODO: test a qza?
-        # TODO: expand to other versions once we're globally loading ProvDAGs
-        with zipfile.ZipFile(TEST_DATA['0']['qzv_fp']) as zf:
-            root_md_fnames = [pathlib.Path(TEST_DATA['0']['uuid']) / fp for
-                              fp in ('metadata.yaml', 'VERSION')]
-            root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
-            self.v0_ProvNode = ProvNode(zf, root_md_fps)
-
-        nodes = {'0': self.v0_ProvNode,
-                 '5': self.v5_ProvNode,
-                 }
-        for node in nodes:
-            self.assertEqual(nodes[node].uuid, TEST_DATA[node]['uuid'])
-            self.assertEqual(nodes[node].sem_type, 'Visualization')
-            self.assertEqual(nodes[node].format, None)
-            self.assertEqual(nodes[node].archive_version,
+        for node in self.nodes:
+            self.assertEqual(self.nodes[node].uuid, TEST_DATA[node]['uuid'])
+            self.assertEqual(self.nodes[node].sem_type, 'Visualization')
+            self.assertEqual(self.nodes[node].format, None)
+            self.assertEqual(self.nodes[node].archive_version,
                              TEST_DATA[node]['av'])
-            self.assertEqual(nodes[node].framework_version,
+            self.assertEqual(self.nodes[node].framework_version,
                              TEST_DATA[node]['fwv'])
-            self.assertEqual(nodes[node].has_provenance,
+            self.assertEqual(self.nodes[node].has_provenance,
                              TEST_DATA[node]['has_prov'])
 
     def test_self_eq(self):
-        self.assertReallyEqual(self.v5_ProvNode, self.v5_ProvNode)
+        self.assertReallyEqual(self.nodes['5'], self.nodes['5'])
 
     def test_eq(self):
         # Mock has no matching UUID
         mock_node = MagicMock()
-        self.assertNotEqual(self.v5_ProvNode, mock_node)
+        self.assertNotEqual(self.nodes['5'], mock_node)
 
         # Mock has bad UUID
         mock_node.uuid = 'gerbil'
-        self.assertReallyNotEqual(self.v5_ProvNode, mock_node)
+        self.assertReallyNotEqual(self.nodes['5'], mock_node)
 
         # Matching UUIDs insufficient if classes differ
         mock_node.uuid = TEST_DATA['5']['uuid']
-        self.assertReallyNotEqual(self.v5_ProvNode, mock_node)
+        self.assertReallyNotEqual(self.nodes['5'], mock_node)
         mock_node.__class__ = ProvNode
-        self.assertReallyEqual(self.v5_ProvNode, mock_node)
+        self.assertReallyEqual(self.nodes['5'], mock_node)
 
     def test_is_hashable(self):
         exp_hash = hash(TEST_DATA['5']['uuid'])
-        self.assertReallyEqual(hash(self.v5_ProvNode), exp_hash)
+        self.assertReallyEqual(hash(self.nodes['5']), exp_hash)
 
     def test_str(self):
-        v5_uuid = TEST_DATA['5']['uuid']
-        self.assertEqual(str(self.v5_ProvNode), f'{v5_uuid}')
+        for node_vzn in self.nodes:
+            uuid = TEST_DATA[node_vzn]['uuid']
+            self.assertEqual(str(self.nodes[node_vzn]), f'{uuid}')
 
     def test_repr(self):
-        v5_uuid = TEST_DATA['5']['uuid']
-        self.assertEqual(repr(self.v5_ProvNode),
-                         f'ProvNode({v5_uuid}, Visualization, fmt=None)')
+        for node_vzn in self.nodes:
+            uuid = TEST_DATA[node_vzn]['uuid']
+            self.assertEqual(repr(self.nodes[node_vzn]),
+                             f'ProvNode({uuid}, Visualization, fmt=None)')
 
     def test_archive_version(self):
-        self.assertEqual(self.v5_ProvNode.archive_version,
-                         TEST_DATA['5']['av'])
+        for node_vzn in self.nodes:
+            self.assertEqual(self.nodes[node_vzn].archive_version,
+                             TEST_DATA[node_vzn]['av'])
 
     def test_framework_version(self):
-        self.assertEqual(self.v5_ProvNode.framework_version,
-                         TEST_DATA['5']['fwv'])
+        for node_vzn in self.nodes:
+            self.assertEqual(self.nodes[node_vzn].framework_version,
+                             TEST_DATA[node_vzn]['fwv'])
 
     def test_invalid_provenance(self):
         """
@@ -617,7 +625,7 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                      })
 
     def test_get_metadata_from_action(self):
-        find_md = self.v5_ProvNode._get_metadata_from_Action
+        find_md = self.nodes['5']._get_metadata_from_Action
         md1 = MetadataInfo([], 'some_metadata.tsv')
         md2 = MetadataInfo(['301b4'], 'other_metadata.tsv')
         md3 = MetadataInfo(['4154', '5555b'], 'merged_metadata.tsv')
@@ -642,7 +650,7 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
         self.assertEqual(artifacts_as_md, a_as_md_exp)
 
     def test_get_metadata_from_action_with_actual_node(self):
-        find_md = self.v5_ProvNode._get_metadata_from_Action
+        find_md = self.nodes['5']._get_metadata_from_Action
         all_md, artifacts_as_md = find_md()
         exp = {'metadata': 'metadata.tsv'}
         self.assertEqual(all_md, exp)
@@ -651,7 +659,7 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
     def test_get_metadata_from_action_with_no_params(self):
         # Not sure which of these test data are possible in action.yaml, but
         # we'll check them both just in case
-        find_md = self.v5_ProvNode._get_metadata_from_Action
+        find_md = self.nodes['5']._get_metadata_from_Action
         action_details = \
             {'parameters': []}
         all_md, artifacts_as_md = find_md(action_details)
@@ -666,7 +674,7 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
     def test_parents(self):
         exp = [{'table': '89af91c0-033d-4e30-8ac4-f29a3b407dc1'},
                {'phylogeny': 'bce3d09b-e296-4f2b-9af4-834db6412429'}]
-        self.assertEqual(self.v5_ProvNode.parents, exp)
+        self.assertEqual(self.nodes['5'].parents, exp)
 
     def test_parents_with_artifact_passed_as_md(self):
         pfx = pathlib.Path('action_artifact_as_md')
@@ -686,8 +694,17 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
         self.assertEqual(actual, exp)
 
     def test_parents_for_import_node(self):
-        exp = []
-        self.assertEqual(self.import_node.parents, exp)
+        with zipfile.ZipFile(TEST_DATA['5']['qzv_fp']) as zf:
+            import_node_id = 'a35830e1-4535-47c6-aa23-be295a57ee1c'
+            reqd_fps = ('VERSION', 'metadata.yaml', 'action.yaml')
+            import_node_fps = [
+                pathlib.Path(fp) for fp in zf.namelist()
+                if import_node_id in fp
+                and any(map(lambda x: x in fp, reqd_fps))
+                ]
+            import_node = ProvNode(zf, import_node_fps)
+
+        self.assertEqual(import_node.parents, [])
 
 #    def test_parse_metadata(self):
 #        self.assertTrue(False)

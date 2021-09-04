@@ -63,7 +63,7 @@ class ProvDAG(DiGraph):
         # Use this DAG's root uuid by default
         node_id = self.root_uuid if node_id is None else node_id
         local_parents = dict()
-        if not self.nodes[node_id]['parents']:
+        if not self.nodes[node_id].get('parents'):
             local_parents = {node_id: None}
         else:
             sub_dag = dict()  # type: Dict[UUID, Optional[ProvNode]]

@@ -260,7 +260,15 @@ class ProvDAGTests(unittest.TestCase):
             uuid = TEST_DATA['5']['uuid']
             expected = (f'no item.*{uuid}.*Archive may be corrupt')
             with self.assertWarnsRegex(UserWarning, expected):
-                ProvDAG(chopped_archive)
+                a_dag = ProvDAG(chopped_archive)
+
+            # Have we set provenance_is_valid correctly?
+            root_node = a_dag.nodes[uuid]
+            self.assertEqual(root_node['provenance_is_valid'], False)
+
+            # Is the diff correct?
+            diff = root_node['checksum_diff']
+            self.assertEqual(diff, None)
 
 
 class ParserVxTests(unittest.TestCase):

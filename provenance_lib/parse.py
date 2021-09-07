@@ -10,7 +10,7 @@ import bibtexparser as bp
 from networkx import DiGraph
 import yaml
 
-from .checksum_validator import ChecksumDiff, validate_checksums
+from .checksum_validator import validate_checksums
 from .version_parser import get_version
 from .yaml_constructors import CONSTRUCTOR_REGISTRY, MetadataInfo
 
@@ -220,34 +220,11 @@ class ProvNode:
             elif fp.name == 'citations.bib':
                 self.citations = _Citations(zf, str(fp))
             elif fp.name == 'checksums.md5':
-                self.checksum_diff: Optional[ChecksumDiff]
-                try:
-                    # TODO: factor this checking out into checksum_validator.py
-                    diff = validate_checksums(zf)
-                    if diff != ChecksumDiff({}, {}, {}):
-                        # self._result_md may not have been parsed, so get uuid
-                        root_uuid = pathlib.Path(zf.namelist()[0]).parts[0]
-                        warnings.warn(
-                            f"Checksums are invalid for Archive {root_uuid}\n"
-                            "Archive may be corrupt or provenance may be false"
-                            ".\n"
-                            f"Files added since archive creation: {diff[0]}\n"
-                            f"Files removed since archive creation: {diff[1]}"
-                            "\n"
-                            f"Files changed since archive creation: {diff[2]}",
-                            UserWarning)
-                        self.provenance_is_valid = False
-                        self.checksum_diff = diff
-                # zipfiles KeyError if file not found. checksums.md5 is missing
-                except KeyError as err:
-                    warnings.warn(
-                        str(err).strip('"') +
-                        ". Archive may be corrupt or provenance may be false",
-                        UserWarning)
-                    self.provenance_is_valid = False
-                    self.checksum_diff = None
+                # self.checksum_diff: Optional[ChecksumDiff]
+                self.provenance_is_valid, self.checksum_diff = \
+                    validate_checksums(zf)
 
-        # If the _Action constructor finds metadata files, this will parse them
+        # If the _Action constructor finds metadata files, we parse them
         # TODO: This should be a user-facing option, right?
         # Isn't Metadata parsing only useful if we want to use the
         # same metadata for our replay as we did in the original.

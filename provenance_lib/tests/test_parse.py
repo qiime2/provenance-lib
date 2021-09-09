@@ -577,7 +577,7 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
         Modified from test_checksum_validator.test_checksums_mismatch
         """
         original_archive = TEST_DATA['5']['qzv_fp']
-        drop_file = pathlib.Path('metadata.yaml')
+        drop_file = pathlib.Path('data') / 'emperor.html'
         root_uuid = TEST_DATA['5']['uuid']
         fp_pfx = pathlib.Path(root_uuid)
         with generate_archive_with_file_removed(
@@ -604,15 +604,16 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                             f'Checksums are invalid for Archive {uuid}.*\n'
                             'Archive may be corrupt.*\n'
                             'Files added.*tamper.*296583.*\n'
-                            'Files removed.*metadata.*2eb067.*\n'
+                            'Files removed.*emperor.*c42b3.*\n'
                             'Files changed.*data.*index.*065031.*f47bc3.*'
                             )
                 with self.assertWarnsRegex(UserWarning, expected):
                     # NOTE: Using a minimal list of filenames for speed.
                     a_node = ProvNode(
                         zf,
-                        [pathlib.Path('checksums.md5'),
+                        [fp_pfx / 'metadata.yaml',
                          fp_pfx / 'VERSION',
+                         fp_pfx / 'checksums.md5',
                          fp_pfx / 'provenance' / 'action' / 'action.yaml'
                          ])
 
@@ -622,7 +623,7 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                 # Is the diff correct?
                 diff = a_node.checksum_diff
                 self.assertEqual(list(diff.removed.keys()),
-                                 ['metadata.yaml'])
+                                 ['data/emperor.html'])
                 self.assertEqual(
                     diff.added,
                     {'tamper.txt': '296583001b00d2b811b5871b19e0ad28'})
@@ -685,12 +686,14 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
         self.assertEqual(self.nodes['5'].parents, exp)
 
     def test_parents_with_artifact_passed_as_md(self):
-        pfx = pathlib.Path('action_artifact_as_md')
-        artifact_as_md_fp = os.path.join(DATA_DIR, str(pfx) + '.zip')
+        fn = pathlib.Path('action_artifact_as_md.zip')
+        pfx = pathlib.Path(TEST_DATA['5']['uuid'])
+        artifact_as_md_fp = os.path.join(DATA_DIR, str(fn))
         with zipfile.ZipFile(artifact_as_md_fp) as zf:
             art_as_md_node = ProvNode(zf,
                                       [pfx / 'VERSION',
-                                       pfx / 'action.yaml'])
+                                       pfx / 'metadata.yaml',
+                                       pfx / 'provenance/action/action.yaml'])
 
         exp = [{'tree': 'e710bdc5-e875-4876-b238-5451e3e8eb46'},
                {'feature_table': 'abc22fdc-e7fa-4976-a980-8f2ff8c4bb58'},

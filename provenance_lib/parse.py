@@ -1,4 +1,5 @@
 from __future__ import annotations
+from io import BytesIO
 import pathlib
 import pandas as pd
 from datetime import timedelta
@@ -127,6 +128,7 @@ class ProvDAG(DiGraph):
                 if not provnode.provenance_is_valid:
                     self.nodes[node].update({'checksum_diff':
                                              provnode.checksum_diff})
+                self.nodes[node]['metadata'] = provnode.metadata
 
             # NOTE: When parsing v1+ archives, v0 ancestor nodes without
             # tracked provenance (e.g. !no-provenance inputs) are discovered
@@ -180,6 +182,14 @@ class ProvNode:
     @property
     def has_provenance(self) -> bool:
         return self.archive_version != '0'
+
+    @property
+    def metadata(self) -> Dict[str, pd.DataFrame]:
+        if hasattr(self, '_metadata'):
+            md = self._metadata
+        else:
+            md = None
+        return md
 
     @property
     def parents(self) -> List[Dict[str, UUID]]:
@@ -236,9 +246,9 @@ class ProvNode:
         # there is no action.yaml to interrogate.
         # TODO NEXT: test what happens if archive has had action.yaml removed
         if self.has_provenance:
-            self._all_metadata_files, self._artifacts_passed_as_md = \
+            all_metadata_fps, self._artifacts_passed_as_md = \
                 self._get_metadata_from_Action()
-            self._metadata = self._parse_metadata(zf)
+            self._metadata = self._parse_metadata(zf, all_metadata_fps)
 
     def _get_metadata_from_Action(
         self, mock_action_details: Dict[str, List] = None) \
@@ -315,7 +325,9 @@ class ProvNode:
 
         return all_metadata, artifacts_as_metadata
 
-    def _parse_metadata(self, zf: zipfile.ZipFile) -> Dict[str, pd.DataFrame]:
+    def _parse_metadata(self, zf: zipfile.ZipFile,
+                        metadata_fps: Dict[str, str]) -> \
+            Dict[str, pd.DataFrame]:
         """
         Parses all metadata files captured from Metadata and MetadataColumns
         (identifiable by !metadata tags) into pd.DataFrames.
@@ -324,9 +336,20 @@ class ProvNode:
         original associated parameter, the type (MetadataColumn or Metadata),
         and the appropriate Series or Dataframe respectively.
         """
-        all_md = self._all_metadata_files
-        # TODO: NEXT parse metadata into our object, returning a
-        # {param_name: pd.DF}
+        root_uuid = pathlib.Path(zf.namelist()[0]).parts[0]
+        pfx = pathlib.Path(root_uuid) / 'provenance'
+        if root_uuid == self.uuid:
+            pfx = pfx / 'action'
+        else:
+            pfx = pfx / 'artifacts' / self.uuid / 'action'
+
+        all_md = dict()
+        for param_name in metadata_fps:
+            filename = str(pfx / metadata_fps[param_name])
+            with zf.open(filename) as myfile:
+                df = pd.read_csv(BytesIO(myfile.read()), sep='\t')
+                all_md.update({param_name: df})
+
         return all_md
 
     def __repr__(self) -> str:
@@ -465,11 +488,27 @@ class ParserV0():
         num_results = 1
         uuid = pathlib.Path(zf.namelist()[0]).parts[0]
         warnings.warn(f"Artifact {uuid} was created prior to provenance" +
-                      "tracking. Provenance data will be incomplete.",
+                      " tracking. Provenance data will be incomplete.",
                       UserWarning)
         prov_data_fps = [pathlib.Path(uuid) / fp for fp in self.expected_files]
         archv_contents[uuid] = ProvNode(zf, prov_data_fps)
         return (num_results, archv_contents)
+
+    @classmethod
+    def confirm_expected_files_are_present(self):
+        """
+        Checks that all expected files are present in the passed archive.
+        This will vary based on archive format version, but will always include
+        - 1 VERSION file
+        - 1 metadata.yaml at the root level
+
+        By placing this here, we consolidate checks for missing files
+        into one location, and head off KeyError bugs caused by missing files
+        preventing the creation of required attributes
+        """
+        # TODO: handle per-uuid action.yamls and citations.bib
+        # TODO: handle checksums.md5
+        pass
 
 
 class ParserV1(ParserV0):

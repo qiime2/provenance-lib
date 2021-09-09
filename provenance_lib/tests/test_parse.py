@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 import pathlib
 import unittest
 from datetime import timedelta
@@ -86,6 +87,7 @@ class ProvDAGTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        # TODO: catch/supress warning for v0 provDag
         cls.dags = dict()
         for k in list(TEST_DATA):
             cls.dags[k] = ProvDAG(str(TEST_DATA[k]['qzv_fp']))
@@ -156,6 +158,8 @@ class ProvDAGTests(unittest.TestCase):
                       root_node['parents'])
         self.assertEqual(root_node['runtime'],
                          timedelta(seconds=5, microseconds=249201))
+        self.assertIn('metadata', root_node['metadata'])
+        self.assertEqual(type(root_node['metadata']['metadata']), pd.DataFrame)
 
     def test_V5_has_edges(self):
         self.assertTrue(self.dags['5'].has_edge(
@@ -489,11 +493,9 @@ class CitationsTests(unittest.TestCase):
 
 
 class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
-    # TODO: load ProvNodes for v0-v5 and make them globally available to these
-    # test classes. This class and ProvDAGTests, at least, would benefit
-
     @classmethod
     def setUpClass(cls):
+        # Build root nodes for all archive format versions
         cls.nodes = dict()
         for k in list(TEST_DATA):
             with zipfile.ZipFile(TEST_DATA[k]['qzv_fp']) as zf:
@@ -501,6 +503,40 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                 root_md_fnames = filter(is_root_provnode_data, all_filenames)
                 root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
                 cls.nodes[k] = ProvNode(zf, root_md_fps)
+
+        # Build a minimal node in which Artifacts are passed as metadata
+        filename = pathlib.Path('minimal_v4_artifact_as_md.zip')
+        pfx = pathlib.Path(TEST_DATA['5']['uuid'])
+        artifact_as_md_fp = os.path.join(DATA_DIR, filename)
+        with zipfile.ZipFile(artifact_as_md_fp) as zf:
+            cls.art_as_md_node = ProvNode(
+                zf,
+                [pfx / 'VERSION',
+                 pfx / 'metadata.yaml',
+                 pfx / 'provenance/action/action.yaml'])
+
+        # Build a nonroot node without metadata
+        with zipfile.ZipFile(TEST_DATA[k]['qzv_fp']) as zf:
+            node_id = '3b7d36ff-37ab-4ac2-958b-6a547d442bcf'
+            all_filenames = zf.namelist()
+            node_fps = [
+                pathlib.Path(fp) for fp in all_filenames if
+                'VERSION' in fp or
+                node_id in fp and
+                ('metadata.yaml' in fp or 'action.yaml' in fp)
+                ]
+            cls.nonroot_non_md_node = ProvNode(zf, node_fps)
+
+            # Build a nonroot node with metadata
+            node_id = '0af08fa8-48b7-4c6a-83c6-e0f766156343'
+            all_filenames = zf.namelist()
+            node_fps = [
+                pathlib.Path(fp) for fp in all_filenames if
+                'VERSION' in fp or
+                node_id in fp and
+                ('metadata.yaml' in fp or 'action.yaml' in fp)
+                ]
+            cls.nonroot_md_node = ProvNode(zf, node_fps)
 
     def test_smoke(self):
         self.assertTrue(True)
@@ -680,28 +716,62 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
         self.assertEqual(all_md, {})
         self.assertEqual(artifacts_as_md, [])
 
+    def test_metadata_available_in_property(self):
+        self.assertEqual(type(self.nodes['5'].metadata), dict)
+        self.assertIn('metadata', self.nodes['5'].metadata)
+        self.assertEqual(type(self.nodes['5'].metadata['metadata']),
+                         pd.DataFrame)
+
+    def test_metadata_is_correct(self):
+        # Were parameter names captured correctly?
+        self.assertIn('sample_metadata', self.art_as_md_node.metadata)
+        self.assertIn('feature_metadata', self.art_as_md_node.metadata)
+
+        # Does sample metadata look right?
+        s_m_data = {'sampleid': ['#q2:types', 's_id_123'],
+                    'barcodeSequence': ['categorical', 'TACCGCTTCTTC'],
+                    'isGerbil': ['categorical', 'totally']}
+        s_m_exp = pd.DataFrame(s_m_data, columns=s_m_data.keys())
+        pd.testing.assert_frame_equal(
+            s_m_exp,
+            self.art_as_md_node.metadata['sample_metadata'])
+
+        # Does feature metadata look right?
+        f_m_data = {'Feature ID': ['#q2:types', 'feature_id_123'],
+                    'Taxon': ['categorical', 'd__Bacteria; p__Firmicutes'],
+                    'Confidence': ['categorical', '0.9']}
+        f_m_exp = pd.DataFrame(f_m_data, columns=f_m_data.keys())
+        pd.testing.assert_frame_equal(
+            f_m_exp,
+            self.art_as_md_node.metadata['feature_metadata'])
+
+    def test_has_no_provenance_so_no_metadata(self):
+        self.assertEqual(self.nodes['0'].has_provenance, False)
+        self.assertEqual(self.nodes['0'].metadata, None)
+
+    def test_node_has_provenance_but_no_metadata(self):
+        self.assertIn('3b7d36ff', self.nonroot_non_md_node.uuid)
+        self.assertEqual(self.nonroot_non_md_node.has_provenance, True)
+        self.assertEqual(self.nonroot_non_md_node.metadata, {})
+
+    def test_parse_metadata_for_nonroot_node(self):
+        self.assertIn('0af08fa8', self.nonroot_md_node.uuid)
+        self.assertEqual(self.nonroot_md_node.has_provenance, True)
+        self.assertIn('metadata', self.nonroot_md_node.metadata)
+
     def test_parents(self):
         exp = [{'table': '89af91c0-033d-4e30-8ac4-f29a3b407dc1'},
                {'phylogeny': 'bce3d09b-e296-4f2b-9af4-834db6412429'}]
         self.assertEqual(self.nodes['5'].parents, exp)
 
     def test_parents_with_artifact_passed_as_md(self):
-        fn = pathlib.Path('action_artifact_as_md.zip')
-        pfx = pathlib.Path(TEST_DATA['5']['uuid'])
-        artifact_as_md_fp = os.path.join(DATA_DIR, str(fn))
-        with zipfile.ZipFile(artifact_as_md_fp) as zf:
-            art_as_md_node = ProvNode(zf,
-                                      [pfx / 'VERSION',
-                                       pfx / 'metadata.yaml',
-                                       pfx / 'provenance/action/action.yaml'])
-
         exp = [{'tree': 'e710bdc5-e875-4876-b238-5451e3e8eb46'},
                {'feature_table': 'abc22fdc-e7fa-4976-a980-8f2ff8c4bb58'},
                {'pcoa': '1ed04b10-d29c-495f-996e-3d4db89434d2'},
                {'artifact_passed_as_metadata':
                 '415409a4-371d-4c69-9433-e3eaba5301b4'},
                ]
-        actual = art_as_md_node.parents
+        actual = self.art_as_md_node.parents
         self.assertEqual(actual, exp)
 
     def test_parents_for_import_node(self):
@@ -716,6 +786,3 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
             import_node = ProvNode(zf, import_node_fps)
 
         self.assertEqual(import_node.parents, [])
-
-#    def test_parse_metadata(self):
-#        self.assertTrue(False)

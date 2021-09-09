@@ -184,11 +184,20 @@ class ProvNode:
         return self.archive_version != '0'
 
     @property
-    def metadata(self) -> Dict[str, pd.DataFrame]:
+    def metadata(self) -> Optional[Dict[str, pd.DataFrame]]:
+        """
+        A dict containing {parameter_name: metadata_dataframe} pairs, where
+        parameter_name is the registered name of the parameter the Metadata
+        or MetadataColumn was passed to.
+
+        Returns {} if this action took in no Metadata or MetadataColumn
+
+        Returns None if this action has no metadata because the archive has no
+        provenance.
+        """
+        md = None
         if hasattr(self, '_metadata'):
             md = self._metadata
-        else:
-            md = None
         return md
 
     @property
@@ -331,6 +340,8 @@ class ProvNode:
         """
         Parses all metadata files captured from Metadata and MetadataColumns
         (identifiable by !metadata tags) into pd.DataFrames.
+
+        Returns an empty dict if there is no metadata.
 
         In the future, we may need a simple type that can hold the name of the
         original associated parameter, the type (MetadataColumn or Metadata),

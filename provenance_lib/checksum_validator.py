@@ -21,6 +21,9 @@ def validate_checksums(zf: zipfile.ZipFile) -> Tuple[bool,
     """
     provenance_is_valid = True
     checksum_diff = None
+
+    # TODO: Try/except should be in diff_checksums, where the file io happens
+
     try:
         diff = diff_checksums(zf)
         if diff != ChecksumDiff({}, {}, {}):

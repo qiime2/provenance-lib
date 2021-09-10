@@ -477,7 +477,8 @@ class ParserV0():
     """
     version_string = 0
     # These are files we expect will be present in every QIIME2 archive with
-    # this format. "Optional" filenames should not be included here.
+    # this format. "Optional" filenames (like Metadata, which may or may
+    # not be present in an archive) should not be included here.
     expected_files = ('metadata.yaml', 'VERSION')  # type: Tuple[str, ...]
 
     @classmethod
@@ -529,7 +530,8 @@ class ParserV1(ParserV0):
     expected_files: Tuple[str, ...]
     version_string = 1
     # These are files we expect will be present in every QIIME2 archive with
-    # this format. "Optional" filenames should not be included here.
+    # this format. "Optional" filenames (like Metadata, which may or may
+    # not be present in an archive) should not be included here.
     expected_files = ('metadata.yaml', 'action/action.yaml', 'VERSION')
 
     @classmethod

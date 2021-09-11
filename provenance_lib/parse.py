@@ -240,6 +240,7 @@ class ProvNode:
                 self.citations = _Citations(zf, str(fp))
             elif fp.name == 'checksums.md5':
                 # self.checksum_diff: Optional[ChecksumDiff]
+                # TODO: This should only be done once per DAG, not per node
                 self.provenance_is_valid, self.checksum_diff = \
                     validate_checksums(zf)
 
@@ -250,14 +251,23 @@ class ProvNode:
         # This would require identical UUIDs, as well as an
         # identical mapping of metadata to those UUIDs.
         # This seems like a neat trick, but not a common use case?
-
         # This only makes sense if we have provenance to track. Otherwise,
         # there is no action.yaml to interrogate.
-        # TODO NEXT: test what happens if archive has had action.yaml removed
+
+        # TODO NEXT: test what happens if archive has had action.yaml removed.
+        # This should be done with and without checksum validation!
+        # This logic will be targeted by that test
         if self.has_provenance:
-            all_metadata_fps, self._artifacts_passed_as_md = \
-                self._get_metadata_from_Action()
-            self._metadata = self._parse_metadata(zf, all_metadata_fps)
+            if hasattr(self, 'action'):
+                all_metadata_fps, self._artifacts_passed_as_md = \
+                    self._get_metadata_from_Action()
+                self._metadata = self._parse_metadata(zf, all_metadata_fps)
+            else:
+                warnings.warn(
+                    f"\'action.yaml\' file missing for node {self.uuid}. "
+                    "Archive may be corrupt or provenance may be false",
+                    UserWarning)
+                self.provenance_is_valid = False
 
     def _get_metadata_from_Action(
         self, mock_action_details: Dict[str, List] = None) \
@@ -521,16 +531,6 @@ class ParserV1(ParserV0):
     expected_files = ('metadata.yaml', 'action/action.yaml', 'VERSION')
 
     @classmethod
-    def _get_prov_data_fps(
-        cls, zf: zipfile.ZipFile, expected_files: Tuple['str', ...]) -> \
-            List[pathlib.Path]:
-        return [pathlib.Path(fp) for fp in zf.namelist()
-                if 'provenance' in fp
-                # and any of the filenames above show up in the filepath
-                and any(map(lambda x: x in fp, expected_files))
-                ]
-
-    @classmethod
     def parse_prov(cls, zf: zipfile.ZipFile) -> \
             Tuple[_ResultMetadata, int, Dict[UUID, ProvNode]]:
         """
@@ -554,9 +554,20 @@ class ParserV1(ParserV0):
         archv_contents = {}
         num_results = 0
 
+        # TODO: NEXT  Checksum validation _should_ be moved here, so it doesn't
+        # run once per node (eww).
+        # - ProvDAGs are going to need a separate provenance_is_valid attribute
+        # - they should probably hold the checksum diff.
+        # - "has_provenance" definitely needs to exist at the node level (for
+        # nested v0 nodes in v1 archives) - not sure whether there's value in
+        # mirroring that at the DAG level
+        # if user wants checksum validation:
+        #     validate_checksums
+
         prov_data_fps = cls._get_prov_data_fps(zf, cls.expected_files)
         root_uuid = pathlib.Path(zf.namelist()[0]).parts[0]
 
+        # TODO: rename to _parse_root_md?
         root_md = cls._get_root_md(zf, root_uuid)
 
         # make a provnode for each UUID
@@ -575,6 +586,16 @@ class ParserV1(ParserV0):
                 num_results += 1
                 archv_contents[node_uuid] = ProvNode(zf, fps_for_this_result)
         return (root_md, num_results, archv_contents)
+
+    @classmethod
+    def _get_prov_data_fps(
+        cls, zf: zipfile.ZipFile, expected_files: Tuple['str', ...]) -> \
+            List[pathlib.Path]:
+        return [pathlib.Path(fp) for fp in zf.namelist()
+                if 'provenance' in fp
+                # and any of the filenames above show up in the filepath
+                and any(map(lambda x: x in fp, expected_files))
+                ]
 
     @classmethod
     def _get_nonroot_uuid(cls, fp: pathlib.Path) -> UUID:

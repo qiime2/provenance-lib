@@ -11,6 +11,7 @@ _VERSION_MATCHER = (
     r'(?:20[0-9]{2}|2)\.(?:[1-9][0-2]?|0)\.[0-9](?:\.dev[0-9]?)?\Z')
 
 
+# TODO: rename to parse_VERSION?
 def get_version(zf: zipfile.ZipFile,
                 fp: Optional[pathlib.Path] = None) -> Tuple[str, str]:
     """Parse a VERSION file - by default uses the VERSION at archive root"""
@@ -25,12 +26,14 @@ def get_version(zf: zipfile.ZipFile,
             version_contents = str(v_fp.read().strip(), 'utf-8')
     except KeyError:
         raise ValueError(
+            # TODO: Report the UUID of the failing artifact
             "Malformed Archive: VERSION file misplaced or nonexistent")
 
     if not re.match(_VERSION_MATCHER, version_contents, re.MULTILINE):
         _vrsn_mtch_repr = codecs.decode(_VERSION_MATCHER.encode('utf-8'),
                                         'unicode-escape')
         raise ValueError(
+            # TODO: Report the UUID of the failing artifact
             "Malformed Archive: VERSION file out of spec\n\n"
             f"Should match this RE:\n{_vrsn_mtch_repr}\n\n"
             f"Actually looks like:\n{version_contents}\n")

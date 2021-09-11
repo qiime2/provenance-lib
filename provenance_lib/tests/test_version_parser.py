@@ -64,7 +64,8 @@ class ArchiveVersionMatcherTests(unittest.TestCase):
         )
         self.assertNotRegex(longy, _VERSION_MATCHER)
 
-    splitvm = codecs.decode(_VERSION_MATCHER, 'unicode-escape').split(sep='\n')
+    splitvm = codecs.decode(_VERSION_MATCHER.encode('utf-8'),
+                            'unicode-escape').split(sep='\n')
     re_l1, re_l2, re_l3 = splitvm
 
     def test_line1_good(self):

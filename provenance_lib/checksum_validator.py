@@ -2,8 +2,9 @@ import collections
 import hashlib
 import io
 import pathlib
+import warnings
 import zipfile
-from typing import Tuple
+from typing import Optional, Tuple
 
 from .version_parser import get_version
 
@@ -12,7 +13,45 @@ ChecksumDiff = collections.namedtuple(
     'ChecksumDiff', ['added', 'removed', 'changed'])
 
 
-def validate_checksums(zf: zipfile.ZipFile) -> ChecksumDiff:
+def validate_checksums(zf: zipfile.ZipFile) -> Tuple[bool,
+                                                     Optional[ChecksumDiff]]:
+    """
+    Uses diff_checksums to validate the archive's provenance, warning the user
+    if checksums.md5 is missing, or if the archive is corrupt/has been modified
+    """
+    provenance_is_valid = True
+    checksum_diff = None
+
+    # TODO: Try/except should be in diff_checksums, where the file io happens
+
+    try:
+        diff = diff_checksums(zf)
+        if diff != ChecksumDiff({}, {}, {}):
+            # self._result_md may not have been parsed, so get uuid
+            root_uuid = pathlib.Path(zf.namelist()[0]).parts[0]
+            warnings.warn(
+                f"Checksums are invalid for Archive {root_uuid}\n"
+                "Archive may be corrupt or provenance may be false"
+                ".\n"
+                f"Files added since archive creation: {diff[0]}\n"
+                f"Files removed since archive creation: {diff[1]}"
+                "\n"
+                f"Files changed since archive creation: {diff[2]}",
+                UserWarning)
+            provenance_is_valid = False
+            checksum_diff = diff
+    # zipfiles KeyError if file not found. warn if checksums.md5 is missing
+    except KeyError as err:
+        warnings.warn(
+            str(err).strip('"') +
+            ". Archive may be corrupt or provenance may be false",
+            UserWarning)
+        provenance_is_valid = False
+
+    return (provenance_is_valid, checksum_diff)
+
+
+def diff_checksums(zf: zipfile.ZipFile) -> ChecksumDiff:
     """
     Calculates checksums for all files in an archive (excepting checksums.md5)
     Compares these against the checksums stored in checksums.md5, returning
@@ -79,7 +118,7 @@ def md5sum(zf: zipfile.ZipFile, filepath: str) -> str:
     return md5.hexdigest()
 
 
-def from_checksum_format(line: bytes) -> Tuple[str, str]:
+def from_checksum_format(line_bytes: bytes) -> Tuple[str, str]:
     """
     Given one line of bytes from a checksums.md5 file,
     parses the line and returns the filepath and that file's recorded checksum
@@ -91,7 +130,7 @@ def from_checksum_format(line: bytes) -> Tuple[str, str]:
 
     Code adapted from qiime2/core/util.py
     """
-    line = str(line, 'utf-8').rstrip('\n')
+    line = str(line_bytes, 'utf-8').rstrip('\n')
     parts = line.split('  ', 1)
     if len(parts) < 2:
         parts = line.split(' *', 1)

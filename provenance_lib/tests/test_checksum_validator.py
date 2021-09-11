@@ -5,7 +5,7 @@ import unittest
 import zipfile
 
 from ..checksum_validator import (
-    validate_checksums, md5sum_directory, md5sum, from_checksum_format,
+    diff_checksums, md5sum_directory, md5sum, from_checksum_format,
 )
 from .test_parse import TEST_DATA
 from .util import (
@@ -24,7 +24,7 @@ class ValidateChecksumTests(unittest.TestCase):
         for archv_vrsn in TEST_DATA:
             fp = TEST_DATA[archv_vrsn]['qzv_fp']
             with zipfile.ZipFile(fp) as zf:
-                diff = validate_checksums(zf)
+                diff = diff_checksums(zf)
 
                 self.assertEqual(diff.added, {})
                 self.assertEqual(diff.removed, {})
@@ -63,7 +63,7 @@ class ValidateChecksumTests(unittest.TestCase):
                     with zf.open(extant_fn, 'w') as myfile:
                         myfile.write(b'999\n')
 
-                diff = validate_checksums(zf)
+                diff = diff_checksums(zf)
 
             # Here we'll just check name for reasons of simplicity
             self.assertEqual(list(diff.removed.keys()), ['metadata.yaml'])
@@ -241,21 +241,37 @@ class FromChecksumFormatTests(unittest.TestCase):
         self.assertEqual(chks, '939aaaae6098ebdab049b0f3abe7b68c')
 
     def test_filepath_with_leading_backslash(self):
-        line = (
-            rb'\939aaaae6098ebdab049b0f3abe7b68c  \filepath/\n/with/\\newline'
-            + b'\n'  # Newline from a checksum "file"
-        )
+        line = rb'\d41d8cd98f00b204e9800998ecf8427e  \\.qza'
         fp, chks = from_checksum_format(line)
 
-        self.assertEqual(fp, '\\filepath/\n/with/\\newline')
-        self.assertEqual(chks, '939aaaae6098ebdab049b0f3abe7b68c')
+        self.assertEqual(chks, 'd41d8cd98f00b204e9800998ecf8427e')
+        self.assertEqual(fp, r'\.qza')
 
     def test_filepath_with_leading_backslashes(self):
-        line = (
-            rb'\939aaaae6098ebdab049b0f3abe7b68c  \\filepath/\n/with/\\newline'
-            + b'\n'  # Newline from a checksum "file"
-        )
+        line = rb'\d41d8cd98f00b204e9800998ecf8427e  \\\\\\.qza'
         fp, chks = from_checksum_format(line)
+
+        self.assertEqual(fp, r'\\\.qza')
+        self.assertEqual(chks, 'd41d8cd98f00b204e9800998ecf8427e')
+
+    def test_impossible_backslash(self):
+        """
+        It may not be possible to generate a single '\' in the md5sum digest,
+        because each '\' is escaped (as '\\') in the digest. We'll test
+        for it anyway, for coverage.
+
+        The same filepath results regardless of whether checksum[0] == '\\'.
+        """
+        fp, _ = from_checksum_format(
+            rb'fake_checksum  \.qza'
+        )
+
+        fp2, _ = from_checksum_format(
+            rb'\fake_checksum  \.qza'
+        )
+
+        self.assertEqual(fp, r'\.qza')
+        self.assertEqual(fp2, r'\.qza')
 
     def test_from_legacy_format(self):
         fp, chks = from_checksum_format(

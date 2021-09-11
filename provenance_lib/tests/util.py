@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from typing import Generator
 import pathlib
 import tempfile
 import zipfile
@@ -12,17 +13,24 @@ def is_root_provnode_data(fp):
     a filter predicate which returns metadata, action, citation,
     and VERSION fps with which we can construct a ProvNode
     """
-    return 'provenance' in fp and 'artifacts' not in fp and (
-        'metadata.yaml' in fp or
-        'action.yaml' in fp or
-        'citations.bib' in fp or
-        'VERSION')
+    # Handle provenance files...
+    if 'provenance' in fp and 'artifacts' not in fp \
+        and ('action.yaml' in fp or
+             'citations.bib' in fp
+             ):
+        return True
+
+    # then handle files available at root, which require a cast
+    if pathlib.Path(fp).parts[1] in ('VERSION',
+                                     'metadata.yaml',
+                                     'checksums.md5'):
+        return True
 
 
 @contextmanager
 def generate_archive_with_file_removed(qzv_fp: str, root_uuid: UUID,
                                        file_to_drop: pathlib.Path) -> \
-                                           pathlib.Path:
+                                           Generator[pathlib.Path, None, None]:
     """
     Deleting files from zip archives is hard, so this makes a temporary
     copy of qzf_fp with fp_to_drop removed and returns a handle to this archive
@@ -35,7 +43,6 @@ def generate_archive_with_file_removed(qzv_fp: str, root_uuid: UUID,
 
     adapted from https://stackoverflow.com/a/513889/9872253
     """
-    tmpdir = tempfile.TemporaryDirectory()
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_arc = pathlib.Path(tmpdir) / 'mangled.qzv'
         fp_pfx = pathlib.Path(root_uuid)

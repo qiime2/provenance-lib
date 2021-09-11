@@ -1,19 +1,19 @@
 import os
+import pandas as pd
 import pathlib
 import unittest
 from datetime import timedelta
 from unittest.mock import MagicMock
-import warnings
 import zipfile
 
 from networkx import DiGraph
-import yaml
 
 from ..parse import (
     ProvDAG, ProvNode, FormatHandler,
     _Action, _Citations, _ResultMetadata,
     ParserV0, ParserV1, ParserV2, ParserV3, ParserV4, ParserV5,
 )
+from ..yaml_constructors import MetadataInfo
 
 from .util import (
     is_root_provnode_data, generate_archive_with_file_removed,
@@ -81,162 +81,71 @@ TEST_DATA = {
     }
 
 
-class YamlConstructorTests(unittest.TestCase):
-    """
-    YAML Constructors are used to handle the custom YAML tags defined by the
-    framework.
-
-    """
-    def test_unknown_tag(self):
-        """
-        Makes explicit the current handling of unimplemented custom tags. In
-        future, we may want to deal with these more graciously (e.g. warn), but
-        for now we're going to fail fast
-        """
-        tag = r"!foo 'this is not an implemented tag'"
-        with self.assertRaisesRegex(yaml.constructor.ConstructorError,
-                                    'could not determine a constructor.*!foo'):
-            yaml.safe_load(tag)
-
-    def test_citation_key_constructor(self):
-        tag = r"!cite 'framework|qiime2:2020.6.0.dev0|0'"
-        actual = yaml.safe_load(tag)
-        self.assertEqual(actual, 'framework|qiime2:2020.6.0.dev0|0')
-
-    def test_color_primitive_constructor(self):
-        tag = r"!color '#57f289'"
-        actual = yaml.safe_load(tag)
-        self.assertEqual(actual, '#57f289')
-
-    def test_forward_ref_action_plugin_ref(self):
-        tag = r"plugin: !ref 'environment:plugins:diversity'"
-        actual = yaml.safe_load(tag)
-        self.assertEqual(actual, {'plugin': 'diversity'})
-
-    def test_forward_ref_generic_ref(self):
-        tag = r"plugin: !ref 'environment:framework:version'"
-        actual = yaml.safe_load(tag)
-        exp = {'plugin': ['environment', 'framework', 'version']}
-        self.assertEqual(exp, actual)
-
-    def test_metadata_path_constructor(self):
-        tag = r"!metadata 'metadata.tsv'"
-        actual = yaml.safe_load(tag)
-        self.assertEqual(actual, {'input_artifact_uuids': [],
-                                  'relative_fp': 'metadata.tsv'})
-
-    def test_metadata_path_constructor_one_Artifact_as_md(self):
-        tag = r"!metadata '415409a4-stuff-e3eaba5301b4:feature_metadata.tsv'"
-        actual = yaml.safe_load(tag)
-        self.assertEqual(
-            actual,
-            {'input_artifact_uuids': ['415409a4-stuff-e3eaba5301b4'],
-             'relative_fp': 'feature_metadata.tsv'}
-             )
-
-    def test_metadata_path_constructor_many_Artifacts_as_md(self):
-        tag = (r"!metadata '415409a4-stuff-e3eaba5301b4,"
-               r"12345-other-stuff-67890"
-               r":feature_metadata.tsv'")
-        actual = yaml.safe_load(tag)
-        self.assertEqual(
-            actual,
-            {'input_artifact_uuids': ['415409a4-stuff-e3eaba5301b4',
-                                      '12345-other-stuff-67890'],
-             'relative_fp': 'feature_metadata.tsv'}
-             )
-
-    def test_no_provenance_constructor(self):
-        tag = "!no-provenance '34b07e56-27a5-4f03-ae57-ff427b50aaa1'"
-        # This context manager prevents the warning under test from
-        # propagating to the test session's Warning Summary
-        with self.assertWarnsRegex(UserWarning,
-                                   'Artifact 34b07e.*prior to provenance'):
-            actual = yaml.safe_load(tag)
-            self.assertEqual(actual, '34b07e56-27a5-4f03-ae57-ff427b50aaa1')
-
-    def test_no_provenance_multiple_warnings_fire(self):
-        tag_list = """
-        - !no-provenance '34b07e56-27a5-4f03-ae57-ff427b50aaa1'
-        - !no-provenance 'gerbil'
-        """
-        with warnings.catch_warnings(record=True) as w:
-            # Just in case something else has modified the filter state
-            warnings.simplefilter("default")
-            yaml.safe_load(tag_list)
-            # There should be exactly two warnings
-            self.assertEqual(len(w), 2)
-
-            # The first should be a Userwarnign containing these strings
-            self.assertEqual(UserWarning, w[0].category)
-            self.assertIn('Artifact 34b07e', str(w[0].message))
-            self.assertIn('prior to provenance', str(w[0].message))
-
-            # And the second should look similar
-            self.assertEqual(UserWarning, w[1].category)
-            self.assertIn('gerbil', str(w[1].message))
-            self.assertIn('prior to provenance', str(w[0].message))
-
-    def test_set_ref(self):
-        flow_tag = r"!set ['foo', 'bar', 'baz']"
-        flow = yaml.safe_load(flow_tag)
-        self.assertEqual(flow, {'foo', 'bar', 'baz'})
-
-        # NOTE: we don't expect duplicate values here (because dumped values
-        # were a set), but it doesn't hurt to test the behavior
-        block_tag = '!set\n- spam\n- egg\n- spam\n'
-        block = yaml.safe_load(block_tag)
-        self.assertEqual(block, {'spam', 'egg'})
-
-
 class ProvDAGTests(unittest.TestCase):
     # Remove the character limit when reporting failing tests for this class
     maxDiff = None
-    fake_fp = os.path.join(DATA_DIR, 'not_a_filepath.qza')
-    not_a_zip = os.path.join(DATA_DIR, 'not_a_zip.txt')
-    v5_provDag = ProvDAG(TEST_DATA['5']['qzv_fp'])
+
+    @classmethod
+    def setUpClass(cls):
+        # TODO: catch/supress warning for v0 provDag
+        cls.dags = dict()
+        for k in list(TEST_DATA):
+            cls.dags[k] = ProvDAG(str(TEST_DATA[k]['qzv_fp']))
 
     # This should only trigger if something fails in setup or above
-    # e.g. if v5_provDag fails to initialize
+    # e.g. if a ProvDag fails to initialize
     def test_smoke(self):
         self.assertTrue(True)
 
     def test_root_uuid_correct(self):
-        self.assertEqual(self.v5_provDag.root_uuid, TEST_DATA['5']['uuid'])
+        for dag_version in self.dags:
+            self.assertEqual(self.dags[dag_version].root_uuid,
+                             TEST_DATA[dag_version]['uuid'])
 
     def test_root_node_is_archive_root(self):
-        with zipfile.ZipFile(TEST_DATA['5']['qzv_fp']) as zf:
-            all_filenames = zf.namelist()
-            root_md_fnames = filter(is_root_provnode_data, all_filenames)
-            root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
-            v5_ProvNode = ProvNode(zf, root_md_fps)
-            self.assertEqual(v5_ProvNode, self.v5_provDag.root_node)
+        for dag_version in self.dags:
+            with zipfile.ZipFile(TEST_DATA[dag_version]['qzv_fp']) as zf:
+                all_filenames = zf.namelist()
+                root_md_fnames = filter(is_root_provnode_data, all_filenames)
+                root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
+                node = ProvNode(zf, root_md_fps)
+                self.assertEqual(node, self.dags[dag_version].root_node)
 
     def test_number_of_actions(self):
         # TODO: remove _num_results and rely on node.len()?
         # This call should be made once we've decided how to represent nodes,
         # e.g. nested or all-nodes/raw
         # At that time, remove one of these assertions
-        self.assertEqual(self.v5_provDag._num_results, TEST_DATA['5']['n_res'])
-        self.assertEqual(len(self.v5_provDag), TEST_DATA['5']['n_res'])
+        for dag_version in self.dags:
+            self.assertEqual(self.dags[dag_version]._num_results,
+                             TEST_DATA[dag_version]['n_res'])
+            self.assertEqual(len(self.dags[dag_version]),
+                             TEST_DATA[dag_version]['n_res'])
 
     def test_nonexistent_fp(self):
+        fake_fp = os.path.join(DATA_DIR, 'not_a_filepath.qza')
         with self.assertRaisesRegex(FileNotFoundError, 'not_a_filepath.qza'):
-            ProvDAG(self.fake_fp)
+            ProvDAG(fake_fp)
 
     def test_not_a_zip_archive(self):
+        not_a_zip = os.path.join(DATA_DIR, 'not_a_zip.txt')
         with self.assertRaisesRegex(zipfile.BadZipFile,
                                     'File is not a zip file'):
-            ProvDAG(self.not_a_zip)
+            ProvDAG(not_a_zip)
 
     def test_is_digraph(self):
-        self.assertIsInstance(self.v5_provDag, DiGraph)
+        for dag_version in self.dags:
+            self.assertIsInstance(self.dags[dag_version], DiGraph)
 
     def test_has_nodes(self):
-        self.assertIn(TEST_DATA['5']['uuid'], self.v5_provDag.nodes)
+        for dag_version in self.dags:
+            self.assertIn(TEST_DATA[dag_version]['uuid'],
+                          self.dags[dag_version].nodes)
 
-    def test_root_node_attributes(self):
-        root_node = self.v5_provDag.nodes[TEST_DATA['5']['uuid']]
+    def test_v5root_node_attributes(self):
+        # Many of these attributes are being tested across version formats in
+        # the ProvNode tests. We're not going to worry about all the details
+        root_node = self.dags['5'].nodes[TEST_DATA['5']['uuid']]
         self.assertEqual(root_node['type'], 'Visualization')
         self.assertEqual(root_node['format'], None)
         self.assertEqual(root_node['framework_version'], '2018.11.0')
@@ -249,38 +158,44 @@ class ProvDAGTests(unittest.TestCase):
                       root_node['parents'])
         self.assertEqual(root_node['runtime'],
                          timedelta(seconds=5, microseconds=249201))
+        self.assertIn('metadata', root_node['metadata'])
+        self.assertEqual(type(root_node['metadata']['metadata']), pd.DataFrame)
 
-    def test_has_edges(self):
-        self.assertTrue(self.v5_provDag.has_edge(
+    def test_V5_has_edges(self):
+        self.assertTrue(self.dags['5'].has_edge(
             '89af91c0-033d-4e30-8ac4-f29a3b407dc1',
             'ffb7cee3-2f1f-4988-90cc-efd5184ef003'))
-        self.assertTrue(self.v5_provDag.has_edge(
+        self.assertTrue(self.dags['5'].has_edge(
             'bce3d09b-e296-4f2b-9af4-834db6412429',
             'ffb7cee3-2f1f-4988-90cc-efd5184ef003'))
 
-    def test_edge_types(self):
+    def test_v5_edge_types(self):
         self.assertEqual('table',
-                         self.v5_provDag
+                         self.dags['5']
                          ['89af91c0-033d-4e30-8ac4-f29a3b407dc1']
                          ['ffb7cee3-2f1f-4988-90cc-efd5184ef003']
                          ['type'])
         self.assertEqual('phylogeny',
-                         self.v5_provDag
+                         self.dags['5']
                          ['bce3d09b-e296-4f2b-9af4-834db6412429']
                          ['ffb7cee3-2f1f-4988-90cc-efd5184ef003']
                          ['type'])
 
     def test_str(self):
-        self.assertRegex(str(self.v5_provDag),
-                         '(?s)UUID:\t\tffb7cee3.*Type.*Data Format')
+        for dag_vzn in self.dags:
+            uuid = TEST_DATA[dag_vzn]['uuid']
+            self.assertRegex(str(self.dags[dag_vzn]),
+                             f'(?s)UUID:\t\t{uuid}.*Type.*Data Format')
 
     def test_repr(self):
-        self.assertRegex(
-            repr(self.v5_provDag),
-            '(?s)UUID:\t\tffb7cee3.*Type.*Data Format.*Contains')
+        for dag_vzn in self.dags:
+            uuid = TEST_DATA[dag_vzn]['uuid']
+            self.assertRegex(
+                repr(self.dags[dag_vzn]),
+                f'(?s)UUID:\t\t{uuid}.*Type.*Data Format.*Contains')
 
     # TODO: This should probably be reduced to a minimum example
-    def test_traverse_uuids(self):
+    def test_v5_traverse_uuids(self):
         exp = {'ffb7cee3-2f1f-4988-90cc-efd5184ef003':
                {'89af91c0-033d-4e30-8ac4-f29a3b407dc1':
                 {'99fa3670-aa1a-45f6-ba8e-803c976a1163':
@@ -289,11 +204,11 @@ class ProvDAGTests(unittest.TestCase):
                 {'7ecf8954-e49a-4605-992e-99fcee397935':
                  {'99fa3670-aa1a-45f6-ba8e-803c976a1163':
                   {'a35830e1-4535-47c6-aa23-be295a57ee1c': None}}}}}
-        actual = self.v5_provDag.traverse_uuids()
+        actual = self.dags['5'].traverse_uuids()
         self.assertEqual(actual, exp)
 
-    def test_repr_contains(self):
-        self.assertRegex(repr(self.v5_provDag),
+    def test_v5_repr_contains(self):
+        self.assertRegex(repr(self.dags['5']),
                          ('ffb7cee3-2f1f-4988-90cc-efd5184ef003:\n'
                           '  89af91c0-033d-4e30-8ac4-f29a3b407dc1:\n'
                           '    99fa3670-aa1a-45f6-ba8e-803c976a1163:\n'
@@ -305,7 +220,7 @@ class ProvDAGTests(unittest.TestCase):
                           '\n')
                          )
 
-    def test_archive_has_invalid_checksums(self):
+    def test_v5_archive_has_invalid_checksums(self):
         """
         Remove a file from an intact v5 Archive so that its checksums.md5 is
         invalid, and then build a ProvDAG with it to confirm the ProvDAG
@@ -329,7 +244,6 @@ class ProvDAGTests(unittest.TestCase):
 
             # Have we set provenance_is_valid correctly?
             root_node = a_dag.nodes[uuid]
-            print(root_node)
             self.assertEqual(root_node['provenance_is_valid'], False)
 
             # Is the diff correct?
@@ -350,7 +264,15 @@ class ProvDAGTests(unittest.TestCase):
             uuid = TEST_DATA['5']['uuid']
             expected = (f'no item.*{uuid}.*Archive may be corrupt')
             with self.assertWarnsRegex(UserWarning, expected):
-                ProvDAG(chopped_archive)
+                a_dag = ProvDAG(chopped_archive)
+
+            # Have we set provenance_is_valid correctly?
+            root_node = a_dag.nodes[uuid]
+            self.assertEqual(root_node['provenance_is_valid'], False)
+
+            # Is the diff correct?
+            diff = root_node['checksum_diff']
+            self.assertEqual(diff, None)
 
 
 class ParserVxTests(unittest.TestCase):
@@ -359,17 +281,19 @@ class ParserVxTests(unittest.TestCase):
             fp = TEST_DATA[archv_vrsn]['qzv_fp']
             root_uuid = TEST_DATA[archv_vrsn]['uuid']
             with zipfile.ZipFile(fp) as zf:
-                root_md = TEST_DATA[archv_vrsn]['parser'].get_root_md(zf)
+                root_md = TEST_DATA[archv_vrsn]['parser']._get_root_md(
+                    zf, root_uuid)
                 self.assertEqual(root_md.uuid, root_uuid)
                 self.assertEqual(root_md.type,  'Visualization')
                 self.assertEqual(root_md.format, None)
 
     def test_get_root_md_no_md_yaml(self):
-        v5_qzv_no_root_md = os.path.join(DATA_DIR, 'no_root_md_yaml.qzv')
+        qzv_no_root_md = os.path.join(DATA_DIR, 'no_root_md_yaml.qzv')
         for archv_vrsn in TEST_DATA:
-            with zipfile.ZipFile(v5_qzv_no_root_md) as zf:
+            root_uuid = TEST_DATA[archv_vrsn]['uuid']
+            with zipfile.ZipFile(qzv_no_root_md) as zf:
                 with self.assertRaisesRegex(ValueError, 'Malformed.*metadata'):
-                    TEST_DATA[archv_vrsn]['parser'].get_root_md(zf)
+                    TEST_DATA[archv_vrsn]['parser']._get_root_md(zf, root_uuid)
 
     def test_populate_archive(self):
         for archv_vrsn in TEST_DATA:
@@ -380,12 +304,16 @@ class ParserVxTests(unittest.TestCase):
                     with self.assertWarnsRegex(
                         UserWarning,
                             'Artifact 0b8b47.*prior to provenance'):
-                        num_res, contents = \
+                        root_md, num_res, contents = \
                             TEST_DATA[archv_vrsn]['parser'].parse_prov(zf)
                 else:
-                    num_res, contents = \
+                    root_md, num_res, contents = \
                         TEST_DATA[archv_vrsn]['parser'].parse_prov(zf)
-                print(f'Debug: archive version #{archv_vrsn} failing')
+                # Did we capture result metadata correctly?
+                self.assertEqual(type(root_md), _ResultMetadata)
+                self.assertEqual(root_md.uuid, root_uuid)
+                self.assertEqual(root_md.type,  'Visualization')
+                self.assertEqual(root_md.format, None)
                 # Does this archive have the right number of Results?
                 self.assertEqual(num_res, TEST_DATA[archv_vrsn]['n_res'])
                 # Is contents a dict?
@@ -403,7 +331,8 @@ class ParserVxTests(unittest.TestCase):
         exp = 'uuid123'
 
         # Only parsers from v1 forward have this method
-        parsers = [vrsn['parser'] for vrsn in list(TEST_DATA.values())[1:]]
+        parsers = [TEST_DATA[vrsn]['parser'] for vrsn in TEST_DATA
+                   if vrsn != '0']
 
         for parser in parsers:
             self.assertEqual(parser._get_nonroot_uuid(md_example), exp)
@@ -411,7 +340,6 @@ class ParserVxTests(unittest.TestCase):
 
 
 class FormatHandlerTests(unittest.TestCase):
-
     # Can we make a FormatHandler without anything blowing up?
     def test_smoke(self):
         for arch_ver in TEST_DATA:
@@ -448,7 +376,7 @@ class FormatHandlerTests(unittest.TestCase):
         uuid = TEST_DATA['5']['uuid']
         with zipfile.ZipFile(TEST_DATA['5']['qzv_fp']) as zf:
             handler = FormatHandler(zf)
-            md, (num_r, contents) = handler.parse(zf)
+            md, num_r, contents = handler.parse(zf)
             self.assertIs(type(md), _ResultMetadata)
             self.assertEqual(md.uuid, uuid)
             self.assertEqual(md.type, 'Visualization')
@@ -460,11 +388,13 @@ class FormatHandlerTests(unittest.TestCase):
 
 
 class ResultMetadataTests(unittest.TestCase):
-    v5_qzv = TEST_DATA['5']['qzv_fp']
-    v5_uuid = TEST_DATA['5']['uuid']
-    md_fp = f'{v5_uuid}/provenance/metadata.yaml'
-    with zipfile.ZipFile(v5_qzv) as zf:
-        v5_root_md = _ResultMetadata(zf, md_fp)
+    @classmethod
+    def setUpClass(cls):
+        v5_qzv = TEST_DATA['5']['qzv_fp']
+        cls.v5_uuid = TEST_DATA['5']['uuid']
+        md_fp = f'{cls.v5_uuid}/provenance/metadata.yaml'
+        with zipfile.ZipFile(str(v5_qzv)) as zf:
+            cls.v5_root_md = _ResultMetadata(zf, md_fp)
 
     def test_smoke(self):
         self.assertEqual(self.v5_root_md.uuid, self.v5_uuid)
@@ -479,17 +409,16 @@ class ResultMetadataTests(unittest.TestCase):
 
 
 class ActionTests(unittest.TestCase):
-    root_action_fp = os.path.join(DATA_DIR, 'action_emperor_root_node_v5.zip')
-    import_action_fp = os.path.join(DATA_DIR, 'action_import_v5.zip')
-    artifact_as_md_fp = os.path.join(DATA_DIR, 'action_artifact_as_md_v5.zip')
-    with zipfile.ZipFile(root_action_fp) as zf:
-        act = _Action(zf, 'action.yaml')
+    @classmethod
+    def setUpClass(cls):
+        root_action_fp = os.path.join(DATA_DIR,
+                                      'action_emperor_root_node_v5.zip')
+        import_action_fp = os.path.join(DATA_DIR, 'action_import_v5.zip')
+        with zipfile.ZipFile(root_action_fp) as zf:
+            cls.act = _Action(zf, 'action.yaml')
 
-    with zipfile.ZipFile(import_action_fp) as zf:
-        imp_act = _Action(zf, 'action.yaml')
-
-    with zipfile.ZipFile(artifact_as_md_fp) as zf:
-        art_as_md_act = _Action(zf, 'action.yaml')
+        with zipfile.ZipFile(import_action_fp) as zf:
+            cls.imp_act = _Action(zf, 'action.yaml')
 
     def test_action_id(self):
         exp = '5bc4b090-abbc-46b0-a219-346c8026f7d7'
@@ -511,88 +440,11 @@ class ActionTests(unittest.TestCase):
 
     def test_action(self):
         exp = 'core_metrics_phylogenetic'
-        self.assertEqual(self.act.action, exp)
+        self.assertEqual(self.act.action_name, exp)
 
     def test_plugin(self):
         exp = 'diversity'
         self.assertEqual(self.act.plugin, exp)
-
-    def test_parents(self):
-        exp = [{'table': '706b6bce-8f19-4ae9-b8f5-21b14a814a1b'},
-               {'phylogeny': 'ad7e5b50-065c-4fdd-8d9b-991e92caad22'}]
-        self.assertEqual(self.act.parents, exp)
-
-    def test_parents_with_artifact_passed_as_md(self):
-        exp = [{'tree': 'e710bdc5-e875-4876-b238-5451e3e8eb46'},
-               {'feature_table': 'abc22fdc-e7fa-4976-a980-8f2ff8c4bb58'},
-               {'pcoa': '1ed04b10-d29c-495f-996e-3d4db89434d2'},
-               {'artifact_passed_as_metadata':
-                '415409a4-371d-4c69-9433-e3eaba5301b4'},
-               ]
-        actual = self.art_as_md_act.parents
-        self.assertEqual(actual, exp)
-
-    def test_get_one_artifact_passed_as_md(self):
-        get_artifacts = self.act._get_artifacts_passed_as_md
-        action_details = \
-            {'parameters':
-                [
-                 {'some_param': 'foo'},
-                 {'arbitrary_metadata_name':
-                  {'input_artifact_uuids': [],
-                   'relative_fp': 'some_metadata.tsv'}},
-                 {'other_metadata':
-                  {'input_artifact_uuids': ['301b4'],
-                   'relative_fp': 'other_metadata.tsv'}},
-                 ]}
-        actual = get_artifacts(action_details)
-        exp = [
-               {'artifact_passed_as_metadata': '301b4'},
-               ]
-        self.assertEqual(actual, exp)
-
-    def test_get_two_artifacts_passed_as_md(self):
-        get_artifacts = self.act._get_artifacts_passed_as_md
-        action_details = \
-            {'parameters':
-                [
-                 {'some_param': 'foo'},
-                 {'arbitrary_metadata_name':
-                  {'input_artifact_uuids': [],
-                   'relative_fp': 'some_metadata.tsv'}},
-                 {'other_metadata':
-                  {'input_artifact_uuids': ['4154', '301b4'],
-                   'relative_fp': 'other_metadata.tsv'}},
-                 ]}
-        actual = get_artifacts(action_details)
-        exp = [{'artifact_passed_as_metadata': '4154'},
-               {'artifact_passed_as_metadata': '301b4'},
-               ]
-        self.assertEqual(actual, exp)
-
-    def test_get_zero_artifacts_passed_as_md(self):
-        get_artifacts = self.act._get_artifacts_passed_as_md
-        action_details = \
-            {'parameters':
-                [
-                 {'some_param': 'foo'},
-                 {'arbitrary_metadata_name':
-                  {'input_artifact_uuids': [],
-                   'relative_fp': 'some_metadata.tsv'}},
-                 {'other_metadata':
-                  {'input_artifact_uuids': [],
-                   'relative_fp': 'other_metadata.tsv'}},
-                 ]}
-        actual = get_artifacts(action_details)
-        exp = []
-        self.assertEqual(actual, exp)
-
-    def test_get_artifacts_passed_as_md_no_params(self):
-        get_artifacts = self.act._get_artifacts_passed_as_md
-        action_details = {'non-parameters-key': 'here is a thing'}
-        actual = get_artifacts(action_details)
-        exp = []
-        self.assertEqual(actual, exp)
 
     def test_repr(self):
         exp = ('_Action(action_id=5bc4b090-abbc-46b0-a219-346c8026f7d7, '
@@ -600,26 +452,23 @@ class ActionTests(unittest.TestCase):
                'action=core_metrics_phylogenetic)')
         self.assertEqual(repr(self.act), exp)
 
-    # NOTE: Import is not handled by a plugin, and has no inputs. Parsing logic
-    # provides values for the following properties which are not present in
-    # action.yaml
+    # NOTE: Import is not handled by a plugin, so the parser provides values
+    # for the action_name and plugin properties not present in action.yaml
     def test_action_for_import_node(self):
         exp = 'import'
-        self.assertEqual(self.imp_act.action, exp)
+        self.assertEqual(self.imp_act.action_name, exp)
 
     def test_plugin_for_import_node(self):
         exp = 'framework'
         self.assertEqual(self.imp_act.plugin, exp)
 
-    def test_parents_for_import_node(self):
-        exp = []
-        self.assertEqual(self.imp_act.parents, exp)
-
 
 class CitationsTests(unittest.TestCase):
-    cite_strs = ['cite_none', 'cite_one', 'cite_many']
-    bibs = [bib+'.bib' for bib in cite_strs]
-    zips = [os.path.join(DATA_DIR, bib+'.zip') for bib in cite_strs]
+    @classmethod
+    def setUpClass(cls):
+        cite_strs = ['cite_none', 'cite_one', 'cite_many']
+        cls.bibs = [bib+'.bib' for bib in cite_strs]
+        cls.zips = [os.path.join(DATA_DIR, bib+'.zip') for bib in cite_strs]
 
     def test_empty_bib(self):
         with zipfile.ZipFile(self.zips[0]) as zf:
@@ -652,88 +501,111 @@ class CitationsTests(unittest.TestCase):
 
 
 class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
-    # TODO: If possible, we should load ProvDAGs for v0-v5 and make them
-    # globally available to these test classes. This should allow us to
-    # reduce test time and run more tests iteratively.
-    # This class and ProvDAGTests, at least, would benefit
+    @classmethod
+    def setUpClass(cls):
+        # Build root nodes for all archive format versions
+        cls.nodes = dict()
+        for k in list(TEST_DATA):
+            with zipfile.ZipFile(TEST_DATA[k]['qzv_fp']) as zf:
+                all_filenames = zf.namelist()
+                root_md_fnames = filter(is_root_provnode_data, all_filenames)
+                root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
+                cls.nodes[k] = ProvNode(zf, root_md_fps)
 
-    def setUp(self):
-        # Using a dag to back these tests, because the alternative is to
-        # hand-build two to three test nodes and mock a ProvDAG to hold them.
-        self.v5_dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
-        super().setUp()
-        self.root_metadata_fps = None
+        # Build a minimal node in which Artifacts are passed as metadata
+        filename = pathlib.Path('minimal_v4_artifact_as_md.zip')
+        pfx = pathlib.Path(TEST_DATA['5']['uuid'])
+        artifact_as_md_fp = os.path.join(DATA_DIR, filename)
+        with zipfile.ZipFile(artifact_as_md_fp) as zf:
+            cls.art_as_md_node = ProvNode(
+                zf,
+                [pfx / 'VERSION',
+                 pfx / 'metadata.yaml',
+                 pfx / 'provenance/action/action.yaml'])
 
-        with zipfile.ZipFile(TEST_DATA['0']['qzv_fp']) as zf:
-            root_md_fnames = [pathlib.Path(TEST_DATA['0']['uuid']) / fp for
-                              fp in ('metadata.yaml', 'VERSION')]
-            root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
-            self.v0_ProvNode = ProvNode(zf, root_md_fps)
-
-        with zipfile.ZipFile(TEST_DATA['5']['qzv_fp']) as zf:
+        # Build a nonroot node without metadata
+        with zipfile.ZipFile(TEST_DATA[k]['qzv_fp']) as zf:
+            node_id = '3b7d36ff-37ab-4ac2-958b-6a547d442bcf'
             all_filenames = zf.namelist()
-            root_md_fnames = filter(is_root_provnode_data, all_filenames)
-            root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
-            self.v5_ProvNode = ProvNode(zf, root_md_fps)
+            node_fps = [
+                pathlib.Path(fp) for fp in all_filenames if
+                'VERSION' in fp or
+                node_id in fp and
+                ('metadata.yaml' in fp or 'action.yaml' in fp)
+                ]
+            cls.nonroot_non_md_node = ProvNode(zf, node_fps)
+
+            # Build a nonroot node with metadata
+            node_id = '0af08fa8-48b7-4c6a-83c6-e0f766156343'
+            all_filenames = zf.namelist()
+            node_fps = [
+                pathlib.Path(fp) for fp in all_filenames if
+                'VERSION' in fp or
+                node_id in fp and
+                ('metadata.yaml' in fp or 'action.yaml' in fp)
+                ]
+            cls.nonroot_md_node = ProvNode(zf, node_fps)
 
     def test_smoke(self):
         self.assertTrue(True)
-        self.assertIs(type(self.v5_ProvNode), ProvNode)
+        for node_vzn in self.nodes:
+            self.assertIs(type(self.nodes[node_vzn]), ProvNode)
 
-    def test_viz_properties(self):
-        # TODO: expand to other versions once we're globally loading ProvDAGs
-        nodes = {'0': self.v0_ProvNode,
-                 '5': self.v5_ProvNode,
-                 }
-        for node in nodes:
-            self.assertEqual(nodes[node].uuid, TEST_DATA[node]['uuid'])
-            self.assertEqual(nodes[node].sem_type, 'Visualization')
-            self.assertEqual(nodes[node].format, None)
-            self.assertEqual(nodes[node].archive_version,
+    def test_properties_with_viz(self):
+        # TODO: test a qza?
+        for node in self.nodes:
+            self.assertEqual(self.nodes[node].uuid, TEST_DATA[node]['uuid'])
+            self.assertEqual(self.nodes[node].sem_type, 'Visualization')
+            self.assertEqual(self.nodes[node].format, None)
+            self.assertEqual(self.nodes[node].archive_version,
                              TEST_DATA[node]['av'])
-            self.assertEqual(nodes[node].framework_version,
+            self.assertEqual(self.nodes[node].framework_version,
                              TEST_DATA[node]['fwv'])
-            self.assertEqual(nodes[node].has_provenance,
+            self.assertEqual(self.nodes[node].has_provenance,
                              TEST_DATA[node]['has_prov'])
 
     def test_self_eq(self):
-        self.assertReallyEqual(self.v5_ProvNode, self.v5_ProvNode)
+        self.assertReallyEqual(self.nodes['5'], self.nodes['5'])
 
     def test_eq(self):
         # Mock has no matching UUID
         mock_node = MagicMock()
-        self.assertNotEqual(self.v5_ProvNode, mock_node)
+        self.assertNotEqual(self.nodes['5'], mock_node)
 
         # Mock has bad UUID
         mock_node.uuid = 'gerbil'
-        self.assertReallyNotEqual(self.v5_ProvNode, mock_node)
+        self.assertReallyNotEqual(self.nodes['5'], mock_node)
 
         # Matching UUIDs insufficient if classes differ
         mock_node.uuid = TEST_DATA['5']['uuid']
-        self.assertReallyNotEqual(self.v5_ProvNode, mock_node)
+        self.assertReallyNotEqual(self.nodes['5'], mock_node)
         mock_node.__class__ = ProvNode
-        self.assertReallyEqual(self.v5_ProvNode, mock_node)
+        self.assertReallyEqual(self.nodes['5'], mock_node)
 
     def test_is_hashable(self):
         exp_hash = hash(TEST_DATA['5']['uuid'])
-        self.assertReallyEqual(hash(self.v5_ProvNode), exp_hash)
+        self.assertReallyEqual(hash(self.nodes['5']), exp_hash)
 
     def test_str(self):
-        v5_uuid = TEST_DATA['5']['uuid']
-        self.assertEqual(str(self.v5_ProvNode), f'{v5_uuid}')
+        for node_vzn in self.nodes:
+            uuid = TEST_DATA[node_vzn]['uuid']
+            self.assertEqual(str(self.nodes[node_vzn]), f'{uuid}')
 
     def test_repr(self):
-        v5_uuid = TEST_DATA['5']['uuid']
-        self.assertEqual(repr(self.v5_ProvNode),
-                         f'ProvNode({v5_uuid}, Visualization, fmt=None)')
+        for node_vzn in self.nodes:
+            uuid = TEST_DATA[node_vzn]['uuid']
+            self.assertEqual(repr(self.nodes[node_vzn]),
+                             f'ProvNode({uuid}, Visualization, fmt=None)')
 
     def test_archive_version(self):
-        self.assertEqual(self.v5_ProvNode.archive_version,
-                         TEST_DATA['5']['av'])
+        for node_vzn in self.nodes:
+            self.assertEqual(self.nodes[node_vzn].archive_version,
+                             TEST_DATA[node_vzn]['av'])
 
     def test_framework_version(self):
-        self.assertEqual(self.v5_ProvNode.framework_version,
-                         TEST_DATA['5']['fwv'])
+        for node_vzn in self.nodes:
+            self.assertEqual(self.nodes[node_vzn].framework_version,
+                             TEST_DATA[node_vzn]['fwv'])
 
     def test_invalid_provenance(self):
         """
@@ -749,7 +621,7 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
         Modified from test_checksum_validator.test_checksums_mismatch
         """
         original_archive = TEST_DATA['5']['qzv_fp']
-        drop_file = pathlib.Path('metadata.yaml')
+        drop_file = pathlib.Path('data') / 'emperor.html'
         root_uuid = TEST_DATA['5']['uuid']
         fp_pfx = pathlib.Path(root_uuid)
         with generate_archive_with_file_removed(
@@ -776,11 +648,18 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                             f'Checksums are invalid for Archive {uuid}.*\n'
                             'Archive may be corrupt.*\n'
                             'Files added.*tamper.*296583.*\n'
-                            'Files removed.*metadata.*2eb067.*\n'
+                            'Files removed.*emperor.*c42b3.*\n'
                             'Files changed.*data.*index.*065031.*f47bc3.*'
                             )
                 with self.assertWarnsRegex(UserWarning, expected):
-                    a_node = ProvNode(zf, [pathlib.Path('checksums.md5')])
+                    # NOTE: Using a minimal list of filenames for speed.
+                    a_node = ProvNode(
+                        zf,
+                        [fp_pfx / 'metadata.yaml',
+                         fp_pfx / 'VERSION',
+                         fp_pfx / 'checksums.md5',
+                         fp_pfx / 'provenance' / 'action' / 'action.yaml'
+                         ])
 
                 # Have we set provenance_is_valid correctly?
                 self.assertEqual(a_node.provenance_is_valid, False)
@@ -788,7 +667,7 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                 # Is the diff correct?
                 diff = a_node.checksum_diff
                 self.assertEqual(list(diff.removed.keys()),
-                                 ['metadata.yaml'])
+                                 ['data/emperor.html'])
                 self.assertEqual(
                     diff.added,
                     {'tamper.txt': '296583001b00d2b811b5871b19e0ad28'})
@@ -797,3 +676,121 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                     {'data/index.html': ('065031e17943cd0780f197874c4f011e',
                                          'f47bc36040d5c7db08e4b3a457dcfbb2')
                      })
+
+    def test_get_metadata_from_action(self):
+        find_md = self.nodes['5']._get_metadata_from_Action
+        md1 = MetadataInfo([], 'some_metadata.tsv')
+        md2 = MetadataInfo(['301b4'], 'other_metadata.tsv')
+        md3 = MetadataInfo(['4154', '5555b'], 'merged_metadata.tsv')
+        action_details = \
+            {'parameters':
+                [
+                 {'some_param': 'foo'},
+                 {'arbitrary_metadata_name': md1},
+                 {'other_metadata': md2},
+                 {'double_md': md3},
+                 ]}
+        all_md, artifacts_as_md = find_md(action_details)
+        all_exp = {'arbitrary_metadata_name': 'some_metadata.tsv',
+                   'other_metadata': 'other_metadata.tsv',
+                   'double_md': 'merged_metadata.tsv',
+                   }
+        a_as_md_exp = [{'artifact_passed_as_metadata': '301b4'},
+                       {'artifact_passed_as_metadata': '4154'},
+                       {'artifact_passed_as_metadata': '5555b'},
+                       ]
+        self.assertEqual(all_md, all_exp)
+        self.assertEqual(artifacts_as_md, a_as_md_exp)
+
+    def test_get_metadata_from_action_with_actual_node(self):
+        find_md = self.nodes['5']._get_metadata_from_Action
+        all_md, artifacts_as_md = find_md()
+        exp = {'metadata': 'metadata.tsv'}
+        self.assertEqual(all_md, exp)
+        self.assertEqual(artifacts_as_md, [])
+
+    def test_get_metadata_from_action_with_no_params(self):
+        # Not sure which of these test data are possible in action.yaml, but
+        # we'll check them both just in case
+        find_md = self.nodes['5']._get_metadata_from_Action
+        action_details = \
+            {'parameters': []}
+        all_md, artifacts_as_md = find_md(action_details)
+        self.assertEqual(all_md, {})
+        self.assertEqual(artifacts_as_md, [])
+
+        action_details = {'non-parameters-key': 'here is a thing'}
+        all_md, artifacts_as_md = find_md(action_details)
+        self.assertEqual(all_md, {})
+        self.assertEqual(artifacts_as_md, [])
+
+    def test_metadata_available_in_property(self):
+        self.assertEqual(type(self.nodes['5'].metadata), dict)
+        self.assertIn('metadata', self.nodes['5'].metadata)
+        self.assertEqual(type(self.nodes['5'].metadata['metadata']),
+                         pd.DataFrame)
+
+    def test_metadata_is_correct(self):
+        # Were parameter names captured correctly?
+        self.assertIn('sample_metadata', self.art_as_md_node.metadata)
+        self.assertIn('feature_metadata', self.art_as_md_node.metadata)
+
+        # Does sample metadata look right?
+        s_m_data = {'sampleid': ['#q2:types', 's_id_123'],
+                    'barcodeSequence': ['categorical', 'TACCGCTTCTTC'],
+                    'isGerbil': ['categorical', 'totally']}
+        s_m_exp = pd.DataFrame(s_m_data, columns=s_m_data.keys())
+        pd.testing.assert_frame_equal(
+            s_m_exp,
+            self.art_as_md_node.metadata['sample_metadata'])
+
+        # Does feature metadata look right?
+        f_m_data = {'Feature ID': ['#q2:types', 'feature_id_123'],
+                    'Taxon': ['categorical', 'd__Bacteria; p__Firmicutes'],
+                    'Confidence': ['categorical', '0.9']}
+        f_m_exp = pd.DataFrame(f_m_data, columns=f_m_data.keys())
+        pd.testing.assert_frame_equal(
+            f_m_exp,
+            self.art_as_md_node.metadata['feature_metadata'])
+
+    def test_has_no_provenance_so_no_metadata(self):
+        self.assertEqual(self.nodes['0'].has_provenance, False)
+        self.assertEqual(self.nodes['0'].metadata, None)
+
+    def test_node_has_provenance_but_no_metadata(self):
+        self.assertIn('3b7d36ff', self.nonroot_non_md_node.uuid)
+        self.assertEqual(self.nonroot_non_md_node.has_provenance, True)
+        self.assertEqual(self.nonroot_non_md_node.metadata, {})
+
+    def test_parse_metadata_for_nonroot_node(self):
+        self.assertIn('0af08fa8', self.nonroot_md_node.uuid)
+        self.assertEqual(self.nonroot_md_node.has_provenance, True)
+        self.assertIn('metadata', self.nonroot_md_node.metadata)
+
+    def test_parents(self):
+        exp = [{'table': '89af91c0-033d-4e30-8ac4-f29a3b407dc1'},
+               {'phylogeny': 'bce3d09b-e296-4f2b-9af4-834db6412429'}]
+        self.assertEqual(self.nodes['5'].parents, exp)
+
+    def test_parents_with_artifact_passed_as_md(self):
+        exp = [{'tree': 'e710bdc5-e875-4876-b238-5451e3e8eb46'},
+               {'feature_table': 'abc22fdc-e7fa-4976-a980-8f2ff8c4bb58'},
+               {'pcoa': '1ed04b10-d29c-495f-996e-3d4db89434d2'},
+               {'artifact_passed_as_metadata':
+                '415409a4-371d-4c69-9433-e3eaba5301b4'},
+               ]
+        actual = self.art_as_md_node.parents
+        self.assertEqual(actual, exp)
+
+    def test_parents_for_import_node(self):
+        with zipfile.ZipFile(TEST_DATA['5']['qzv_fp']) as zf:
+            import_node_id = 'a35830e1-4535-47c6-aa23-be295a57ee1c'
+            reqd_fps = ('VERSION', 'metadata.yaml', 'action.yaml')
+            import_node_fps = [
+                pathlib.Path(fp) for fp in zf.namelist()
+                if import_node_id in fp
+                and any(map(lambda x: x in fp, reqd_fps))
+                ]
+            import_node = ProvNode(zf, import_node_fps)
+
+        self.assertEqual(import_node.parents, [])

@@ -331,7 +331,8 @@ class ParserVxTests(unittest.TestCase):
         exp = 'uuid123'
 
         # Only parsers from v1 forward have this method
-        parsers = [vrsn['parser'] for vrsn in list(TEST_DATA.values())[1:]]
+        parsers = [TEST_DATA[vrsn]['parser'] for vrsn in TEST_DATA
+                   if vrsn != '0']
 
         for parser in parsers:
             self.assertEqual(parser._get_nonroot_uuid(md_example), exp)

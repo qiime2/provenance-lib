@@ -521,6 +521,16 @@ class ParserV1(ParserV0):
     expected_files = ('metadata.yaml', 'action/action.yaml', 'VERSION')
 
     @classmethod
+    def _get_prov_data_fps(
+        cls, zf: zipfile.ZipFile, expected_files: Tuple['str', ...]) -> \
+            List[pathlib.Path]:
+        return [pathlib.Path(fp) for fp in zf.namelist()
+                if 'provenance' in fp
+                # and any of the filenames above show up in the filepath
+                and any(map(lambda x: x in fp, expected_files))
+                ]
+
+    @classmethod
     def parse_prov(cls, zf: zipfile.ZipFile) -> \
             Tuple[_ResultMetadata, int, Dict[UUID, ProvNode]]:
         """
@@ -544,12 +554,7 @@ class ParserV1(ParserV0):
         archv_contents = {}
         num_results = 0
 
-        prov_data_fps = [
-            pathlib.Path(fp) for fp in zf.namelist()
-            if 'provenance' in fp
-            # and any of the filenames above show up in the filepath
-            and any(map(lambda x: x in fp, cls.expected_files))
-        ]
+        prov_data_fps = cls._get_prov_data_fps(zf, cls.expected_files)
         root_uuid = pathlib.Path(zf.namelist()[0]).parts[0]
 
         root_md = cls._get_root_md(zf, root_uuid)

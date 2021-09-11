@@ -87,7 +87,7 @@ class ProvDAG(DiGraph):
         super().__init__()
         with zipfile.ZipFile(archive_fp) as zf:
             handler = FormatHandler(zf)
-            self._archive_md, (self._num_results, self._archv_contents) = \
+            self._archive_md, self._num_results, self._archv_contents = \
                 handler.parse(zf)
 
             # Nodes are literally UUIDs. Entire ProvNodes and select other data
@@ -482,45 +482,31 @@ class ParserV0():
     expected_files = ('metadata.yaml', 'VERSION')  # type: Tuple[str, ...]
 
     @classmethod
-    def get_root_md(self, zf: zipfile.ZipFile) \
+    def _get_root_md(cls, zf: zipfile.ZipFile, root_uuid: UUID) \
             -> _ResultMetadata:
         """ Get archive metadata including root uuid """
         # All files in zf start with root uuid, so we'll grab it from the first
-        root_md_fp = pathlib.Path(zf.namelist()[0]).parts[0] + '/metadata.yaml'
-        try:
-            return _ResultMetadata(zf, root_md_fp)
-        except KeyError:
-            raise ValueError("Malformed Archive: "
-                             "no top-level metadata.yaml file")
+        root_md_fp = root_uuid + '/metadata.yaml'
+        if root_md_fp not in zf.namelist():
+            raise ValueError("Malformed Archive: root metadata.yaml file "
+                             "misplaced or nonexistent")
+        return _ResultMetadata(zf, root_md_fp)
 
     @classmethod
-    def parse_prov(self, zf: zipfile.ZipFile) -> \
-            Tuple[int, Dict[UUID, ProvNode]]:
+    def parse_prov(cls, zf: zipfile.ZipFile) -> \
+            Tuple[_ResultMetadata, Tuple[int, Dict[UUID, ProvNode]]]:
         archv_contents = {}
         num_results = 1
         uuid = pathlib.Path(zf.namelist()[0]).parts[0]
+
         warnings.warn(f"Artifact {uuid} was created prior to provenance" +
                       " tracking. Provenance data will be incomplete.",
                       UserWarning)
-        prov_data_fps = [pathlib.Path(uuid) / fp for fp in self.expected_files]
+
+        root_md = cls._get_root_md(zf, uuid)
+        prov_data_fps = [pathlib.Path(uuid) / fp for fp in cls.expected_files]
         archv_contents[uuid] = ProvNode(zf, prov_data_fps)
-        return (num_results, archv_contents)
-
-    @classmethod
-    def confirm_expected_files_are_present(self):
-        """
-        Checks that all expected files are present in the passed archive.
-        This will vary based on archive format version, but will always include
-        - 1 VERSION file
-        - 1 metadata.yaml at the root level
-
-        By placing this here, we consolidate checks for missing files
-        into one location, and head off KeyError bugs caused by missing files
-        preventing the creation of required attributes
-        """
-        # TODO: handle per-uuid action.yamls and citations.bib
-        # TODO: handle checksums.md5
-        pass
+        return (root_md, num_results, archv_contents)
 
 
 class ParserV1(ParserV0):
@@ -535,8 +521,8 @@ class ParserV1(ParserV0):
     expected_files = ('metadata.yaml', 'action/action.yaml', 'VERSION')
 
     @classmethod
-    def parse_prov(self, zf: zipfile.ZipFile) -> \
-            Tuple[int, Dict[UUID, ProvNode]]:
+    def parse_prov(cls, zf: zipfile.ZipFile) -> \
+            Tuple[_ResultMetadata, int, Dict[UUID, ProvNode]]:
         """
         Parses provenance data for one Archive.
 
@@ -562,28 +548,31 @@ class ParserV1(ParserV0):
             pathlib.Path(fp) for fp in zf.namelist()
             if 'provenance' in fp
             # and any of the filenames above show up in the filepath
-            and any(map(lambda x: x in fp, self.expected_files))
+            and any(map(lambda x: x in fp, cls.expected_files))
         ]
+        root_uuid = pathlib.Path(zf.namelist()[0]).parts[0]
+
+        root_md = cls._get_root_md(zf, root_uuid)
 
         # make a provnode for each UUID
         for fp in prov_data_fps:
             # if no 'artifacts' -> this is provenance for the archive root
             if 'artifacts' not in fp.parts:
-                uuid = fp.parts[0]
-                prefix = pathlib.Path(uuid) / 'provenance'
+                node_uuid = root_uuid
+                prefix = pathlib.Path(node_uuid) / 'provenance'
             else:
-                uuid = self._get_nonroot_uuid(fp)
+                node_uuid = cls._get_nonroot_uuid(fp)
                 prefix = pathlib.Path(*fp.parts[0:4])
 
-            if uuid not in archv_contents:
+            if node_uuid not in archv_contents:
                 fps_for_this_result = [prefix / name
-                                       for name in self.expected_files]
+                                       for name in cls.expected_files]
                 num_results += 1
-                archv_contents[uuid] = ProvNode(zf, fps_for_this_result)
-        return (num_results, archv_contents)
+                archv_contents[node_uuid] = ProvNode(zf, fps_for_this_result)
+        return (root_md, num_results, archv_contents)
 
     @classmethod
-    def _get_nonroot_uuid(self, fp: pathlib.Path) -> UUID:
+    def _get_nonroot_uuid(cls, fp: pathlib.Path) -> UUID:
         """
         For non-root provenance files, get the Result's uuid from the path
         (avoiding the root Result's UUID which is in all paths)
@@ -669,5 +658,4 @@ class FormatHandler():
 
     def parse(self, zf: zipfile.ZipFile) -> \
             Tuple[_ResultMetadata, Tuple[int, Dict[UUID, ProvNode]]]:
-        return (self.parser.get_root_md(zf),
-                self.parser.parse_prov(zf))
+        return self.parser.parse_prov(zf)

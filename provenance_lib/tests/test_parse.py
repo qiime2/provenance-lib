@@ -281,17 +281,19 @@ class ParserVxTests(unittest.TestCase):
             fp = TEST_DATA[archv_vrsn]['qzv_fp']
             root_uuid = TEST_DATA[archv_vrsn]['uuid']
             with zipfile.ZipFile(fp) as zf:
-                root_md = TEST_DATA[archv_vrsn]['parser'].get_root_md(zf)
+                root_md = TEST_DATA[archv_vrsn]['parser']._get_root_md(
+                    zf, root_uuid)
                 self.assertEqual(root_md.uuid, root_uuid)
                 self.assertEqual(root_md.type,  'Visualization')
                 self.assertEqual(root_md.format, None)
 
     def test_get_root_md_no_md_yaml(self):
-        v5_qzv_no_root_md = os.path.join(DATA_DIR, 'no_root_md_yaml.qzv')
+        qzv_no_root_md = os.path.join(DATA_DIR, 'no_root_md_yaml.qzv')
         for archv_vrsn in TEST_DATA:
-            with zipfile.ZipFile(v5_qzv_no_root_md) as zf:
+            root_uuid = TEST_DATA[archv_vrsn]['uuid']
+            with zipfile.ZipFile(qzv_no_root_md) as zf:
                 with self.assertRaisesRegex(ValueError, 'Malformed.*metadata'):
-                    TEST_DATA[archv_vrsn]['parser'].get_root_md(zf)
+                    TEST_DATA[archv_vrsn]['parser']._get_root_md(zf, root_uuid)
 
     def test_populate_archive(self):
         for archv_vrsn in TEST_DATA:
@@ -302,11 +304,16 @@ class ParserVxTests(unittest.TestCase):
                     with self.assertWarnsRegex(
                         UserWarning,
                             'Artifact 0b8b47.*prior to provenance'):
-                        num_res, contents = \
+                        root_md, num_res, contents = \
                             TEST_DATA[archv_vrsn]['parser'].parse_prov(zf)
                 else:
-                    num_res, contents = \
+                    root_md, num_res, contents = \
                         TEST_DATA[archv_vrsn]['parser'].parse_prov(zf)
+                # Did we capture result metadata correctly?
+                self.assertEqual(type(root_md), _ResultMetadata)
+                self.assertEqual(root_md.uuid, root_uuid)
+                self.assertEqual(root_md.type,  'Visualization')
+                self.assertEqual(root_md.format, None)
                 # Does this archive have the right number of Results?
                 self.assertEqual(num_res, TEST_DATA[archv_vrsn]['n_res'])
                 # Is contents a dict?
@@ -368,7 +375,7 @@ class FormatHandlerTests(unittest.TestCase):
         uuid = TEST_DATA['5']['uuid']
         with zipfile.ZipFile(TEST_DATA['5']['qzv_fp']) as zf:
             handler = FormatHandler(zf)
-            md, (num_r, contents) = handler.parse(zf)
+            md, num_r, contents = handler.parse(zf)
             self.assertIs(type(md), _ResultMetadata)
             self.assertEqual(md.uuid, uuid)
             self.assertEqual(md.type, 'Visualization')

@@ -494,7 +494,7 @@ class ParserV0():
 
     @classmethod
     def parse_prov(cls, zf: zipfile.ZipFile) -> \
-            Tuple[_ResultMetadata, Tuple[int, Dict[UUID, ProvNode]]]:
+            Tuple[_ResultMetadata, int, Dict[UUID, ProvNode]]:
         archv_contents = {}
         num_results = 1
         uuid = pathlib.Path(zf.namelist()[0]).parts[0]
@@ -662,5 +662,5 @@ class FormatHandler():
         self.parser = self._FORMAT_REGISTRY[self._archv_vrsn]
 
     def parse(self, zf: zipfile.ZipFile) -> \
-            Tuple[_ResultMetadata, Tuple[int, Dict[UUID, ProvNode]]]:
+            Tuple[_ResultMetadata, int, Dict[UUID, ProvNode]]:
         return self.parser.parse_prov(zf)

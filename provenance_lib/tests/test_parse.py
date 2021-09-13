@@ -29,6 +29,7 @@ TEST_DATA = {
           'n_res': 1,
           'qzv_fp': os.path.join(DATA_DIR, 'v0_uu_emperor.qzv'),
           'has_prov': False,
+          'prov_is_valid': False,
           },
     '1': {'parser': ParserV1,
           'av': '1',
@@ -37,6 +38,7 @@ TEST_DATA = {
           'n_res': 10,
           'qzv_fp': os.path.join(DATA_DIR, 'v1_uu_emperor.qzv'),
           'has_prov': True,
+          'prov_is_valid': True,
           },
     '2a': {'parser': ParserV2,
            'av': '2',
@@ -45,6 +47,7 @@ TEST_DATA = {
            'n_res': 10,
            'qzv_fp': os.path.join(DATA_DIR, 'v2a_uu_emperor.qzv'),
            'has_prov': True,
+           'prov_is_valid': True,
            },
     '2b': {'parser': ParserV2,
            'av': '2',
@@ -53,6 +56,7 @@ TEST_DATA = {
            'n_res': 14,
            'qzv_fp': os.path.join(DATA_DIR, 'v2b_uu_emperor.qzv'),
            'has_prov': True,
+           'prov_is_valid': True,
            },
     '3': {'parser': ParserV3,
           'av': '3',
@@ -61,6 +65,7 @@ TEST_DATA = {
           'n_res': 14,
           'qzv_fp': os.path.join(DATA_DIR, 'v3_uu_emperor.qzv'),
           'has_prov': True,
+          'prov_is_valid': True,
           },
     '4': {'parser': ParserV4,
           'av': '4',
@@ -69,6 +74,7 @@ TEST_DATA = {
           'n_res': 14,
           'qzv_fp': os.path.join(DATA_DIR, 'v4_uu_emperor.qzv'),
           'has_prov': True,
+          'prov_is_valid': True,
           },
     '5': {'parser': ParserV5,
           'av': '5',
@@ -77,6 +83,7 @@ TEST_DATA = {
           'n_res': 15,
           'qzv_fp': os.path.join(DATA_DIR, 'v5_uu_emperor.qzv'),
           'has_prov': True,
+          'prov_is_valid': True,
           },
     }
 
@@ -108,7 +115,8 @@ class ProvDAGTests(unittest.TestCase):
                 all_filenames = zf.namelist()
                 root_md_fnames = filter(is_root_provnode_data, all_filenames)
                 root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
-                node = ProvNode(zf, root_md_fps)
+                provenance_is_valid = True
+                node = ProvNode(zf, root_md_fps, provenance_is_valid)
                 self.assertEqual(node, self.dags[dag_version].root_node)
 
     def test_number_of_actions(self):
@@ -117,7 +125,7 @@ class ProvDAGTests(unittest.TestCase):
         # e.g. nested or all-nodes/raw
         # At that time, remove one of these assertions
         for dag_version in self.dags:
-            self.assertEqual(self.dags[dag_version]._num_results,
+            self.assertEqual(self.dags[dag_version].parser_results.num_results,
                              TEST_DATA[dag_version]['n_res'])
             self.assertEqual(len(self.dags[dag_version]),
                              TEST_DATA[dag_version]['n_res'])
@@ -304,24 +312,24 @@ class ParserVxTests(unittest.TestCase):
                     with self.assertWarnsRegex(
                         UserWarning,
                             'Artifact 0b8b47.*prior to provenance'):
-                        root_md, num_res, contents = \
-                            TEST_DATA[archv_vrsn]['parser'].parse_prov(zf)
+                        res = TEST_DATA[archv_vrsn]['parser'].parse_prov(zf)
                 else:
-                    root_md, num_res, contents = \
-                        TEST_DATA[archv_vrsn]['parser'].parse_prov(zf)
+                    res = TEST_DATA[archv_vrsn]['parser'].parse_prov(zf)
                 # Did we capture result metadata correctly?
+                root_md = res.root_md
                 self.assertEqual(type(root_md), _ResultMetadata)
                 self.assertEqual(root_md.uuid, root_uuid)
                 self.assertEqual(root_md.type,  'Visualization')
                 self.assertEqual(root_md.format, None)
                 # Does this archive have the right number of Results?
-                self.assertEqual(num_res, TEST_DATA[archv_vrsn]['n_res'])
+                self.assertEqual(res.num_results,
+                                 TEST_DATA[archv_vrsn]['n_res'])
                 # Is contents a dict?
-                self.assertIs(type(contents), dict)
+                self.assertIs(type(res.archive_contents), dict)
                 # Is the root UUID a key in the contents dict?
-                self.assertIn(root_uuid, contents)
+                self.assertIn(root_uuid, res.archive_contents)
                 # Is contents keyed on uuids, containing ProvNodes?
-                self.assertIs(type(contents[root_uuid]), ProvNode)
+                self.assertIs(type(res.archive_contents[root_uuid]), ProvNode)
 
     def test_get_nonroot_uuid(self):
         md_example = pathlib.Path(
@@ -376,15 +384,17 @@ class FormatHandlerTests(unittest.TestCase):
         uuid = TEST_DATA['5']['uuid']
         with zipfile.ZipFile(TEST_DATA['5']['qzv_fp']) as zf:
             handler = FormatHandler(zf)
-            md, num_r, contents = handler.parse(zf)
+            parser_results = handler.parse(zf)
+            md = parser_results.root_md
             self.assertIs(type(md), _ResultMetadata)
             self.assertEqual(md.uuid, uuid)
             self.assertEqual(md.type, 'Visualization')
             self.assertEqual(md.format, None)
-            self.assertIs(type(num_r), int)
-            self.assertEqual(num_r, 15)
-            self.assertIn(uuid, contents)
-            self.assertIs(type(contents[uuid]), ProvNode)
+            self.assertIs(type(parser_results.num_results), int)
+            self.assertEqual(parser_results.num_results, 15)
+            self.assertIn(uuid, parser_results.archive_contents)
+            self.assertIs(
+                type(parser_results.archive_contents[uuid]), ProvNode)
 
 
 class ResultMetadataTests(unittest.TestCase):
@@ -506,22 +516,25 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
         # Build root nodes for all archive format versions
         cls.nodes = dict()
         for k in list(TEST_DATA):
+            prov_is_valid = TEST_DATA[k]['prov_is_valid']
             with zipfile.ZipFile(TEST_DATA[k]['qzv_fp']) as zf:
                 all_filenames = zf.namelist()
                 root_md_fnames = filter(is_root_provnode_data, all_filenames)
                 root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
-                cls.nodes[k] = ProvNode(zf, root_md_fps)
+                cls.nodes[k] = ProvNode(zf, root_md_fps, prov_is_valid)
 
         # Build a minimal node in which Artifacts are passed as metadata
         filename = pathlib.Path('minimal_v4_artifact_as_md.zip')
         pfx = pathlib.Path(TEST_DATA['5']['uuid'])
         artifact_as_md_fp = os.path.join(DATA_DIR, filename)
         with zipfile.ZipFile(artifact_as_md_fp) as zf:
+            prov_is_valid = TEST_DATA['5']['prov_is_valid']
             cls.art_as_md_node = ProvNode(
                 zf,
                 [pfx / 'VERSION',
                  pfx / 'metadata.yaml',
-                 pfx / 'provenance/action/action.yaml'])
+                 pfx / 'provenance/action/action.yaml'],
+                prov_is_valid)
 
         # Build a nonroot node without metadata
         with zipfile.ZipFile(TEST_DATA[k]['qzv_fp']) as zf:
@@ -533,7 +546,11 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                 node_id in fp and
                 ('metadata.yaml' in fp or 'action.yaml' in fp)
                 ]
-            cls.nonroot_non_md_node = ProvNode(zf, node_fps)
+            # TODO: This probably needs to go elsewhere - confirm that it's not
+            # possible to get to the ProvNode constructor with missing metadata
+            # and then remove/relocate
+            prov_is_valid = TEST_DATA['5']['prov_is_valid']
+            cls.nonroot_non_md_node = ProvNode(zf, node_fps, prov_is_valid)
 
             # Build a nonroot node with metadata
             node_id = '0af08fa8-48b7-4c6a-83c6-e0f766156343'
@@ -544,7 +561,8 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                 node_id in fp and
                 ('metadata.yaml' in fp or 'action.yaml' in fp)
                 ]
-            cls.nonroot_md_node = ProvNode(zf, node_fps)
+            prov_is_valid = TEST_DATA['5']['prov_is_valid']
+            cls.nonroot_md_node = ProvNode(zf, node_fps, prov_is_valid)
 
     def test_smoke(self):
         self.assertTrue(True)
@@ -653,13 +671,18 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                             )
                 with self.assertWarnsRegex(UserWarning, expected):
                     # NOTE: Using a minimal list of filenames for speed.
+                    # TODO: It shouldn't be possible to get here with False
+                    # provenance - this test needs to be moved to ProvDAG
+                    # This line is temporary
+                    prov_is_valid = False
                     a_node = ProvNode(
                         zf,
                         [fp_pfx / 'metadata.yaml',
                          fp_pfx / 'VERSION',
                          fp_pfx / 'checksums.md5',
                          fp_pfx / 'provenance' / 'action' / 'action.yaml'
-                         ])
+                         ],
+                        prov_is_valid)
 
                 # Have we set provenance_is_valid correctly?
                 self.assertEqual(a_node.provenance_is_valid, False)
@@ -791,6 +814,7 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                 if import_node_id in fp
                 and any(map(lambda x: x in fp, reqd_fps))
                 ]
-            import_node = ProvNode(zf, import_node_fps)
+            prov_is_valid = True
+            import_node = ProvNode(zf, import_node_fps, prov_is_valid)
 
         self.assertEqual(import_node.parents, [])

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from dataclasses import dataclass
 from io import BytesIO
 import pathlib
 import pandas as pd
@@ -11,7 +12,7 @@ import bibtexparser as bp
 from networkx import DiGraph
 import yaml
 
-from .checksum_validator import validate_checksums
+from .checksum_validator import ChecksumDiff, validate_checksums
 from .version_parser import get_version
 from .yaml_constructors import CONSTRUCTOR_REGISTRY, MetadataInfo
 
@@ -27,17 +28,11 @@ class ProvDAG(DiGraph):
     A single-rooted DAG of ProvNode objects, representing a single QIIME 2
     Archive.
     """
-    _num_results: int
-    _archv_contents: Dict[UUID, ProvNode]
-    _archive_md: _ResultMetadata
-
-    # TODO: remove this? replace with a collection of terminal uuids
     @property
     def root_uuid(self) -> UUID:
         """The UUID of the terminal node of one QIIME 2 Archive"""
-        return self._archive_md.uuid
+        return self.parser_results.root_md.uuid
 
-    # TODO: remove this? replace with a collection of terminal nodes
     @property
     def root_node(self) -> ProvNode:
         """The terminal ProvNode of one QIIME 2 Archive"""
@@ -45,10 +40,10 @@ class ProvDAG(DiGraph):
 
     def get_result(self, uuid) -> ProvNode:
         """Returns a ProvNode from this ProvDAG selected by UUID"""
-        return self._archv_contents[uuid]
+        return self.parser_results.archive_contents[uuid]
 
     def __str__(self) -> str:
-        return repr(self._archive_md)
+        return repr(self.parser_results.root_md)
 
     def __repr__(self) -> str:
         # Traverse DAG, printing UUIDs
@@ -87,8 +82,9 @@ class ProvDAG(DiGraph):
         super().__init__()
         with zipfile.ZipFile(archive_fp) as zf:
             handler = FormatHandler(zf)
-            self._archive_md, self._num_results, self._archv_contents = \
-                handler.parse(zf)
+            self.parser_results = handler.parse(zf)
+            self.provenance_is_valid = self.parser_results.provenance_is_valid
+            self.checksum_diff = self.parser_results.checksum_diff
 
             # Nodes are literally UUIDs. Entire ProvNodes and select other data
             # are stored as attributes.
@@ -102,16 +98,17 @@ class ProvDAG(DiGraph):
             # might have to re-implement nx's union logic to preference the
             # non-empty provNode, which I think should be avoided.
 
-            con = self._archv_contents
+            arc_contents = self.parser_results.archive_contents
             node_contents = [
-                (n_id, dict(full_ProvNode_payload=con[n_id],
-                            type=con[n_id].sem_type,
-                            format=con[n_id].format,
-                            framework_version=con[n_id].framework_version,
-                            archive_version=con[n_id].archive_version,
-                            has_provenance=con[n_id].has_provenance,
-                            provenance_is_valid=con[n_id].provenance_is_valid,
-                            )) for n_id in self._archv_contents]
+                (n_id, dict(
+                    full_ProvNode_payload=arc_contents[n_id],
+                    type=arc_contents[n_id].sem_type,
+                    format=arc_contents[n_id].format,
+                    framework_version=arc_contents[n_id].framework_version,
+                    archive_version=arc_contents[n_id].archive_version,
+                    has_provenance=arc_contents[n_id].has_provenance,
+                    provenance_is_valid=arc_contents[n_id].provenance_is_valid,
+                    )) for n_id in arc_contents]
             self.add_nodes_from(node_contents)
 
             # Add attributes which only exist if provenance was captured
@@ -126,8 +123,11 @@ class ProvDAG(DiGraph):
                     )
                     self.nodes[node].update(action_properties)
                 if not provnode.provenance_is_valid:
+                    # TODO NEXT: This may not be the appropriate place for this
+                    # now that checksum validation is happening at the DAG
+                    # level. Move this (and anything similar) up
                     self.nodes[node].update({'checksum_diff':
-                                             provnode.checksum_diff})
+                                             self.checksum_diff})
                 self.nodes[node]['metadata'] = provnode.metadata
 
             # NOTE: When parsing v1+ archives, v0 ancestor nodes without
@@ -215,19 +215,16 @@ class ProvNode:
         return parents + artifacts_as_metadata
 
     def __init__(self, zf: zipfile.ZipFile,
-                 fps_for_this_result: List[pathlib.Path]) -> None:
+                 fps_for_this_result: List[pathlib.Path],
+                 archive_provenance_is_valid: bool) -> None:
         """
         Constructs a ProvNode from a zipfile and some filepaths.
 
         This constructor is intentionally flexible, and will parse any
         files handed to it. It is the responsibility of the ParserVx classes to
         decide what files need to be passed.
-
-        For Archive Versions in which `checksums.md5` is present,
-        it validates the Archive.
-        For Archive formats prior to v5, we assume correctness.
         """
-        self.provenance_is_valid = True
+        self.provenance_is_valid = archive_provenance_is_valid
         for fp in fps_for_this_result:
             if fp.name == 'VERSION':
                 self._archive_version, self._framework_version = \
@@ -239,10 +236,8 @@ class ProvNode:
             elif fp.name == 'citations.bib':
                 self.citations = _Citations(zf, str(fp))
             elif fp.name == 'checksums.md5':
-                # self.checksum_diff: Optional[ChecksumDiff]
-                # TODO: This should only be done once per DAG, not per node
-                self.provenance_is_valid, self.checksum_diff = \
-                    validate_checksums(zf)
+                # Handled in ProvDAG
+                pass
 
         # If the _Action constructor finds metadata files, we parse them
         # TODO: This should be a user-facing option, right?
@@ -270,6 +265,7 @@ class ProvNode:
                 self.provenance_is_valid = False
 
     def _get_metadata_from_Action(
+        # TODO: Stop relying on self.action - just pass it in
         self, mock_action_details: Dict[str, List] = None) \
             -> Tuple[Dict[str, str], List[Dict[str, UUID]]]:
         """
@@ -503,10 +499,18 @@ class ParserV0():
         return _ResultMetadata(zf, root_md_fp)
 
     @classmethod
-    def parse_prov(cls, zf: zipfile.ZipFile) -> \
-            Tuple[_ResultMetadata, int, Dict[UUID, ProvNode]]:
+    def _validate_checksums(cls, zf: zipfile.ZipFile) -> \
+            Tuple[bool, Optional[ChecksumDiff]]:
+        """
+        V0 archives predate provenance tracking, so return (False, None)
+        """
+        return (False, None)
+
+    @classmethod
+    def parse_prov(cls, zf: zipfile.ZipFile) -> ParserResults:
         archv_contents = {}
         num_results = 1
+        provenance_is_valid, checksum_diff = cls._validate_checksums(zf)
         uuid = pathlib.Path(zf.namelist()[0]).parts[0]
 
         warnings.warn(f"Artifact {uuid} was created prior to provenance" +
@@ -515,8 +519,15 @@ class ParserV0():
 
         root_md = cls._get_root_md(zf, uuid)
         prov_data_fps = [pathlib.Path(uuid) / fp for fp in cls.expected_files]
-        archv_contents[uuid] = ProvNode(zf, prov_data_fps)
-        return (root_md, num_results, archv_contents)
+        archv_contents[uuid] = ProvNode(zf, prov_data_fps, provenance_is_valid)
+
+        # NOTE: Provenance is invalid because it does not exist in this version
+        results = ParserResults(
+            root_md, num_results, archv_contents, provenance_is_valid,
+            checksum_diff
+            )
+
+        return results
 
 
 class ParserV1(ParserV0):
@@ -531,8 +542,21 @@ class ParserV1(ParserV0):
     expected_files = ('metadata.yaml', 'action/action.yaml', 'VERSION')
 
     @classmethod
-    def parse_prov(cls, zf: zipfile.ZipFile) -> \
-            Tuple[_ResultMetadata, int, Dict[UUID, ProvNode]]:
+    def _validate_checksums(cls, zf: zipfile.ZipFile) -> \
+            Tuple[bool, Optional[ChecksumDiff]]:
+        """
+        Provenance is initially assumed valid because we have no checksums,
+        so return True, None.
+
+        If expected non-critical files like action.yaml are found to be
+        missing later (e.g. in ProvNode.__init__()), provenance_is_valid
+        will be set to false at the node level, and may then be checked for
+        the DAG.
+        """
+        return (False, None)
+
+    @classmethod
+    def parse_prov(cls, zf: zipfile.ZipFile) -> ParserResults:
         """
         Parses provenance data for one Archive.
 
@@ -553,16 +577,7 @@ class ParserV1(ParserV0):
         """
         archv_contents = {}
         num_results = 0
-
-        # TODO: NEXT  Checksum validation _should_ be moved here, so it doesn't
-        # run once per node (eww).
-        # - ProvDAGs are going to need a separate provenance_is_valid attribute
-        # - they should probably hold the checksum diff.
-        # - "has_provenance" definitely needs to exist at the node level (for
-        # nested v0 nodes in v1 archives) - not sure whether there's value in
-        # mirroring that at the DAG level
-        # if user wants checksum validation:
-        #     validate_checksums
+        provenance_is_valid, checksum_diff = cls._validate_checksums(zf)
 
         prov_data_fps = cls._get_prov_data_fps(zf, cls.expected_files)
         root_uuid = pathlib.Path(zf.namelist()[0]).parts[0]
@@ -584,8 +599,15 @@ class ParserV1(ParserV0):
                 fps_for_this_result = [prefix / name
                                        for name in cls.expected_files]
                 num_results += 1
-                archv_contents[node_uuid] = ProvNode(zf, fps_for_this_result)
-        return (root_md, num_results, archv_contents)
+                archv_contents[node_uuid] = ProvNode(
+                    zf, fps_for_this_result, provenance_is_valid)
+
+            results = ParserResults(
+                root_md, num_results, archv_contents, provenance_is_valid,
+                checksum_diff
+            )
+
+        return results
 
     @classmethod
     def _get_prov_data_fps(
@@ -654,6 +676,55 @@ class ParserV5(ParserV4):
     # this format. "Optional" filenames should not be included here.
     expected_files = (*ParserV4.expected_files, 'checksums.md5')
 
+    @classmethod
+    def _validate_checksums(cls, zf: zipfile.ZipFile) -> \
+            Tuple[bool, Optional[ChecksumDiff]]:
+        """
+        v5 archives give us the ability to check validity with checksums.md5
+
+        If expected non-critical files like action.yaml are found to be
+        missing later (e.g. in ProvNode.__init__()), provenance_is_valid
+        will be set to false at the node level, and may then be checked for
+        the DAG.
+        """
+        return validate_checksums(zf)
+
+    @classmethod
+    def parse_prov(cls, zf: zipfile.ZipFile) -> ParserResults:
+        """
+        Parses provenance data for one Archive, optionally validating checksums
+        """
+        # TODO - conditional checksumming
+        # if user wants checksum validation:
+        # Validate checksums
+
+        # TODO NEXT: We need to call super's parse_prov, but we need to use
+        # this class's _validate_checksums() method within it. I think we can
+        # hack that? https://stackoverflow.com/a/32102349/9872253
+        # SPECIFICALLY, we need to target a test to make sure this is happening
+        # as we expect. Otherwise, we're just assuming true every time, and
+        # that's not great.
+        results = super().parse_prov(zf)
+
+        return results
+
+
+@dataclass
+class ParserResults():
+    """
+    Results generated by a ParserVx
+    TODO: Should we drop all the @classmethod garbage and turn parse_prov()
+    into an __init__ that makes various versions of these?
+
+    No idea what to call the Parser classes instead, but it might simplify
+    things a bit.
+    """
+    root_md: _ResultMetadata
+    num_results: int
+    archive_contents: Dict[UUID, ProvNode]
+    provenance_is_valid: bool
+    checksum_diff: Optional[ChecksumDiff]
+
 
 class FormatHandler():
     """
@@ -682,6 +753,5 @@ class FormatHandler():
         self._archv_vrsn, self._frmwk_vrsn = get_version(zf)
         self.parser = self._FORMAT_REGISTRY[self._archv_vrsn]
 
-    def parse(self, zf: zipfile.ZipFile) -> \
-            Tuple[_ResultMetadata, int, Dict[UUID, ProvNode]]:
+    def parse(self, zf: zipfile.ZipFile) -> ParserResults:
         return self.parser.parse_prov(zf)

@@ -536,31 +536,28 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                  pfx / 'provenance/action/action.yaml'],
                 prov_is_valid)
 
-        # Build a nonroot node without metadata
+        # Build a nonroot node without study metadata
         with zipfile.ZipFile(TEST_DATA[k]['qzv_fp']) as zf:
             node_id = '3b7d36ff-37ab-4ac2-958b-6a547d442bcf'
             all_filenames = zf.namelist()
             node_fps = [
                 pathlib.Path(fp) for fp in all_filenames if
-                'VERSION' in fp or
                 node_id in fp and
-                ('metadata.yaml' in fp or 'action.yaml' in fp)
-                ]
-            # TODO: This probably needs to go elsewhere - confirm that it's not
-            # possible to get to the ProvNode constructor with missing metadata
-            # and then remove/relocate
+                ('metadata.yaml' in fp or 'action.yaml' in fp
+                 or 'VERSION' in fp
+                 )]
             prov_is_valid = TEST_DATA['5']['prov_is_valid']
             cls.nonroot_non_md_node = ProvNode(zf, node_fps, prov_is_valid)
 
-            # Build a nonroot node with metadata
+            # Build a nonroot node with study metadata
             node_id = '0af08fa8-48b7-4c6a-83c6-e0f766156343'
             all_filenames = zf.namelist()
             node_fps = [
                 pathlib.Path(fp) for fp in all_filenames if
-                'VERSION' in fp or
                 node_id in fp and
-                ('metadata.yaml' in fp or 'action.yaml' in fp)
-                ]
+                ('metadata.yaml' in fp or 'action.yaml' in fp
+                 or 'VERSION' in fp
+                 )]
             prov_is_valid = TEST_DATA['5']['prov_is_valid']
             cls.nonroot_md_node = ProvNode(zf, node_fps, prov_is_valid)
 

@@ -553,7 +553,7 @@ class ParserV1(ParserV0):
         will be set to false at the node level, and may then be checked for
         the DAG.
         """
-        return (False, None)
+        return (True, None)
 
     @classmethod
     def parse_prov(cls, zf: zipfile.ZipFile) -> ParserResults:

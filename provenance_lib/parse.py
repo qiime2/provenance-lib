@@ -516,13 +516,14 @@ class ParserV1(ParserV0):
     Parser for V1 archives. These track provenance, so we parse it.
     """
     version_string = 1
-    expected_all_nodes: Tuple[str, ...]
-    expected_root_only: Tuple[str, ...]
+    expected_files_in_all_nodes: Tuple[str, ...]
+    expected_files_root_only: Tuple[str, ...]
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames (like Metadata, which may or may
     # not be present in an archive) should not be included here.
-    expected_root_only = tuple()
-    expected_all_nodes = ('metadata.yaml', 'action/action.yaml', 'VERSION')
+    expected_files_root_only = tuple()
+    expected_files_in_all_nodes = (
+        'metadata.yaml', 'action/action.yaml', 'VERSION')
 
     @classmethod
     def _validate_checksums(cls, zf: zipfile.ZipFile) -> \
@@ -560,10 +561,16 @@ class ParserV1(ParserV0):
         """
         archv_contents = {}
         num_results = 0
+        # TODO: Remove
+        print(cls._validate_checksums)
+        print(super()._validate_checksums)
+        print(cls.expected_files_in_all_nodes)
+        print(cls.expected_files_root_only)
+        print(cls.expected_files)
         provenance_is_valid, checksum_diff = cls._validate_checksums(zf)
 
         prov_data_fps = cls._get_prov_data_fps(
-            zf, cls.expected_all_nodes + cls.expected_root_only)
+            zf, cls.expected_files_in_all_nodes + cls.expected_files_root_only)
         root_uuid = pathlib.Path(zf.namelist()[0]).parts[0]
 
         # TODO: rename to _parse_root_md?
@@ -576,8 +583,9 @@ class ParserV1(ParserV0):
             if 'artifacts' not in fp.parts:
                 node_uuid = root_uuid
                 prefix = pathlib.Path(node_uuid) / 'provenance'
-                root_only_expected_fps = [pathlib.Path(node_uuid) / filenm
-                                          for filenm in cls.expected_root_only]
+                root_only_expected_fps = [
+                    pathlib.Path(node_uuid) / filename for filename in
+                    cls.expected_files_root_only]
                 fps_for_this_result += root_only_expected_fps
             else:
                 node_uuid = cls._get_nonroot_uuid(fp)
@@ -586,7 +594,7 @@ class ParserV1(ParserV0):
             if node_uuid not in archv_contents:
                 num_results += 1
                 fps_for_this_result = [
-                    prefix / name for name in cls.expected_all_nodes]
+                    prefix / name for name in cls.expected_files_in_all_nodes]
 
                 # Warn and flag if any expected files are missing
                 for fp in fps_for_this_result:
@@ -640,8 +648,8 @@ class ParserV2(ParserV1):
     version_string = 2
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames should not be included here.
-    expected_all_nodes = ParserV1.expected_all_nodes
-    expected_root_only = ParserV1.expected_root_only
+    expected_files_in_all_nodes = ParserV1.expected_files_in_all_nodes
+    expected_files_root_only = ParserV1.expected_files_root_only
 
 
 class ParserV3(ParserV2):
@@ -652,8 +660,8 @@ class ParserV3(ParserV2):
     version_string = 3
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames should not be included here.
-    expected_all_nodes = ParserV2.expected_all_nodes
-    expected_root_only = ParserV2.expected_root_only
+    expected_files_in_all_nodes = ParserV2.expected_files_in_all_nodes
+    expected_files_root_only = ParserV2.expected_files_root_only
 
 
 class ParserV4(ParserV3):
@@ -664,8 +672,9 @@ class ParserV4(ParserV3):
     version_string = 4
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames should not be included here.
-    expected_all_nodes = (*ParserV3.expected_all_nodes, 'citations.bib')
-    expected_root_only = ParserV3.expected_root_only
+    expected_files_in_all_nodes = (*ParserV3.expected_files_in_all_nodes,
+                                   'citations.bib')
+    expected_files_root_only = ParserV3.expected_files_root_only
 
 
 class ParserV5(ParserV4):
@@ -675,8 +684,8 @@ class ParserV5(ParserV4):
     version_string = 5
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames should not be included here.
-    expected_root_only = ('checksums.md5', )
-    expected_all_nodes = ParserV4.expected_all_nodes
+    expected_files_root_only = ('checksums.md5', )
+    expected_files_in_all_nodes = ParserV4.expected_files_in_all_nodes
 
     @classmethod
     def _validate_checksums(cls, zf: zipfile.ZipFile) -> \

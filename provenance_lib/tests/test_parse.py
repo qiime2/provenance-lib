@@ -8,10 +8,12 @@ import zipfile
 
 from networkx import DiGraph
 
+from ..checksum_validator import ChecksumDiff
 from ..parse import (
     ProvDAG, ProvNode, FormatHandler,
     _Action, _Citations, _ResultMetadata,
     ParserV0, ParserV1, ParserV2, ParserV3, ParserV4, ParserV5,
+    ParserResults,
 )
 from ..yaml_constructors import MetadataInfo
 
@@ -30,6 +32,7 @@ TEST_DATA = {
           'qzv_fp': os.path.join(DATA_DIR, 'v0_uu_emperor.qzv'),
           'has_prov': False,
           'prov_is_valid': False,
+          'checksum': None,
           },
     '1': {'parser': ParserV1,
           'av': '1',
@@ -39,6 +42,7 @@ TEST_DATA = {
           'qzv_fp': os.path.join(DATA_DIR, 'v1_uu_emperor.qzv'),
           'has_prov': True,
           'prov_is_valid': True,
+          'checksum': None,
           },
     '2a': {'parser': ParserV2,
            'av': '2',
@@ -48,6 +52,7 @@ TEST_DATA = {
            'qzv_fp': os.path.join(DATA_DIR, 'v2a_uu_emperor.qzv'),
            'has_prov': True,
            'prov_is_valid': True,
+           'checksum': None,
            },
     '2b': {'parser': ParserV2,
            'av': '2',
@@ -57,6 +62,7 @@ TEST_DATA = {
            'qzv_fp': os.path.join(DATA_DIR, 'v2b_uu_emperor.qzv'),
            'has_prov': True,
            'prov_is_valid': True,
+           'checksum': None,
            },
     '3': {'parser': ParserV3,
           'av': '3',
@@ -66,6 +72,7 @@ TEST_DATA = {
           'qzv_fp': os.path.join(DATA_DIR, 'v3_uu_emperor.qzv'),
           'has_prov': True,
           'prov_is_valid': True,
+          'checksum': None,
           },
     '4': {'parser': ParserV4,
           'av': '4',
@@ -75,6 +82,7 @@ TEST_DATA = {
           'qzv_fp': os.path.join(DATA_DIR, 'v4_uu_emperor.qzv'),
           'has_prov': True,
           'prov_is_valid': True,
+          'checksum': None,
           },
     '5': {'parser': ParserV5,
           'av': '5',
@@ -84,6 +92,7 @@ TEST_DATA = {
           'qzv_fp': os.path.join(DATA_DIR, 'v5_uu_emperor.qzv'),
           'has_prov': True,
           'prov_is_valid': True,
+          'checksum': ChecksumDiff({}, {}, {}),
           },
     }
 
@@ -148,6 +157,23 @@ class ProvDAGTests(unittest.TestCase):
         for dag_version in self.dags:
             self.assertIn(TEST_DATA[dag_version]['uuid'],
                           self.dags[dag_version].nodes)
+
+    def test_dag_attributes(self):
+        for vz in self.dags:
+            self.assertEqual(type(self.dags[vz].parser_results), ParserResults)
+            self.assertEqual(type(self.dags[vz].parser_results.root_md),
+                             _ResultMetadata)
+            self.assertEqual(self.dags[vz].parser_results.root_md.uuid,
+                             TEST_DATA[vz]['uuid'])
+            self.assertEqual(self.dags[vz].parser_results.num_results,
+                             TEST_DATA[vz]['n_res'])
+            self.assertIs(
+                type(self.dags[vz].parser_results.archive_contents),
+                dict)
+            self.assertEqual(self.dags[vz].provenance_is_valid,
+                             TEST_DATA[vz]['prov_is_valid'])
+            self.assertEqual(self.dags[vz].checksum_diff,
+                             TEST_DATA[vz]['checksum'])
 
     def test_v5root_node_attributes(self):
         # Many of these attributes are being tested across version formats in
@@ -253,17 +279,14 @@ class ProvDAGTests(unittest.TestCase):
             with zipfile.ZipFile(chopped_archive, 'a') as zf:
                 new_fn = str(fp_pfx / 'tamper.txt')
                 zf.writestr(new_fn, 'extra file')
-
                 # and overwrite an existing file with junk
                 extant_fn = str(fp_pfx / 'data' / 'index.html')
+
                 # we expect a warning that we're overwriting the filename
                 # this CM stops the warning from propagating up to stderr/out
                 with self.assertWarnsRegex(UserWarning, 'Duplicate name'):
                     with zf.open(extant_fn, 'w') as myfile:
                         myfile.write(b'999\n')
-
-            print(chopped_archive)
-            print(type(chopped_archive))
 
             # Is our bad-checksums warning message correct?
             uuid = TEST_DATA['5']['uuid']
@@ -298,11 +321,6 @@ class ProvDAGTests(unittest.TestCase):
         Remove a file from an intact v5 Archive so that its checksums.md5 is
         invalid, and then build a ProvDAG with it to confirm the ProvDAG
         constructor handles broken checksums appropriately
-
-        This mangling is simpler than that performed in test_checksum_validator
-        # TODO: is ProvNode still mangling archives?
-        or in the ProvNode tests, because most cases have been checked
-        elsewhere.
 
         TODO: Duplicate this test when we add conditional checksum validation
         (Using a local VERSION or action.yaml file)
@@ -350,48 +368,50 @@ class ProvDAGTests(unittest.TestCase):
             self.assertEqual(diff, None)
 
     def test_v5_with_missing_node_files(self):
+        # TODO: Generalize this to cover all archive versions after v0, by
+        # adding a non-root node uuid to TEST_DATA for each of those versions
         pfx = 'provenance/artifacts/'
-        node_uuid = '3b7d36ff-37ab-4ac2-958b-6a547d442bcf/'
-        fnames = ['VERSION', 'action/action.yaml']
+        root_uuid = TEST_DATA['5']['uuid']
+        node_uuid = '3b7d36ff-37ab-4ac2-958b-6a547d442bcf'
+        parser = TEST_DATA['5']['parser']
+        fnames = parser.expected_files_in_all_nodes
         for name in fnames:
             drop_file = pathlib.Path(pfx) / node_uuid / name
             with generate_archive_with_file_removed(
                 qzv_fp=TEST_DATA['5']['qzv_fp'],
-                root_uuid=TEST_DATA['5']['uuid'],
+                root_uuid=root_uuid,
                     file_to_drop=drop_file) as chopped_archive:
 
-                # Is our bad-checksums warning message correct?
-                expected = (f'no item.*{node_uuid}.*Archive may be corrupt')
-                with self.assertWarnsRegex(UserWarning, expected):
-                    a_dag = ProvDAG(chopped_archive)
-
-                # Have we set provenance_is_valid correctly?
-                self.assertEqual(a_dag.provenance_is_valid, False)
-
-                # Is the diff correct?
-                diff = a_dag.checksum_diff
-                self.assertEqual(diff, None)
+                # Fudging this to match what the user sees - 'action.yaml'
+                if name == 'action/action.yaml':
+                    name = 'action.yaml'
+                expected = (
+                    f"(?s)Malformed.*{name}.*{node_uuid}.*{root_uuid}.*corrupt"
+                )
+                with self.assertRaisesRegex(ValueError, expected):
+                    ProvDAG(chopped_archive)
 
 
 class ParserVxTests(unittest.TestCase):
-    def test_get_root_md(self):
+    def test_parse_root_md(self):
         for archv_vrsn in TEST_DATA:
             fp = TEST_DATA[archv_vrsn]['qzv_fp']
             root_uuid = TEST_DATA[archv_vrsn]['uuid']
             with zipfile.ZipFile(fp) as zf:
-                root_md = TEST_DATA[archv_vrsn]['parser']._get_root_md(
+                root_md = TEST_DATA[archv_vrsn]['parser']._parse_root_md(
                     zf, root_uuid)
                 self.assertEqual(root_md.uuid, root_uuid)
                 self.assertEqual(root_md.type,  'Visualization')
                 self.assertEqual(root_md.format, None)
 
-    def test_get_root_md_no_md_yaml(self):
+    def test_parse_root_md_no_md_yaml(self):
         qzv_no_root_md = os.path.join(DATA_DIR, 'no_root_md_yaml.qzv')
         for archv_vrsn in TEST_DATA:
             root_uuid = TEST_DATA[archv_vrsn]['uuid']
             with zipfile.ZipFile(qzv_no_root_md) as zf:
                 with self.assertRaisesRegex(ValueError, 'Malformed.*metadata'):
-                    TEST_DATA[archv_vrsn]['parser']._get_root_md(zf, root_uuid)
+                    TEST_DATA[archv_vrsn]['parser']._parse_root_md(zf,
+                                                                   root_uuid)
 
     def test_populate_archive(self):
         for archv_vrsn in TEST_DATA:
@@ -435,6 +455,29 @@ class ParserVxTests(unittest.TestCase):
         for parser in parsers:
             self.assertEqual(parser._get_nonroot_uuid(md_example), exp)
             self.assertEqual(parser._get_nonroot_uuid(action_example), exp)
+
+    def test_validate_checksums(self):
+        for archv_version in TEST_DATA:
+            with zipfile.ZipFile(TEST_DATA[archv_version]['qzv_fp']) as zf:
+                parser = TEST_DATA[archv_version]['parser']
+                is_valid, diff = parser._validate_checksums(zf)
+                self.assertEqual(is_valid,
+                                 TEST_DATA[archv_version]['prov_is_valid'])
+                self.assertEqual(diff,
+                                 TEST_DATA[archv_version]['checksum'])
+
+    def test_correct_validate_checksums_method_called(self):
+        # We want to confirm that parse_prov uses the local _validate_checksums
+        # even when it calls super().parse_prov() internally
+        for archv_version in TEST_DATA:
+            with zipfile.ZipFile(TEST_DATA[archv_version]['qzv_fp']) as zf:
+                parser = TEST_DATA[archv_version]['parser']
+                parser._validate_checksums = MagicMock(
+                    # return values only here to facilitate normal execution
+                    return_value=(TEST_DATA[archv_version]['prov_is_valid'],
+                                  TEST_DATA[archv_version]['checksum']))
+                parser.parse_prov(zf)
+                parser._validate_checksums.assert_called_once()
 
 
 class FormatHandlerTests(unittest.TestCase):

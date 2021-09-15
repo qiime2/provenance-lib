@@ -12,8 +12,8 @@ import bibtexparser as bp
 from networkx import DiGraph
 import yaml
 
-from .checksum_validator import ChecksumDiff, validate_checksums
-from .version_parser import get_version
+from . import checksum_validator
+from . import version_parser
 from .yaml_constructors import CONSTRUCTOR_REGISTRY, MetadataInfo
 
 # Alias string as UUID so we can specify types more clearly
@@ -219,7 +219,7 @@ class ProvNode:
         for fp in fps_for_this_result:
             if fp.name == 'VERSION':
                 self._archive_version, self._framework_version = \
-                    get_version(zf, fp)
+                    version_parser.parse_version(zf, fp)
             elif fp.name == 'metadata.yaml':
                 self._result_md = _ResultMetadata(zf, str(fp))
             elif fp.name == 'action.yaml':
@@ -469,7 +469,7 @@ class ParserV0():
     expected_files = ('metadata.yaml', 'VERSION')  # type: Tuple[str, ...]
 
     @classmethod
-    def _get_root_md(cls, zf: zipfile.ZipFile, root_uuid: UUID) \
+    def _parse_root_md(cls, zf: zipfile.ZipFile, root_uuid: UUID) \
             -> _ResultMetadata:
         """ Get archive metadata including root uuid """
         # All files in zf start with root uuid, so we'll grab it from the first
@@ -481,9 +481,11 @@ class ParserV0():
 
     @classmethod
     def _validate_checksums(cls, zf: zipfile.ZipFile) -> \
-            Tuple[bool, Optional[ChecksumDiff]]:
+            Tuple[bool, Optional[checksum_validator.ChecksumDiff]]:
         """
-        V0 archives predate provenance tracking, so return (False, None)
+        V0 archives predate provenance tracking, so
+        - provenance_is_valid = False
+        - checksum_diff = None
         """
         return (False, None)
 
@@ -491,6 +493,9 @@ class ParserV0():
     def parse_prov(cls, zf: zipfile.ZipFile) -> ParserResults:
         archv_contents = {}
         num_results = 1
+        # TODO - conditional checksumming
+        # if user wants checksum validation:
+        # Validate checksums
         provenance_is_valid, checksum_diff = cls._validate_checksums(zf)
         uuid = pathlib.Path(zf.namelist()[0]).parts[0]
 
@@ -498,17 +503,14 @@ class ParserV0():
                       " tracking. Provenance data will be incomplete.",
                       UserWarning)
 
-        root_md = cls._get_root_md(zf, uuid)
+        root_md = cls._parse_root_md(zf, uuid)
         prov_data_fps = [pathlib.Path(uuid) / fp for fp in cls.expected_files]
         archv_contents[uuid] = ProvNode(zf, prov_data_fps)
 
-        # NOTE: Provenance is invalid because it does not exist in this version
-        results = ParserResults(
+        return ParserResults(
             root_md, num_results, archv_contents, provenance_is_valid,
             checksum_diff
             )
-
-        return results
 
 
 class ParserV1(ParserV0):
@@ -527,15 +529,12 @@ class ParserV1(ParserV0):
 
     @classmethod
     def _validate_checksums(cls, zf: zipfile.ZipFile) -> \
-            Tuple[bool, Optional[ChecksumDiff]]:
+            Tuple[bool, Optional[checksum_validator.ChecksumDiff]]:
         """
         Provenance is initially assumed valid because we have no checksums,
-        so return True, None.
-
-        If expected non-critical files like action.yaml are found to be
-        missing later (e.g. in ProvNode.__init__()), provenance_is_valid
-        will be set to false at the node level, and may then be checked for
-        the DAG.
+        so:
+        - provenance_is_valid = False
+        - checksum_diff = None
         """
         return (True, None)
 
@@ -551,30 +550,20 @@ class ParserV1(ParserV0):
         non-root provenance files live inside 'artifacts/<uuid>'
         e.g: <archive_root_uuid>/provenance/artifacts/<uuid>/metadata.yaml
         or <archive_root_uuid>/provenance/artifacts/<uuid>/action/action.yaml
-
-        Note: we create a list of filepaths to parse into ProvNodes
-        naively, from the version-specific list of files we expect will always
-        be present, `expected_files`. This saves us from filtering repeatedly,
-        but may cause problems if expected files have been removed by the user.
-        Targeted error/warning messages for missing VERSION, metadata.yaml,
-        and checksums.md5 have been written elsewhere.
         """
         archv_contents = {}
         num_results = 0
-        # TODO: Remove
-        print(cls._validate_checksums)
-        print(super()._validate_checksums)
-        print(cls.expected_files_in_all_nodes)
-        print(cls.expected_files_root_only)
-        print(cls.expected_files)
+
+        # TODO - conditional checksumming
+        # if user wants checksum validation:
+        # Validate checksums
         provenance_is_valid, checksum_diff = cls._validate_checksums(zf)
 
         prov_data_fps = cls._get_prov_data_fps(
             zf, cls.expected_files_in_all_nodes + cls.expected_files_root_only)
         root_uuid = pathlib.Path(zf.namelist()[0]).parts[0]
 
-        # TODO: rename to _parse_root_md?
-        root_md = cls._get_root_md(zf, root_uuid)
+        root_md = cls._parse_root_md(zf, root_uuid)
 
         # make a provnode for each UUID
         for fp in prov_data_fps:
@@ -596,24 +585,28 @@ class ParserV1(ParserV0):
                 fps_for_this_result = [
                     prefix / name for name in cls.expected_files_in_all_nodes]
 
-                # Warn and flag if any expected files are missing
+                # Warn/reset provenance_is_valid if expected files are missing
+                files_are_missing = False
+                error_contents = "Malformed Archive: "
                 for fp in fps_for_this_result:
-                    if str(fp) not in zf.namelist():
-                        warnings.warn(
-                            f"\'{fp.name}\' file missing for node {node_uuid}"
-                            ". Archive may be corrupt or provenance may be"
-                            " false",
-                            UserWarning)
+                    if fp not in prov_data_fps:
+                        files_are_missing = True
                         provenance_is_valid = False
+                        error_contents += (
+                            f"{fp.name} file for node {node_uuid} misplaced "
+                            "or nonexistent.\n")
+
+                if(files_are_missing):
+                    error_contents += (f"Archive {root_uuid} may be corrupt "
+                                       "or provenance may be false.")
+                    raise ValueError(error_contents)
 
                 archv_contents[node_uuid] = ProvNode(zf, fps_for_this_result)
 
-            results = ParserResults(
-                root_md, num_results, archv_contents, provenance_is_valid,
-                checksum_diff
-            )
-
-        return results
+        return ParserResults(
+            root_md, num_results, archv_contents, provenance_is_valid,
+            checksum_diff
+        )
 
     # TODO: We can probably remove this, but keeping it for now because removal
     # breaks the num_results counter (which we can probably also remove)
@@ -672,6 +665,7 @@ class ParserV4(ParserV3):
     version_string = 4
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames should not be included here.
+    # TODO: can we replace this unpacking junk with a + ?
     expected_files_in_all_nodes = (*ParserV3.expected_files_in_all_nodes,
                                    'citations.bib')
     expected_files_root_only = ParserV3.expected_files_root_only
@@ -679,7 +673,7 @@ class ParserV4(ParserV3):
 
 class ParserV5(ParserV4):
     """
-    Parser for V5 archives. Adds checksums.md5
+    Parser for V5 archives. Adds checksum validation with checksums.md5
     """
     version_string = 5
     # These are files we expect will be present in every QIIME2 archive with
@@ -689,35 +683,22 @@ class ParserV5(ParserV4):
 
     @classmethod
     def _validate_checksums(cls, zf: zipfile.ZipFile) -> \
-            Tuple[bool, Optional[ChecksumDiff]]:
+            Tuple[bool, Optional[checksum_validator.ChecksumDiff]]:
         """
-        v5 archives give us the ability to check validity with checksums.md5
-
-        If expected non-critical files like action.yaml are found to be
-        missing later (e.g. in ProvNode.__init__()), provenance_is_valid
-        will be set to false at the node level, and may then be checked for
-        the DAG.
+        With v5, we can actually validate checksums, so use checksum_validator
+        - provenance_is_valid: bool
+        - checksum_diff: Optional[ChecksumDiff], where None only if
+            checksums.md5 is missing
         """
-        return validate_checksums(zf)
+        return checksum_validator.validate_checksums(zf)
 
     @classmethod
     def parse_prov(cls, zf: zipfile.ZipFile) -> ParserResults:
         """
-        Parses provenance data for one Archive, optionally validating checksums
+        Parses provenance data for one Archive, applying the local
+        _validate_checksums() method to the v1 parser
         """
-        # TODO - conditional checksumming
-        # if user wants checksum validation:
-        # Validate checksums
-
-        # TODO NEXT: We need to call super's parse_prov, but we need to use
-        # this class's _validate_checksums() method within it. I think we can
-        # hack that? https://stackoverflow.com/a/32102349/9872253
-        # SPECIFICALLY, we need to target a test to make sure this is happening
-        # as we expect. Otherwise, we're just assuming true every time, and
-        # that's not great.
-        results = super().parse_prov(zf)
-
-        return results
+        return super().parse_prov(zf)
 
 
 @dataclass
@@ -734,7 +715,7 @@ class ParserResults():
     num_results: int
     archive_contents: Dict[UUID, ProvNode]
     provenance_is_valid: bool
-    checksum_diff: Optional[ChecksumDiff]
+    checksum_diff: Optional[checksum_validator.ChecksumDiff]
 
 
 class FormatHandler():
@@ -761,7 +742,7 @@ class FormatHandler():
         return self._frmwk_vrsn
 
     def __init__(self, zf: zipfile.ZipFile):
-        self._archv_vrsn, self._frmwk_vrsn = get_version(zf)
+        self._archv_vrsn, self._frmwk_vrsn = version_parser.parse_version(zf)
         self.parser = self._FORMAT_REGISTRY[self._archv_vrsn]
 
     def parse(self, zf: zipfile.ZipFile) -> ParserResults:

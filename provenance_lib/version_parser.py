@@ -12,8 +12,8 @@ _VERSION_MATCHER = (
 
 
 # TODO: rename to parse_VERSION?
-def get_version(zf: zipfile.ZipFile,
-                fp: Optional[pathlib.Path] = None) -> Tuple[str, str]:
+def parse_version(zf: zipfile.ZipFile,
+                  fp: Optional[pathlib.Path] = None) -> Tuple[str, str]:
     """Parse a VERSION file - by default uses the VERSION at archive root"""
     if not fp:
         # All files in zf start with root uuid, so we'll grab it from the first

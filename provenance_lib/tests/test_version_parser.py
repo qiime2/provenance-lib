@@ -4,7 +4,7 @@ import unittest
 import zipfile
 
 from .test_parse import DATA_DIR, TEST_DATA
-from ..version_parser import _VERSION_MATCHER, get_version
+from ..version_parser import _VERSION_MATCHER, parse_version
 
 
 class GetVersionTests(unittest.TestCase):
@@ -16,31 +16,31 @@ class GetVersionTests(unittest.TestCase):
     # High-level checks only. Detailed tests of the VERSION_MATCHER regex are
     # in test_archive_formats.VersionMatcherTests to reduce overhead
 
-    def test_get_version_no_VERSION_file(self):
+    def test_parse_version_no_VERSION_file(self):
         with zipfile.ZipFile(self.v5_no_version) as zf:
             with self.assertRaisesRegex(ValueError, 'VERSION.*nonexistent'):
-                get_version(zf)
+                parse_version(zf)
 
-    def test_get_version_VERSION_bad(self):
+    def test_parse_version_VERSION_bad(self):
         with zipfile.ZipFile(self.v5_qzv_version_bad) as zf:
             with self.assertRaisesRegex(ValueError, 'VERSION.*out of spec'):
-                get_version(zf)
+                parse_version(zf)
 
     def test_short_VERSION(self):
         with zipfile.ZipFile(self.v5_qzv_version_short) as zf:
             with self.assertRaisesRegex(ValueError, 'VERSION.*out of spec'):
-                get_version(zf)
+                parse_version(zf)
 
     def test_long_VERSION(self):
         with zipfile.ZipFile(self.v5_qzv_version_long) as zf:
             with self.assertRaisesRegex(ValueError, 'VERSION.*out of spec'):
-                get_version(zf)
+                parse_version(zf)
 
     def test_version_nums(self):
         for arch_ver in TEST_DATA:
             qzv = os.path.join(DATA_DIR, 'v' + arch_ver + '_uu_emperor.qzv')
             with zipfile.ZipFile(qzv) as zf:
-                exp_arch, exp_frmwk = get_version(zf)
+                exp_arch, exp_frmwk = parse_version(zf)
                 self.assertEqual(exp_arch, TEST_DATA[arch_ver]['av'])
                 self.assertEqual(exp_frmwk, TEST_DATA[arch_ver]['fwv'])
 

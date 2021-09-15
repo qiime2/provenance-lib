@@ -6,7 +6,7 @@ import warnings
 import zipfile
 from typing import Optional, Tuple
 
-from .version_parser import get_version
+from .version_parser import parse_version
 
 
 ChecksumDiff = collections.namedtuple(
@@ -61,7 +61,7 @@ def diff_checksums(zf: zipfile.ZipFile) -> ChecksumDiff:
 
     Code adapted from qiime2/core/archive/archiver.py
     """
-    archive_version, _ = get_version(zf)
+    archive_version, _ = parse_version(zf)
     if int(archive_version) < 5:
         return ChecksumDiff({}, {}, {})
 

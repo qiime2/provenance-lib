@@ -25,21 +25,20 @@ def validate_checksums(zf: zipfile.ZipFile) -> Tuple[bool,
     # TODO: Try/except should be in diff_checksums, where the file io happens
 
     try:
-        diff = diff_checksums(zf)
-        if diff != ChecksumDiff({}, {}, {}):
+        checksum_diff = diff_checksums(zf)
+        if checksum_diff != ChecksumDiff({}, {}, {}):
             # self._result_md may not have been parsed, so get uuid
             root_uuid = pathlib.Path(zf.namelist()[0]).parts[0]
             warnings.warn(
                 f"Checksums are invalid for Archive {root_uuid}\n"
                 "Archive may be corrupt or provenance may be false"
                 ".\n"
-                f"Files added since archive creation: {diff[0]}\n"
-                f"Files removed since archive creation: {diff[1]}"
+                f"Files added since archive creation: {checksum_diff[0]}\n"
+                f"Files removed since archive creation: {checksum_diff[1]}"
                 "\n"
-                f"Files changed since archive creation: {diff[2]}",
+                f"Files changed since archive creation: {checksum_diff[2]}",
                 UserWarning)
             provenance_is_valid = False
-            checksum_diff = diff
     # zipfiles KeyError if file not found. warn if checksums.md5 is missing
     except KeyError as err:
         warnings.warn(

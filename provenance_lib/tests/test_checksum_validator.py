@@ -6,6 +6,7 @@ import zipfile
 
 from ..checksum_validator import (
     diff_checksums, md5sum_directory, md5sum, from_checksum_format,
+    validate_checksums, ChecksumDiff,
 )
 from .test_parse import TEST_DATA
 from .util import (
@@ -14,10 +15,99 @@ from .util import (
 
 
 class ValidateChecksumTests(unittest.TestCase):
+    def test_validate_checksums_valid(self):
+        """
+        Test a collection of intact archives from v0 to v5
+        """
+        for archv_vrsn in TEST_DATA:
+            fp = TEST_DATA[archv_vrsn]['qzv_fp']
+            with zipfile.ZipFile(fp) as zf:
+                is_valid, diff = validate_checksums(zf)
+
+                self.assertTrue(is_valid)
+                self.assertEqual(type(diff), ChecksumDiff)
+                self.assertEqual(diff, ChecksumDiff({}, {}, {}))
+                self.assertEqual(diff.added, {})
+                self.assertEqual(diff.removed, {})
+                self.assertEqual(diff.changed, {})
+
+    def test_validate_checksums_invalid(self):
+        """
+        Mangle an intact v5 Archive so that its checksums.md5 is invalid,
+        and then confirm that we're catching all the changes we've made
+        Specifically:
+        - remove the root `<uuid>/metadata.yaml`
+        - add a new file called '<uuid>/tamper.txt`
+        - overwrite `<uuid>/data/index.html` with '999\n'
+        """
+        original_archive = TEST_DATA['5']['qzv_fp']
+        root_uuid = TEST_DATA['5']['uuid']
+        fp_pfx = pathlib.Path(root_uuid)
+        drop_file = pathlib.Path('metadata.yaml')
+        with generate_archive_with_file_removed(
+            qzv_fp=original_archive,
+            root_uuid=root_uuid,
+                file_to_drop=drop_file) as chopped_archive:
+
+            with zipfile.ZipFile(chopped_archive, 'a') as zf:
+                # add a new file...
+                new_fn = str(fp_pfx / 'tamper.txt')
+                zf.writestr(new_fn, 'extra file')
+
+                # and overwrite an existing file with junk
+                extant_fn = str(fp_pfx / 'data' / 'index.html')
+                # we expect a warning that we're overwriting the filename
+                # this cm stops the warning from propagating up to stderr/out
+                with self.assertWarnsRegex(UserWarning, 'Duplicate name'):
+                    with zf.open(extant_fn, 'w') as myfile:
+                        myfile.write(b'999\n')
+
+                with self.assertWarnsRegex(
+                    UserWarning,
+                        '(?s)Checksums.*invalid.*added.*remove.*changed'):
+                    is_valid, diff = validate_checksums(zf)
+
+            # Here we'll just check name for reasons of simplicity
+            self.assertFalse(is_valid)
+            self.assertEqual(list(diff.removed.keys()), ['metadata.yaml'])
+            self.assertEqual(
+                diff.added,
+                {'tamper.txt': '296583001b00d2b811b5871b19e0ad28'})
+            self.assertEqual(
+                diff.changed,
+                {'data/index.html': ('065031e17943cd0780f197874c4f011e',
+                                     'f47bc36040d5c7db08e4b3a457dcfbb2')
+                 })
+
+    def test_validate_checksums_checksums_missing(self):
+        """
+        Mangle an intact v5 Archive so that its checksums.md5 is missing
+        and then confirm that we're warning and returning the right values
+        """
+        original_archive = TEST_DATA['5']['qzv_fp']
+        root_uuid = TEST_DATA['5']['uuid']
+        drop_file = pathlib.Path('checksums.md5')
+        with generate_archive_with_file_removed(
+            qzv_fp=original_archive,
+            root_uuid=root_uuid,
+                file_to_drop=drop_file) as chopped_archive:
+
+            with zipfile.ZipFile(chopped_archive, 'a') as zf:
+                with self.assertWarnsRegex(
+                    UserWarning,
+                        'no item.*checksums.md5.*provenance.*false'):
+                    is_valid, diff = validate_checksums(zf)
+
+            # Here we'll just check name for reasons of simplicity
+            self.assertFalse(is_valid)
+            self.assertEqual(diff, None)
+
+
+class DiffChecksumTests(unittest.TestCase):
     """
     Tests adapted from `/qiime2/core/archive/tests/test_archiver.py`
     """
-    def test_checksums_match(self):
+    def test_diff_checksums_match(self):
         """
         Test a collection of intact archives from v0 to v5
         """
@@ -30,7 +120,7 @@ class ValidateChecksumTests(unittest.TestCase):
                 self.assertEqual(diff.removed, {})
                 self.assertEqual(diff.changed, {})
 
-    def test_checksums_mismatch(self):
+    def test_diff_checksums_mismatch(self):
         """
         Mangle an intact v5 Archive so that its checksums.md5 is invalid,
         and then confirm that we're catching all the changes we've made

@@ -4,6 +4,7 @@ import pathlib
 import unittest
 from datetime import timedelta
 from unittest.mock import MagicMock
+import warnings
 import zipfile
 
 from networkx import DiGraph
@@ -103,10 +104,18 @@ class ProvDAGTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        # TODO: catch/supress warning for v0 provDag
         cls.dags = dict()
-        for k in list(TEST_DATA):
-            cls.dags[k] = ProvDAG(Config(), str(TEST_DATA[k]['qzv_fp']))
+        for archv_vrsn in list(TEST_DATA):
+            # supress warning from parsing provenance for a v0 provDag
+            if archv_vrsn == '0':
+                uuid = TEST_DATA['0']['uuid']
+                with warnings.catch_warnings():
+                    warnings.filterwarnings('ignore',  f'Art.*{uuid}.*prior')
+                    cls.dags[archv_vrsn] = ProvDAG(
+                        Config(), str(TEST_DATA[archv_vrsn]['qzv_fp']))
+            else:
+                cls.dags[archv_vrsn] = ProvDAG(
+                    Config(), str(TEST_DATA[archv_vrsn]['qzv_fp']))
 
     # This should only trigger if something fails in setup or above
     # e.g. if a ProvDag fails to initialize
@@ -129,8 +138,8 @@ class ProvDAGTests(unittest.TestCase):
 
     def test_number_of_actions(self):
         # TODO: remove _num_results and rely on node.len()?
-        # This call should be made once we've decided how to represent nodes,
-        # e.g. nested or all-nodes/raw
+        # This decision should be made once we've decided how to represent
+        # nodes, e.g. nested or all-nodes/raw
         # At that time, remove one of these assertions
         for dag_version in self.dags:
             self.assertEqual(self.dags[dag_version].parser_results.num_results,
@@ -389,7 +398,17 @@ class ProvDAGTests(unittest.TestCase):
                     f"(?s)Malformed.*{name}.*{node_uuid}.*{root_uuid}.*corrupt"
                 )
                 with self.assertRaisesRegex(ValueError, expected):
-                    ProvDAG(Config(), chopped_archive)
+                    with self.assertWarnsRegex(UserWarning, 'Checksums.*inv'):
+                        ProvDAG(Config(), chopped_archive)
+
+    # TODO: no checksum_validation tests, as above:
+    # - missing/invalid checksums.md5
+    # - missing node files
+    # - successful run
+                # e.g.
+                # with self.assertRaisesRegex(ValueError, expected):
+                #     ProvDAG(Config(perform_checksum_validation=False),
+                #             chopped_archive)
 
 
 class ParserVxTests(unittest.TestCase):
@@ -472,14 +491,23 @@ class ParserVxTests(unittest.TestCase):
         # We want to confirm that parse_prov uses the local _validate_checksums
         # even when it calls super().parse_prov() internally
         for archv_version in TEST_DATA:
+            parser = TEST_DATA[archv_version]['parser']
+            parser._validate_checksums = MagicMock(
+                # return values only here to facilitate normal execution
+                return_value=(TEST_DATA[archv_version]['prov_is_valid'],
+                              TEST_DATA[archv_version]['checksum']))
             with zipfile.ZipFile(TEST_DATA[archv_version]['qzv_fp']) as zf:
-                parser = TEST_DATA[archv_version]['parser']
-                parser._validate_checksums = MagicMock(
-                    # return values only here to facilitate normal execution
-                    return_value=(TEST_DATA[archv_version]['prov_is_valid'],
-                                  TEST_DATA[archv_version]['checksum']))
-                parser.parse_prov(Config(), zf)
-                parser._validate_checksums.assert_called_once()
+                if archv_version == '0':
+                    # supress warning from parsing provenance for a v0 ProvDAG
+                    uuid = TEST_DATA['0']['uuid']
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings(
+                            'ignore',  f'Art.*{uuid}.*prior')
+                        parser.parse_prov(Config(), zf)
+                        parser._validate_checksums.assert_called_once()
+                else:
+                    parser.parse_prov(Config(), zf)
+                    parser._validate_checksums.assert_called_once()
 
 
 class FormatHandlerTests(unittest.TestCase):

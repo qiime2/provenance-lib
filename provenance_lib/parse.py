@@ -502,7 +502,7 @@ class ParserV0():
         if cfg.perform_checksum_validation:
             provenance_is_valid, checksum_diff = cls._validate_checksums(zf)
         else:
-            # TODO: Change False to some coded value
+            # TODO: Change False to a value that represents user opt-out
             provenance_is_valid, checksum_diff = (False, None)
 
         uuid = pathlib.Path(zf.namelist()[0]).parts[0]
@@ -695,6 +695,7 @@ class ParserV5(ParserV4):
             Tuple[bool, Optional[checksum_validator.ChecksumDiff]]:
         """
         With v5, we can actually validate checksums, so use checksum_validator
+        to return:
         - provenance_is_valid: bool
         - checksum_diff: Optional[ChecksumDiff], where None only if
             checksums.md5 is missing

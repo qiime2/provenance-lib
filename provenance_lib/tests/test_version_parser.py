@@ -1,6 +1,7 @@
 import codecs
 import os
 import unittest
+import warnings
 import zipfile
 
 from .test_parse import DATA_DIR, TEST_DATA
@@ -69,6 +70,8 @@ class ArchiveVersionMatcherTests(unittest.TestCase):
         )
         self.assertNotRegex(longy, _VERSION_MATCHER)
 
+    warnings.filterwarnings('ignore', 'invalid escape sequence',
+                            DeprecationWarning)
     splitvm = codecs.decode(_VERSION_MATCHER.encode('utf-8'),
                             'unicode-escape').split(sep='\n')
     re_l1, re_l2, re_l3 = splitvm

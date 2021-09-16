@@ -1,6 +1,7 @@
 import codecs
 import pathlib
 import re
+import warnings
 import zipfile
 from typing import Optional, Tuple
 
@@ -30,11 +31,13 @@ def parse_version(zf: zipfile.ZipFile,
             f"for archive {root_uuid}")
 
     if not re.match(_VERSION_MATCHER, version_contents, re.MULTILINE):
+        warnings.filterwarnings('ignore', 'invalid escape sequence',
+                                DeprecationWarning)
         _vrsn_mtch_repr = codecs.decode(_VERSION_MATCHER.encode('utf-8'),
                                         'unicode-escape')
         raise ValueError(
             # TODO: Report the UUID of the failing artifact
-            "Malformed Archive: VERSION file out of spec for archive"
+            "Malformed Archive: VERSION file out of spec for archive "
             f"{root_uuid}\n\n"
             f"Should match this RE:\n{_vrsn_mtch_repr}\n\n"
             f"Actually looks like:\n{version_contents}\n")

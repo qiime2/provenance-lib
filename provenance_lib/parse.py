@@ -42,34 +42,6 @@ class ProvDAG(DiGraph):
         """Returns a ProvNode from this ProvDAG selected by UUID"""
         return self.parser_results.archive_contents[uuid]
 
-    def __str__(self) -> str:
-        return repr(self.parser_results.root_md)
-
-    def __repr__(self) -> str:
-        # Traverse DAG, printing UUIDs
-        # TODO: Improve this repr to remove id duplication
-        r_str = self.__str__() + "\nContains Results:\n"
-        uuid_yaml = yaml.dump(self.traverse_uuids())
-        r_str += uuid_yaml
-        return r_str
-
-    def traverse_uuids(self, node_id: UUID = None) -> \
-            Mapping[UUID, Optional[ProvNode]]:
-        """ depth-first traversal of this ProvNode's ancestors """
-        # Use this DAG's root uuid by default
-        node_id = self.root_uuid if node_id is None else node_id
-        local_parents = dict()
-        if not self.nodes[node_id].get('parents'):
-            local_parents = {node_id: None}
-        else:
-            sub_dag = dict()  # type: Dict[UUID, Optional[ProvNode]]
-            parents = self.nodes[node_id]['parents']
-            parent_uuids = (list(parent.values())[0] for parent in parents)
-            for uuid in parent_uuids:
-                sub_dag.update(self.traverse_uuids(uuid))
-            local_parents[node_id] = sub_dag  # type: ignore
-        return local_parents
-
     def __init__(self, archive_fp: str):
         """
         Create a ProvDAG (digraph) by:
@@ -147,6 +119,34 @@ class ProvDAG(DiGraph):
             # Our digraph contains all directories in the archive,
             # and doesn't handle aliases in the same way that q2view does.
             # We'll need to consider the semantics here.
+
+    def __str__(self) -> str:
+        return repr(self.parser_results.root_md)
+
+    def __repr__(self) -> str:
+        # Traverse DAG, printing UUIDs
+        # TODO: Improve this repr to remove id duplication
+        r_str = self.__str__() + "\nContains Results:\n"
+        uuid_yaml = yaml.dump(self.traverse_uuids())
+        r_str += uuid_yaml
+        return r_str
+
+    def _traverse_uuids(self, node_id: UUID = None) -> \
+            Mapping[UUID, Optional[ProvNode]]:
+        """ depth-first traversal of this ProvNode's ancestors """
+        # Use this DAG's root uuid by default
+        node_id = self.root_uuid if node_id is None else node_id
+        local_parents = dict()
+        if not self.nodes[node_id].get('parents'):
+            local_parents = {node_id: None}
+        else:
+            sub_dag = dict()  # type: Dict[UUID, Optional[ProvNode]]
+            parents = self.nodes[node_id]['parents']
+            parent_uuids = (list(parent.values())[0] for parent in parents)
+            for uuid in parent_uuids:
+                sub_dag.update(self.traverse_uuids(uuid))
+            local_parents[node_id] = sub_dag  # type: ignore
+        return local_parents
 
 
 class ProvNode:

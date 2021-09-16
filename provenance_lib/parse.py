@@ -23,6 +23,11 @@ for key in CONSTRUCTOR_REGISTRY:
     yaml.SafeLoader.add_constructor(key, CONSTRUCTOR_REGISTRY[key])
 
 
+@dataclass(frozen=True)
+class Config():
+    perform_checksum_validation: bool = True
+
+
 class ProvDAG(DiGraph):
     """
     A single-rooted DAG of ProvNode objects, representing a single QIIME 2
@@ -42,7 +47,7 @@ class ProvDAG(DiGraph):
         """Returns a ProvNode from this ProvDAG selected by UUID"""
         return self.parser_results.archive_contents[uuid]
 
-    def __init__(self, archive_fp: str):
+    def __init__(self, cfg: Config, archive_fp: str):
         """
         Create a ProvDAG (digraph) by:
             0. Creating an empty nx.digraph
@@ -53,7 +58,7 @@ class ProvDAG(DiGraph):
         """
         super().__init__()
         with zipfile.ZipFile(archive_fp) as zf:
-            handler = FormatHandler(zf)
+            handler = FormatHandler(cfg, zf)
             self.parser_results = handler.parse(zf)
             self.provenance_is_valid = self.parser_results.provenance_is_valid
             self.checksum_diff = self.parser_results.checksum_diff
@@ -131,7 +136,7 @@ class ProvDAG(DiGraph):
         r_str += uuid_yaml
         return r_str
 
-    def _traverse_uuids(self, node_id: UUID = None) -> \
+    def traverse_uuids(self, node_id: UUID = None) -> \
             Mapping[UUID, Optional[ProvNode]]:
         """ depth-first traversal of this ProvNode's ancestors """
         # Use this DAG's root uuid by default
@@ -490,13 +495,16 @@ class ParserV0():
         return (False, None)
 
     @classmethod
-    def parse_prov(cls, zf: zipfile.ZipFile) -> ParserResults:
+    def parse_prov(cls, cfg: Config, zf: zipfile.ZipFile) -> ParserResults:
         archv_contents = {}
         num_results = 1
-        # TODO - conditional checksumming
-        # if user wants checksum validation:
-        # Validate checksums
-        provenance_is_valid, checksum_diff = cls._validate_checksums(zf)
+
+        if cfg.perform_checksum_validation:
+            provenance_is_valid, checksum_diff = cls._validate_checksums(zf)
+        else:
+            # TODO: Change False to some coded value
+            provenance_is_valid, checksum_diff = (False, None)
+
         uuid = pathlib.Path(zf.namelist()[0]).parts[0]
 
         warnings.warn(f"Artifact {uuid} was created prior to provenance" +
@@ -539,7 +547,7 @@ class ParserV1(ParserV0):
         return (True, None)
 
     @classmethod
-    def parse_prov(cls, zf: zipfile.ZipFile) -> ParserResults:
+    def parse_prov(cls, cfg: Config, zf: zipfile.ZipFile) -> ParserResults:
         """
         Parses provenance data for one Archive.
 
@@ -554,10 +562,11 @@ class ParserV1(ParserV0):
         archv_contents = {}
         num_results = 0
 
-        # TODO - conditional checksumming
-        # if user wants checksum validation:
-        # Validate checksums
-        provenance_is_valid, checksum_diff = cls._validate_checksums(zf)
+        if cfg.perform_checksum_validation:
+            provenance_is_valid, checksum_diff = cls._validate_checksums(zf)
+        else:
+            # TODO: Change False to some coded value
+            provenance_is_valid, checksum_diff = (False, None)
 
         prov_data_fps = cls._get_prov_data_fps(
             zf, cls.expected_files_in_all_nodes + cls.expected_files_root_only)
@@ -693,12 +702,12 @@ class ParserV5(ParserV4):
         return checksum_validator.validate_checksums(zf)
 
     @classmethod
-    def parse_prov(cls, zf: zipfile.ZipFile) -> ParserResults:
+    def parse_prov(cls, cfg: Config, zf: zipfile.ZipFile) -> ParserResults:
         """
         Parses provenance data for one Archive, applying the local
         _validate_checksums() method to the v1 parser
         """
-        return super().parse_prov(zf)
+        return super().parse_prov(cfg, zf)
 
 
 @dataclass
@@ -741,9 +750,10 @@ class FormatHandler():
     def framework_version(self):
         return self._frmwk_vrsn
 
-    def __init__(self, zf: zipfile.ZipFile):
+    def __init__(self, cfg: Config, zf: zipfile.ZipFile):
+        self.cfg = cfg
         self._archv_vrsn, self._frmwk_vrsn = version_parser.parse_version(zf)
         self.parser = self._FORMAT_REGISTRY[self._archv_vrsn]
 
     def parse(self, zf: zipfile.ZipFile) -> ParserResults:
-        return self.parser.parse_prov(zf)
+        return self.parser.parse_prov(self.cfg, zf)

@@ -13,7 +13,7 @@ from ..parse import (
     ProvDAG, ProvNode, FormatHandler,
     _Action, _Citations, _ResultMetadata,
     ParserV0, ParserV1, ParserV2, ParserV3, ParserV4, ParserV5,
-    ParserResults,
+    ParserResults, Config,
 )
 from ..yaml_constructors import MetadataInfo
 
@@ -106,7 +106,7 @@ class ProvDAGTests(unittest.TestCase):
         # TODO: catch/supress warning for v0 provDag
         cls.dags = dict()
         for k in list(TEST_DATA):
-            cls.dags[k] = ProvDAG(str(TEST_DATA[k]['qzv_fp']))
+            cls.dags[k] = ProvDAG(Config(), str(TEST_DATA[k]['qzv_fp']))
 
     # This should only trigger if something fails in setup or above
     # e.g. if a ProvDag fails to initialize
@@ -141,13 +141,13 @@ class ProvDAGTests(unittest.TestCase):
     def test_nonexistent_fp(self):
         fake_fp = os.path.join(DATA_DIR, 'not_a_filepath.qza')
         with self.assertRaisesRegex(FileNotFoundError, 'not_a_filepath.qza'):
-            ProvDAG(fake_fp)
+            ProvDAG(Config(), fake_fp)
 
     def test_not_a_zip_archive(self):
         not_a_zip = os.path.join(DATA_DIR, 'not_a_zip.txt')
         with self.assertRaisesRegex(zipfile.BadZipFile,
                                     'File is not a zip file'):
-            ProvDAG(not_a_zip)
+            ProvDAG(Config(), not_a_zip)
 
     def test_is_digraph(self):
         for dag_version in self.dags:
@@ -298,7 +298,7 @@ class ProvDAGTests(unittest.TestCase):
                         'Files changed.*data.*index.*065031.*f47bc3.*'
                         )
             with self.assertWarnsRegex(UserWarning, expected):
-                a_dag = ProvDAG(chopped_archive)
+                a_dag = ProvDAG(Config(), chopped_archive)
 
             # Have we set provenance_is_valid correctly?
             self.assertEqual(a_dag.provenance_is_valid, False)
@@ -335,7 +335,7 @@ class ProvDAGTests(unittest.TestCase):
             uuid = TEST_DATA['5']['uuid']
             expected = (f'(?s)Checksums are invalid for Archive {uuid}.*')
             with self.assertWarnsRegex(UserWarning, expected):
-                a_dag = ProvDAG(chopped_archive)
+                a_dag = ProvDAG(Config(), chopped_archive)
 
             # Have we set provenance_is_valid correctly?
             self.assertEqual(a_dag.provenance_is_valid, False)
@@ -358,7 +358,7 @@ class ProvDAGTests(unittest.TestCase):
             uuid = TEST_DATA['5']['uuid']
             expected = (f'no item.*{uuid}.*Archive may be corrupt')
             with self.assertWarnsRegex(UserWarning, expected):
-                a_dag = ProvDAG(chopped_archive)
+                a_dag = ProvDAG(Config(), chopped_archive)
 
             # Have we set provenance_is_valid correctly?
             self.assertEqual(a_dag.provenance_is_valid, False)
@@ -389,7 +389,7 @@ class ProvDAGTests(unittest.TestCase):
                     f"(?s)Malformed.*{name}.*{node_uuid}.*{root_uuid}.*corrupt"
                 )
                 with self.assertRaisesRegex(ValueError, expected):
-                    ProvDAG(chopped_archive)
+                    ProvDAG(Config(), chopped_archive)
 
 
 class ParserVxTests(unittest.TestCase):
@@ -422,9 +422,11 @@ class ParserVxTests(unittest.TestCase):
                     with self.assertWarnsRegex(
                         UserWarning,
                             'Artifact 0b8b47.*prior to provenance'):
-                        res = TEST_DATA[archv_vrsn]['parser'].parse_prov(zf)
+                        res = TEST_DATA[archv_vrsn]['parser'].parse_prov(
+                            Config(), zf)
                 else:
-                    res = TEST_DATA[archv_vrsn]['parser'].parse_prov(zf)
+                    res = TEST_DATA[archv_vrsn]['parser'].parse_prov(
+                        Config(), zf)
                 # Did we capture result metadata correctly?
                 root_md = res.root_md
                 self.assertEqual(type(root_md), _ResultMetadata)
@@ -476,24 +478,28 @@ class ParserVxTests(unittest.TestCase):
                     # return values only here to facilitate normal execution
                     return_value=(TEST_DATA[archv_version]['prov_is_valid'],
                                   TEST_DATA[archv_version]['checksum']))
-                parser.parse_prov(zf)
+                parser.parse_prov(Config(), zf)
                 parser._validate_checksums.assert_called_once()
 
 
 class FormatHandlerTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.cfg = Config()
+
     # Can we make a FormatHandler without anything blowing up?
     def test_smoke(self):
         for arch_ver in TEST_DATA:
             qzv = TEST_DATA[arch_ver]['qzv_fp']
             with zipfile.ZipFile(qzv) as zf:
-                FormatHandler(zf)
+                FormatHandler(self.cfg, zf)
         self.assertTrue(True)
 
     def test_archive_version(self):
         for arch_ver in TEST_DATA:
             qzv = TEST_DATA[arch_ver]['qzv_fp']
             with zipfile.ZipFile(qzv) as zf:
-                handler = FormatHandler(zf)
+                handler = FormatHandler(self.cfg, zf)
                 self.assertEqual(handler.archive_version,
                                  TEST_DATA[arch_ver]['av'])
 
@@ -501,7 +507,7 @@ class FormatHandlerTests(unittest.TestCase):
         for arch_ver in TEST_DATA:
             qzv = TEST_DATA[arch_ver]['qzv_fp']
             with zipfile.ZipFile(qzv) as zf:
-                handler = FormatHandler(zf)
+                handler = FormatHandler(self.cfg, zf)
                 self.assertEqual(handler.framework_version,
                                  TEST_DATA[arch_ver]['fwv'])
 
@@ -509,14 +515,14 @@ class FormatHandlerTests(unittest.TestCase):
         for arch_ver in TEST_DATA:
             qzv = TEST_DATA[arch_ver]['qzv_fp']
             with zipfile.ZipFile(qzv) as zf:
-                handler = FormatHandler(zf)
+                handler = FormatHandler(self.cfg, zf)
                 self.assertEqual(handler.parser,
                                  TEST_DATA[arch_ver]['parser'])
 
     def test_parse(self):
         uuid = TEST_DATA['5']['uuid']
         with zipfile.ZipFile(TEST_DATA['5']['qzv_fp']) as zf:
-            handler = FormatHandler(zf)
+            handler = FormatHandler(self.cfg, zf)
             parser_results = handler.parse(zf)
             md = parser_results.root_md
             self.assertIs(type(md), _ResultMetadata)

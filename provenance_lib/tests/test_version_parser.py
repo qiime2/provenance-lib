@@ -12,28 +12,33 @@ class GetVersionTests(unittest.TestCase):
     v5_qzv_version_bad = os.path.join(DATA_DIR, 'VERSION_bad.qzv')
     v5_qzv_version_short = os.path.join(DATA_DIR, 'VERSION_short.qzv')
     v5_qzv_version_long = os.path.join(DATA_DIR, 'VERSION_long.qzv')
+    uuid = '8854f06a-872f-4762-87b7-4541d0f283d4'
 
     # High-level checks only. Detailed tests of the VERSION_MATCHER regex are
     # in test_archive_formats.VersionMatcherTests to reduce overhead
 
     def test_parse_version_no_VERSION_file(self):
         with zipfile.ZipFile(self.v5_no_version) as zf:
-            with self.assertRaisesRegex(ValueError, 'VERSION.*nonexistent'):
+            with self.assertRaisesRegex(
+                    ValueError, f'(?s)VERSION.*nonexistent.*{self.uuid}'):
                 parse_version(zf)
 
     def test_parse_version_VERSION_bad(self):
         with zipfile.ZipFile(self.v5_qzv_version_bad) as zf:
-            with self.assertRaisesRegex(ValueError, 'VERSION.*out of spec'):
+            with self.assertRaisesRegex(
+                    ValueError, f'VERSION.*out of spec.*{self.uuid}'):
                 parse_version(zf)
 
     def test_short_VERSION(self):
         with zipfile.ZipFile(self.v5_qzv_version_short) as zf:
-            with self.assertRaisesRegex(ValueError, 'VERSION.*out of spec'):
+            with self.assertRaisesRegex(
+                    ValueError, f'VERSION.*out of spec.*{self.uuid}'):
                 parse_version(zf)
 
     def test_long_VERSION(self):
         with zipfile.ZipFile(self.v5_qzv_version_long) as zf:
-            with self.assertRaisesRegex(ValueError, 'VERSION.*out of spec'):
+            with self.assertRaisesRegex(
+                    ValueError, f'VERSION.*out of spec.*{self.uuid}'):
                 parse_version(zf)
 
     def test_version_nums(self):

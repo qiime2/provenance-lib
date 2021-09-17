@@ -132,15 +132,13 @@ class ProvDAG(DiGraph):
         # Traverse DAG, printing UUIDs
         # TODO: Improve this repr to remove id duplication
         r_str = self.__str__() + "\nContains Results:\n"
-        uuid_yaml = yaml.dump(self.traverse_uuids())
+        uuid_yaml = yaml.dump(self.traverse_uuids(self.root_uuid))
         r_str += uuid_yaml
         return r_str
 
-    def traverse_uuids(self, node_id: UUID = None) -> \
+    def traverse_uuids(self, node_id: UUID) -> \
             Mapping[UUID, Optional[ProvNode]]:
         """ depth-first traversal of this ProvNode's ancestors """
-        # Use this DAG's root uuid by default
-        node_id = self.root_uuid if node_id is None else node_id
         local_parents = dict()
         if not self.nodes[node_id].get('parents'):
             local_parents = {node_id: None}
@@ -247,12 +245,11 @@ class ProvNode:
             # User has already been warned, and provenance flagged as invalid
             if hasattr(self, 'action'):
                 all_metadata_fps, self._artifacts_passed_as_md = \
-                    self._get_metadata_from_Action()
+                    self._get_metadata_from_Action(self.action._action_details)
                 self._metadata = self._parse_metadata(zf, all_metadata_fps)
 
     def _get_metadata_from_Action(
-        # TODO: Stop relying on self.action - just pass it in
-        self, mock_action_details: Dict[str, List] = None) \
+        self, action_details: Dict[str, List]) \
             -> Tuple[Dict[str, str], List[Dict[str, UUID]]]:
         """
         Gathers data related to Metadata and MetadataColumn-based metadata
@@ -272,10 +269,6 @@ class ProvNode:
         - all-metadata conforms to {parameter_name: relative_filename}
         - artifacts_as_metadata is a list of single-item dictionaries
         conforming to [{'artifact_passed_as_metadata': <uuid>}, ...]
-
-        By default, this operates on this ProvNode's action._action_details.
-        The optional `action_details` parameter is provided only to simplify
-        testing, allowing us to pass hardcoded 'action_details' dictionaries.
 
         Input data looks like this:
 
@@ -308,8 +301,6 @@ class ProvNode:
         without these Artifact inputs, so our DAG must be able to track them as
         parents to a given node.
         """
-        action_details = mock_action_details \
-            if mock_action_details is not None else self.action._action_details
         all_metadata = dict()
         artifacts_as_metadata = []
         if (all_params := action_details.get('parameters')) is not None:
@@ -674,9 +665,8 @@ class ParserV4(ParserV3):
     version_string = 4
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames should not be included here.
-    # TODO: can we replace this unpacking junk with a + ?
-    expected_files_in_all_nodes = (*ParserV3.expected_files_in_all_nodes,
-                                   'citations.bib')
+    expected_files_in_all_nodes = ParserV3.expected_files_in_all_nodes + \
+        ('citations.bib', )
     expected_files_root_only = ParserV3.expected_files_root_only
 
 
@@ -687,8 +677,8 @@ class ParserV5(ParserV4):
     version_string = 5
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames should not be included here.
-    expected_files_root_only = ('checksums.md5', )
     expected_files_in_all_nodes = ParserV4.expected_files_in_all_nodes
+    expected_files_root_only = ('checksums.md5', )
 
     @classmethod
     def _validate_checksums(cls, zf: zipfile.ZipFile) -> \

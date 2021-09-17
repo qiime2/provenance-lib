@@ -36,7 +36,6 @@ def parse_version(zf: zipfile.ZipFile,
         _vrsn_mtch_repr = codecs.decode(_VERSION_MATCHER.encode('utf-8'),
                                         'unicode-escape')
         raise ValueError(
-            # TODO: Report the UUID of the failing artifact
             "Malformed Archive: VERSION file out of spec for archive "
             f"{root_uuid}\n\n"
             f"Should match this RE:\n{_vrsn_mtch_repr}\n\n"

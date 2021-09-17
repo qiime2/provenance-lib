@@ -246,7 +246,8 @@ class ProvDAGTests(unittest.TestCase):
                 {'7ecf8954-e49a-4605-992e-99fcee397935':
                  {'99fa3670-aa1a-45f6-ba8e-803c976a1163':
                   {'a35830e1-4535-47c6-aa23-be295a57ee1c': None}}}}}
-        actual = self.dags['5'].traverse_uuids()
+        root_uuid = TEST_DATA['5']['uuid']
+        actual = self.dags['5'].traverse_uuids(root_uuid)
         self.assertEqual(actual, exp)
 
     def test_v5_repr_contains(self):
@@ -812,7 +813,8 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
 
     def test_get_metadata_from_action_with_actual_node(self):
         find_md = self.nodes['5']._get_metadata_from_Action
-        all_md, artifacts_as_md = find_md()
+        all_md, artifacts_as_md = find_md(
+            self.nodes['5'].action._action_details)
         exp = {'metadata': 'metadata.tsv'}
         self.assertEqual(all_md, exp)
         self.assertEqual(artifacts_as_md, [])

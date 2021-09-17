@@ -481,13 +481,15 @@ class ParserV0():
 
     @classmethod
     def _validate_checksums(cls, zf: zipfile.ZipFile) -> \
-            Tuple[bool, Optional[checksum_validator.ChecksumDiff]]:
+            Tuple[checksum_validator.ValidationCodes,
+                  Optional[checksum_validator.ChecksumDiff]]:
         """
         V0 archives predate provenance tracking, so
         - provenance_is_valid = False
         - checksum_diff = None
         """
-        return (False, None)
+        return (checksum_validator.ValidationCodes.PREDATES_CHECKSUMS,
+                None)
 
     @classmethod
     def parse_prov(cls, cfg: Config, zf: zipfile.ZipFile) -> ParserResults:
@@ -497,8 +499,8 @@ class ParserV0():
         if cfg.perform_checksum_validation:
             provenance_is_valid, checksum_diff = cls._validate_checksums(zf)
         else:
-            # TODO: Change False to a value that represents user opt-out
-            provenance_is_valid, checksum_diff = (False, None)
+            provenance_is_valid, checksum_diff = (
+                checksum_validator.ValidationCodes.VALIDATION_OPTOUT, None)
 
         uuid = pathlib.Path(zf.namelist()[0]).parts[0]
 
@@ -532,14 +534,16 @@ class ParserV1(ParserV0):
 
     @classmethod
     def _validate_checksums(cls, zf: zipfile.ZipFile) -> \
-            Tuple[bool, Optional[checksum_validator.ChecksumDiff]]:
+            Tuple[checksum_validator.ValidationCodes,
+                  Optional[checksum_validator.ChecksumDiff]]:
         """
         Provenance is initially assumed valid because we have no checksums,
         so:
         - provenance_is_valid = False
         - checksum_diff = None
         """
-        return (True, None)
+        return (checksum_validator.ValidationCodes.PREDATES_CHECKSUMS,
+                None)
 
     @classmethod
     def parse_prov(cls, cfg: Config, zf: zipfile.ZipFile) -> ParserResults:
@@ -561,7 +565,8 @@ class ParserV1(ParserV0):
             provenance_is_valid, checksum_diff = cls._validate_checksums(zf)
         else:
             # TODO: Change False to some coded value
-            provenance_is_valid, checksum_diff = (False, None)
+            provenance_is_valid, checksum_diff = (
+                checksum_validator.ValidationCodes.VALIDATION_OPTOUT, None)
 
         prov_data_fps = cls._get_prov_data_fps(
             zf, cls.expected_files_in_all_nodes + cls.expected_files_root_only)
@@ -595,7 +600,8 @@ class ParserV1(ParserV0):
                 for fp in fps_for_this_result:
                     if fp not in prov_data_fps:
                         files_are_missing = True
-                        provenance_is_valid = False
+                        provenance_is_valid = \
+                            checksum_validator.ValidationCodes.INVALID
                         error_contents += (
                             f"{fp.name} file for node {node_uuid} misplaced "
                             "or nonexistent.\n")
@@ -686,7 +692,8 @@ class ParserV5(ParserV4):
 
     @classmethod
     def _validate_checksums(cls, zf: zipfile.ZipFile) -> \
-            Tuple[bool, Optional[checksum_validator.ChecksumDiff]]:
+            Tuple[checksum_validator.ValidationCodes,
+                  Optional[checksum_validator.ChecksumDiff]]:
         """
         With v5, we can actually validate checksums, so use checksum_validator
         to return:
@@ -718,7 +725,7 @@ class ParserResults():
     root_md: _ResultMetadata
     num_results: int
     archive_contents: Dict[UUID, ProvNode]
-    provenance_is_valid: bool
+    provenance_is_valid: checksum_validator.ValidationCodes
     checksum_diff: Optional[checksum_validator.ChecksumDiff]
 
 

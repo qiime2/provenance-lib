@@ -1,4 +1,5 @@
 import collections
+from enum import Enum
 import hashlib
 import io
 import pathlib
@@ -13,13 +14,46 @@ ChecksumDiff = collections.namedtuple(
     'ChecksumDiff', ['added', 'removed', 'changed'])
 
 
-def validate_checksums(zf: zipfile.ZipFile) -> Tuple[bool,
+class ValidationCodes(Enum):
+    """
+    Codes indicating the level of validation a ProvDAG has passed.
+
+    The code that determines what ValidationCode an archive receives is by
+    necessity scattered. Though not ideal, this is probably the best
+    "central" location to keep information on when these codes will occur.
+
+    INVALID: one or more files are known to be missing or unparseable. Occurs
+        either when checksum validation fails, or when expected files are
+        absent or unparseable.
+    VALIDATION_OPTOUT: The user opted out of checksum validation. This will be
+        overridden by INVALID iff a required file is missing. In this context,
+        `checksums.md5` is not required. If data files, for example, have been
+        manually modified, the code will remain VALIDATION_OPTOUT, but if an
+        action.yaml file is missing, INVALID will result.
+    PREDATES_CHECKSUMS: The archive format predates the creation of
+        checksums.md5, so full validation is impossible. We initially assume
+        validity. This will be overridden by INVALID iff an expected file is
+        missing or unparseable.  If data files, for example, have been manually
+        modified, the code will remain PREDATES_CHECKSUMS
+    VALID: The archive has passed checksum validation and is "known" to be
+        valid. Md5 checksums are technically falsifiable, so this is not a
+        guarantee of correctness/authenticity. It would, however, require a
+        significant and unlikely effort at falsification of results to render
+        this untrue.
+    """
+    INVALID = 0                 # Archive is known to be invalid
+    VALIDATION_OPTOUT = 1       # User opted out of validation
+    PREDATES_CHECKSUMS = 2      # v0-v4 cannot be validated, so assume validity
+    VALID = 3                   # Archive known to be valid
+
+
+def validate_checksums(zf: zipfile.ZipFile) -> Tuple[ValidationCodes,
                                                      Optional[ChecksumDiff]]:
     """
     Uses diff_checksums to validate the archive's provenance, warning the user
     if checksums.md5 is missing, or if the archive is corrupt/has been modified
     """
-    provenance_is_valid = True
+    provenance_is_valid = ValidationCodes.VALID
     checksum_diff = None
 
     # TODO: Try/except should be in diff_checksums, where the file io happens
@@ -38,14 +72,14 @@ def validate_checksums(zf: zipfile.ZipFile) -> Tuple[bool,
                 "\n"
                 f"Files changed since archive creation: {checksum_diff[2]}",
                 UserWarning)
-            provenance_is_valid = False
+            provenance_is_valid = ValidationCodes.INVALID
     # zipfiles KeyError if file not found. warn if checksums.md5 is missing
     except KeyError as err:
         warnings.warn(
             str(err).strip('"') +
             ". Archive may be corrupt or provenance may be false",
             UserWarning)
-        provenance_is_valid = False
+        provenance_is_valid = ValidationCodes.INVALID
 
     return (provenance_is_valid, checksum_diff)
 

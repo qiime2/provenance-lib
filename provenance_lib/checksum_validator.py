@@ -56,8 +56,7 @@ def validate_checksums(zf: zipfile.ZipFile) -> Tuple[ValidationCodes,
     provenance_is_valid = ValidationCodes.VALID
     checksum_diff = None
 
-    # TODO: Try/except should be in diff_checksums, where the file io happens
-
+    # One broad try/except here saves us many down the call stack
     try:
         checksum_diff = diff_checksums(zf)
         if checksum_diff != ChecksumDiff({}, {}, {}):
@@ -73,7 +72,8 @@ def validate_checksums(zf: zipfile.ZipFile) -> Tuple[ValidationCodes,
                 f"Files changed since archive creation: {checksum_diff[2]}",
                 UserWarning)
             provenance_is_valid = ValidationCodes.INVALID
-    # zipfiles KeyError if file not found. warn if checksums.md5 is missing
+    # zipfiles KeyError if file not found. warn if checksums.md5 or any of the
+    # filepaths it contains are missing
     except KeyError as err:
         warnings.warn(
             str(err).strip('"') +

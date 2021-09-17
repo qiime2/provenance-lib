@@ -442,7 +442,6 @@ class ProvDAGTestsNoChecksumValidation(unittest.TestCase):
             self.assertEqual(dags[vz].parser_results.num_results,
                              TEST_DATA[vz]['n_res'])
             self.assertIs(type(dags[vz].parser_results.archive_contents), dict)
-            # TODO: Change False to a value that represents user opt-out
             self.assertEqual(dags[vz].provenance_is_valid,
                              ValidationCodes.VALIDATION_OPTOUT)
             self.assertEqual(dags[vz].checksum_diff, None)
@@ -813,7 +812,6 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
             self.assertIs(type(self.nodes[node_vzn]), ProvNode)
 
     def test_properties_with_viz(self):
-        # TODO: test a qza?
         for node in self.nodes:
             self.assertEqual(self.nodes[node].uuid, TEST_DATA[node]['uuid'])
             self.assertEqual(self.nodes[node].sem_type, 'Visualization')

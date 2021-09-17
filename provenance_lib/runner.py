@@ -9,7 +9,7 @@ sys.path.append('/home/chris/src/provenance_py')
 if __name__ == "__main__" and __package__ is None:
     __package__ = "provenance_lib"
 
-from .parse import ProvDAG
+from .parse import ProvDAG, Config
 
 if __name__ == '__main__':
     # To begin, we'll read in exactly one fp
@@ -17,7 +17,7 @@ if __name__ == '__main__':
         raise ValueError('Please pass one filepath to a QIIME 2 Archive')
 
     archive_fp = sys.argv[1]
-    dummy_DAG = ProvDAG(archive_fp)
+    dummy_DAG = ProvDAG(Config(), archive_fp)
 
     r_uuid = dummy_DAG.root_uuid
     deets = dummy_DAG.get_result(r_uuid).action._action_details
@@ -25,9 +25,9 @@ if __name__ == '__main__':
     ackshun = deets['action']
 
     print(f'{repr(dummy_DAG)}')
-    print(f'{dummy_DAG._archive_md}')
+    print(f'{dummy_DAG.root_node._result_md}')
     print(f'- was made by q2-{plurg} {ackshun}')
-    print(f'- contains prov. data from {dummy_DAG._num_results}'
+    print(f'- contains prov. data from {dummy_DAG.parser_results.num_results}'
           ' QIIME 2 Results, mostly ancestors')
     # print(dummy_DAG._archive_contents)
 

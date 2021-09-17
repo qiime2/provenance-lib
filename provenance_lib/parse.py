@@ -191,6 +191,8 @@ class ProvNode:
         Returns None if this action has no metadata because the archive has no
         provenance.
         """
+        self._metadata: Optional[Dict[str, pd.DataFrame]]
+
         md = None
         if hasattr(self, '_metadata'):
             md = self._metadata
@@ -204,6 +206,8 @@ class ProvNode:
 
         Returns [] if this "action" is an Import
         """
+        self._artifacts_passed_as_md: List[Dict[str, UUID]]
+
         inputs = self.action._action_details.get('inputs')
         parents = [] if inputs is None else inputs
 

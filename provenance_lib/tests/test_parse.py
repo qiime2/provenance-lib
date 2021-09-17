@@ -113,13 +113,9 @@ class ProvDAGTests(unittest.TestCase):
         cls.dags = dict()
         for archive_version in list(TEST_DATA):
             # supress warning from parsing provenance for a v0 provDag
-            if archive_version == '0':
-                uuid = TEST_DATA['0']['uuid']
-                with warnings.catch_warnings():
-                    warnings.filterwarnings('ignore',  f'Art.*{uuid}.*prior')
-                    cls.dags[archive_version] = ProvDAG(
-                        Config(), str(TEST_DATA[archive_version]['qzv_fp']))
-            else:
+            uuid = TEST_DATA['0']['uuid']
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore',  f'Art.*{uuid}.*prior')
                 cls.dags[archive_version] = ProvDAG(
                     Config(), str(TEST_DATA[archive_version]['qzv_fp']))
 
@@ -337,9 +333,6 @@ class ProvDAGTests(unittest.TestCase):
         Remove a file from an intact v5 Archive so that its checksums.md5 is
         invalid, and then build a ProvDAG with it to confirm the ProvDAG
         constructor handles broken checksums appropriately
-
-        TODO: Duplicate this test when we add conditional checksum validation
-        (Using a local VERSION or action.yaml file)
         """
         drop_file = pathlib.Path('data') / 'index.html'
         with generate_archive_with_file_removed(
@@ -383,7 +376,7 @@ class ProvDAGTests(unittest.TestCase):
             diff = a_dag.checksum_diff
             self.assertEqual(diff, None)
 
-    def test_v5_with_missing_node_files(self):
+    def test_ProvDAG_error_if_missing_node_files(self):
         pfx = 'provenance/artifacts/'
         for archive_version in TEST_DATA:
             # V0 doesn't have root nodes
@@ -416,14 +409,85 @@ class ProvDAGTests(unittest.TestCase):
                                 UserWarning)
                             ProvDAG(Config(), chopped_archive)
 
-    # TODO: no checksum_validation tests, as above:
-    # - missing/invalid checksums.md5
-    # - missing node files
-    # - successful run
-                # e.g.
-                # with self.assertRaisesRegex(ValueError, expected):
-                #     ProvDAG(Config(perform_checksum_validation=False),
-                #             chopped_archive)
+
+class ProvDAGTestsNoChecksumValidation(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.no_checksum_dags = dict()
+        for archive_version in list(TEST_DATA):
+            # supress warning from parsing provenance for a v0 provDag
+            uuid = TEST_DATA['0']['uuid']
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore',  f'Art.*{uuid}.*prior')
+                cls.no_checksum_dags[archive_version] = ProvDAG(
+                    Config(perform_checksum_validation=False),
+                    str(TEST_DATA[archive_version]['qzv_fp']))
+
+    # This should only trigger if something fails in setup or above
+    # e.g. if a ProvDag fails to initialize
+    def test_smoke(self):
+        self.assertTrue(True)
+
+    def test_no_checksum_validation_intact_archives(self):
+        dags = self.no_checksum_dags
+        for vz in dags:
+            self.assertEqual(type(dags[vz].parser_results), ParserResults)
+            self.assertEqual(type(dags[vz].parser_results.root_md),
+                             _ResultMetadata)
+            self.assertEqual(dags[vz].parser_results.root_md.uuid,
+                             TEST_DATA[vz]['uuid'])
+            self.assertEqual(dags[vz].parser_results.num_results,
+                             TEST_DATA[vz]['n_res'])
+            self.assertIs(type(dags[vz].parser_results.archive_contents), dict)
+            # TODO: Change False to a value that represents user opt-out
+            self.assertEqual(dags[vz].provenance_is_valid, False)
+            self.assertEqual(dags[vz].checksum_diff, None)
+
+    def test_no_checksum_missing_checksums_md5(self):
+        drop_file = pathlib.Path('checksums.md5')
+        with generate_archive_with_file_removed(
+            qzv_fp=TEST_DATA['5']['qzv_fp'],
+            root_uuid=TEST_DATA['5']['uuid'],
+                file_to_drop=drop_file) as chopped_archive:
+
+            a_dag = ProvDAG(Config(perform_checksum_validation=False),
+                            chopped_archive)
+
+            # TODO: Change False to a value that represents user opt-out
+            # Have we set provenance_is_valid correctly?
+            self.assertEqual(a_dag.provenance_is_valid, False)
+
+            # Is the diff correct?
+            diff = a_dag.checksum_diff
+            self.assertEqual(diff, None)
+
+    def test_no_checksum_validation_missing_node_files(self):
+        pfx = 'provenance/artifacts/'
+        for archive_version in TEST_DATA:
+            # V0 doesn't have root nodes
+            if archive_version == '0':
+                continue
+            root_uuid = TEST_DATA[archive_version]['uuid']
+            node_uuid = TEST_DATA[archive_version]['nonroot_node']
+            parser = TEST_DATA[archive_version]['parser']
+            fnames = parser.expected_files_in_all_nodes
+            for name in fnames:
+                drop_file = pathlib.Path(pfx) / node_uuid / name
+                with generate_archive_with_file_removed(
+                    qzv_fp=TEST_DATA[archive_version]['qzv_fp'],
+                    root_uuid=root_uuid,
+                        file_to_drop=drop_file) as chopped_archive:
+
+                    # Fudging this to match what the user sees - 'action.yaml'
+                    if name == 'action/action.yaml':
+                        name = 'action.yaml'
+                    expected = (
+                        f"(?s)Malformed.*{name}.*{node_uuid}.*"
+                        f"{root_uuid}.*corrupt"
+                    )
+                    with self.assertRaisesRegex(ValueError, expected):
+                        ProvDAG(Config(perform_checksum_validation=False),
+                                chopped_archive)
 
 
 class ParserVxTests(unittest.TestCase):

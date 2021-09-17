@@ -39,6 +39,7 @@ TEST_DATA = {
           'av': '1',
           'fwv': '2.0.6',
           'uuid': '0b8b47bd-f2f8-4029-923c-0e37a68340c3',
+          'nonroot_node': '60cde83c-180d-40cb-87c9-b9363f23f796',
           'n_res': 10,
           'qzv_fp': os.path.join(DATA_DIR, 'v1_uu_emperor.qzv'),
           'has_prov': True,
@@ -49,6 +50,7 @@ TEST_DATA = {
            'av': '2',
            'fwv': '2017.9.0',
            'uuid': '219c4bdf-f2b1-4b3f-b66a-08de8a4d17ca',
+           'nonroot_node': '512ced83-cc8b-4bed-8c22-a829e8fc89a2',
            'n_res': 10,
            'qzv_fp': os.path.join(DATA_DIR, 'v2a_uu_emperor.qzv'),
            'has_prov': True,
@@ -59,6 +61,7 @@ TEST_DATA = {
            'av': '2',
            'fwv': '2017.10.0',
            'uuid': '8abf8dee-0047-4a7f-9826-e66893182978',
+           'nonroot_node': '10ebb316-169e-422c-8fb9-423e131fe42f',
            'n_res': 14,
            'qzv_fp': os.path.join(DATA_DIR, 'v2b_uu_emperor.qzv'),
            'has_prov': True,
@@ -69,6 +72,7 @@ TEST_DATA = {
           'av': '3',
           'fwv': '2017.12.0',
           'uuid': '3544061c-6e2f-4328-8345-754416828cb5',
+          'nonroot_node': '32c222f5-d991-4168-bca2-d305513e258f',
           'n_res': 14,
           'qzv_fp': os.path.join(DATA_DIR, 'v3_uu_emperor.qzv'),
           'has_prov': True,
@@ -79,6 +83,7 @@ TEST_DATA = {
           'av': '4',
           'fwv': '2018.4.0',
           'uuid': '91c2189a-2d2e-4d53-98ee-659caaf6ffc2',
+          'nonroot_node': '48c153b4-314c-4249-88a3-020f5444a76f',
           'n_res': 14,
           'qzv_fp': os.path.join(DATA_DIR, 'v4_uu_emperor.qzv'),
           'has_prov': True,
@@ -89,6 +94,7 @@ TEST_DATA = {
           'av': '5',
           'fwv': '2018.11.0',
           'uuid': 'ffb7cee3-2f1f-4988-90cc-efd5184ef003',
+          'nonroot_node': '3b7d36ff-37ab-4ac2-958b-6a547d442bcf',
           'n_res': 15,
           'qzv_fp': os.path.join(DATA_DIR, 'v5_uu_emperor.qzv'),
           'has_prov': True,
@@ -378,29 +384,37 @@ class ProvDAGTests(unittest.TestCase):
             self.assertEqual(diff, None)
 
     def test_v5_with_missing_node_files(self):
-        # TODO: Generalize this to cover all archive versions after v0, by
-        # adding a non-root node uuid to TEST_DATA for each of those versions
         pfx = 'provenance/artifacts/'
-        root_uuid = TEST_DATA['5']['uuid']
-        node_uuid = '3b7d36ff-37ab-4ac2-958b-6a547d442bcf'
-        parser = TEST_DATA['5']['parser']
-        fnames = parser.expected_files_in_all_nodes
-        for name in fnames:
-            drop_file = pathlib.Path(pfx) / node_uuid / name
-            with generate_archive_with_file_removed(
-                qzv_fp=TEST_DATA['5']['qzv_fp'],
-                root_uuid=root_uuid,
-                    file_to_drop=drop_file) as chopped_archive:
+        for archv_vzn in TEST_DATA:
+            # V0 doesn't have root nodes
+            if archv_vzn == '0':
+                continue
+            root_uuid = TEST_DATA[archv_vzn]['uuid']
+            node_uuid = TEST_DATA[archv_vzn]['nonroot_node']
+            parser = TEST_DATA[archv_vzn]['parser']
+            fnames = parser.expected_files_in_all_nodes
+            for name in fnames:
+                drop_file = pathlib.Path(pfx) / node_uuid / name
+                with generate_archive_with_file_removed(
+                    qzv_fp=TEST_DATA[archv_vzn]['qzv_fp'],
+                    root_uuid=root_uuid,
+                        file_to_drop=drop_file) as chopped_archive:
 
-                # Fudging this to match what the user sees - 'action.yaml'
-                if name == 'action/action.yaml':
-                    name = 'action.yaml'
-                expected = (
-                    f"(?s)Malformed.*{name}.*{node_uuid}.*{root_uuid}.*corrupt"
-                )
-                with self.assertRaisesRegex(ValueError, expected):
-                    with self.assertWarnsRegex(UserWarning, 'Checksums.*inv'):
-                        ProvDAG(Config(), chopped_archive)
+                    # Fudging this to match what the user sees - 'action.yaml'
+                    if name == 'action/action.yaml':
+                        name = 'action.yaml'
+                    expected = (
+                        f"(?s)Malformed.*{name}.*{node_uuid}.*"
+                        f"{root_uuid}.*corrupt"
+                    )
+                    with self.assertRaisesRegex(ValueError, expected):
+                        # Only v5 warns on this, so an assert would be clunky
+                        with warnings.catch_warnings():
+                            warnings.filterwarnings(
+                                'ignore',
+                                f'Checksums.*invalid.*{root_uuid}',
+                                UserWarning)
+                            ProvDAG(Config(), chopped_archive)
 
     # TODO: no checksum_validation tests, as above:
     # - missing/invalid checksums.md5

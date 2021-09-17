@@ -19,8 +19,8 @@ class ValidateChecksumTests(unittest.TestCase):
         """
         Test a collection of intact archives from v0 to v5
         """
-        for archv_vrsn in TEST_DATA:
-            fp = TEST_DATA[archv_vrsn]['qzv_fp']
+        for archive_version in TEST_DATA:
+            fp = TEST_DATA[archive_version]['qzv_fp']
             with zipfile.ZipFile(fp) as zf:
                 is_valid, diff = validate_checksums(zf)
 
@@ -111,8 +111,8 @@ class DiffChecksumTests(unittest.TestCase):
         """
         Test a collection of intact archives from v0 to v5
         """
-        for archv_vrsn in TEST_DATA:
-            fp = TEST_DATA[archv_vrsn]['qzv_fp']
+        for archive_version in TEST_DATA:
+            fp = TEST_DATA[archive_version]['qzv_fp']
             with zipfile.ZipFile(fp) as zf:
                 diff = diff_checksums(zf)
 

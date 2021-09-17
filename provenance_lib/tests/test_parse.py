@@ -111,17 +111,17 @@ class ProvDAGTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.dags = dict()
-        for archv_vrsn in list(TEST_DATA):
+        for archive_version in list(TEST_DATA):
             # supress warning from parsing provenance for a v0 provDag
-            if archv_vrsn == '0':
+            if archive_version == '0':
                 uuid = TEST_DATA['0']['uuid']
                 with warnings.catch_warnings():
                     warnings.filterwarnings('ignore',  f'Art.*{uuid}.*prior')
-                    cls.dags[archv_vrsn] = ProvDAG(
-                        Config(), str(TEST_DATA[archv_vrsn]['qzv_fp']))
+                    cls.dags[archive_version] = ProvDAG(
+                        Config(), str(TEST_DATA[archive_version]['qzv_fp']))
             else:
-                cls.dags[archv_vrsn] = ProvDAG(
-                    Config(), str(TEST_DATA[archv_vrsn]['qzv_fp']))
+                cls.dags[archive_version] = ProvDAG(
+                    Config(), str(TEST_DATA[archive_version]['qzv_fp']))
 
     # This should only trigger if something fails in setup or above
     # e.g. if a ProvDag fails to initialize
@@ -385,18 +385,18 @@ class ProvDAGTests(unittest.TestCase):
 
     def test_v5_with_missing_node_files(self):
         pfx = 'provenance/artifacts/'
-        for archv_vzn in TEST_DATA:
+        for archive_version in TEST_DATA:
             # V0 doesn't have root nodes
-            if archv_vzn == '0':
+            if archive_version == '0':
                 continue
-            root_uuid = TEST_DATA[archv_vzn]['uuid']
-            node_uuid = TEST_DATA[archv_vzn]['nonroot_node']
-            parser = TEST_DATA[archv_vzn]['parser']
+            root_uuid = TEST_DATA[archive_version]['uuid']
+            node_uuid = TEST_DATA[archive_version]['nonroot_node']
+            parser = TEST_DATA[archive_version]['parser']
             fnames = parser.expected_files_in_all_nodes
             for name in fnames:
                 drop_file = pathlib.Path(pfx) / node_uuid / name
                 with generate_archive_with_file_removed(
-                    qzv_fp=TEST_DATA[archv_vzn]['qzv_fp'],
+                    qzv_fp=TEST_DATA[archive_version]['qzv_fp'],
                     root_uuid=root_uuid,
                         file_to_drop=drop_file) as chopped_archive:
 
@@ -428,11 +428,11 @@ class ProvDAGTests(unittest.TestCase):
 
 class ParserVxTests(unittest.TestCase):
     def test_parse_root_md(self):
-        for archv_vrsn in TEST_DATA:
-            fp = TEST_DATA[archv_vrsn]['qzv_fp']
-            root_uuid = TEST_DATA[archv_vrsn]['uuid']
+        for archive_version in TEST_DATA:
+            fp = TEST_DATA[archive_version]['qzv_fp']
+            root_uuid = TEST_DATA[archive_version]['uuid']
             with zipfile.ZipFile(fp) as zf:
-                root_md = TEST_DATA[archv_vrsn]['parser']._parse_root_md(
+                root_md = TEST_DATA[archive_version]['parser']._parse_root_md(
                     zf, root_uuid)
                 self.assertEqual(root_md.uuid, root_uuid)
                 self.assertEqual(root_md.type,  'Visualization')
@@ -440,26 +440,26 @@ class ParserVxTests(unittest.TestCase):
 
     def test_parse_root_md_no_md_yaml(self):
         qzv_no_root_md = os.path.join(DATA_DIR, 'no_root_md_yaml.qzv')
-        for archv_vrsn in TEST_DATA:
-            root_uuid = TEST_DATA[archv_vrsn]['uuid']
+        for archive_version in TEST_DATA:
+            root_uuid = TEST_DATA[archive_version]['uuid']
             with zipfile.ZipFile(qzv_no_root_md) as zf:
                 with self.assertRaisesRegex(ValueError, 'Malformed.*metadata'):
-                    TEST_DATA[archv_vrsn]['parser']._parse_root_md(zf,
-                                                                   root_uuid)
+                    TEST_DATA[archive_version]['parser']._parse_root_md(
+                        zf, root_uuid)
 
     def test_populate_archive(self):
-        for archv_vrsn in TEST_DATA:
-            fp = TEST_DATA[archv_vrsn]['qzv_fp']
-            root_uuid = TEST_DATA[archv_vrsn]['uuid']
+        for archive_version in TEST_DATA:
+            fp = TEST_DATA[archive_version]['qzv_fp']
+            root_uuid = TEST_DATA[archive_version]['uuid']
             with zipfile.ZipFile(fp) as zf:
-                if archv_vrsn == '0':
+                if archive_version == '0':
                     with self.assertWarnsRegex(
                         UserWarning,
                             'Artifact 0b8b47.*prior to provenance'):
-                        res = TEST_DATA[archv_vrsn]['parser'].parse_prov(
+                        res = TEST_DATA[archive_version]['parser'].parse_prov(
                             Config(), zf)
                 else:
-                    res = TEST_DATA[archv_vrsn]['parser'].parse_prov(
+                    res = TEST_DATA[archive_version]['parser'].parse_prov(
                         Config(), zf)
                 # Did we capture result metadata correctly?
                 root_md = res.root_md
@@ -469,7 +469,7 @@ class ParserVxTests(unittest.TestCase):
                 self.assertEqual(root_md.format, None)
                 # Does this archive have the right number of Results?
                 self.assertEqual(res.num_results,
-                                 TEST_DATA[archv_vrsn]['n_res'])
+                                 TEST_DATA[archive_version]['n_res'])
                 # Is contents a dict?
                 self.assertIs(type(res.archive_contents), dict)
                 # Is the root UUID a key in the contents dict?
@@ -493,26 +493,26 @@ class ParserVxTests(unittest.TestCase):
             self.assertEqual(parser._get_nonroot_uuid(action_example), exp)
 
     def test_validate_checksums(self):
-        for archv_version in TEST_DATA:
-            with zipfile.ZipFile(TEST_DATA[archv_version]['qzv_fp']) as zf:
-                parser = TEST_DATA[archv_version]['parser']
+        for archive_version in TEST_DATA:
+            with zipfile.ZipFile(TEST_DATA[archive_version]['qzv_fp']) as zf:
+                parser = TEST_DATA[archive_version]['parser']
                 is_valid, diff = parser._validate_checksums(zf)
                 self.assertEqual(is_valid,
-                                 TEST_DATA[archv_version]['prov_is_valid'])
+                                 TEST_DATA[archive_version]['prov_is_valid'])
                 self.assertEqual(diff,
-                                 TEST_DATA[archv_version]['checksum'])
+                                 TEST_DATA[archive_version]['checksum'])
 
     def test_correct_validate_checksums_method_called(self):
         # We want to confirm that parse_prov uses the local _validate_checksums
         # even when it calls super().parse_prov() internally
-        for archv_version in TEST_DATA:
-            parser = TEST_DATA[archv_version]['parser']
+        for archive_version in TEST_DATA:
+            parser = TEST_DATA[archive_version]['parser']
             parser._validate_checksums = MagicMock(
                 # return values only here to facilitate normal execution
-                return_value=(TEST_DATA[archv_version]['prov_is_valid'],
-                              TEST_DATA[archv_version]['checksum']))
-            with zipfile.ZipFile(TEST_DATA[archv_version]['qzv_fp']) as zf:
-                if archv_version == '0':
+                return_value=(TEST_DATA[archive_version]['prov_is_valid'],
+                              TEST_DATA[archive_version]['checksum']))
+            with zipfile.ZipFile(TEST_DATA[archive_version]['qzv_fp']) as zf:
+                if archive_version == '0':
                     # supress warning from parsing provenance for a v0 ProvDAG
                     uuid = TEST_DATA['0']['uuid']
                     with warnings.catch_warnings():

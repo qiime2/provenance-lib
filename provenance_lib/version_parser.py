@@ -41,6 +41,7 @@ def parse_version(zf: zipfile.ZipFile,
             f"Should match this RE:\n{_vrsn_mtch_repr}\n\n"
             f"Actually looks like:\n{version_contents}\n")
 
-    _, archv_vrsn, frmwk_vrsn = [line.strip().split()[-1] for line in
-                                 version_contents.split(sep='\n') if line]
-    return (archv_vrsn, frmwk_vrsn)
+    _, archive_version, frmwk_vrsn = [
+        line.strip().split()[-1] for line in
+        version_contents.split(sep='\n') if line]
+    return (archive_version, frmwk_vrsn)

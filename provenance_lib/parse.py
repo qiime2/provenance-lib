@@ -735,7 +735,7 @@ class FormatHandler():
 
     @property
     def archive_version(self):
-        return self._archv_vrsn
+        return self._archive_version
 
     @property
     def framework_version(self):
@@ -743,8 +743,9 @@ class FormatHandler():
 
     def __init__(self, cfg: Config, zf: zipfile.ZipFile):
         self.cfg = cfg
-        self._archv_vrsn, self._frmwk_vrsn = version_parser.parse_version(zf)
-        self.parser = self._FORMAT_REGISTRY[self._archv_vrsn]
+        self._archive_version, self._frmwk_vrsn = \
+            version_parser.parse_version(zf)
+        self.parser = self._FORMAT_REGISTRY[self._archive_version]
 
     def parse(self, zf: zipfile.ZipFile) -> ParserResults:
         return self.parser.parse_prov(self.cfg, zf)

@@ -238,7 +238,61 @@ class ProvDAGTests(unittest.TestCase):
                 repr(self.dags[dag_vzn]),
                 f'(?s)UUID:\t\t{uuid}.*Type.*Data Format.*Contains')
 
-    # TODO: This should probably be reduced to a minimum example
+    def test_v5_captures_full_history(self):
+        nodes = self.dags['5'].nodes
+        self.assertEqual(len(nodes), 15)
+        node_list = ['ffb7cee3-2f1f-4988-90cc-efd5184ef003',
+                     '0af08fa8-48b7-4c6a-83c6-e0f766156343',
+                     '3b7d36ff-37ab-4ac2-958b-6a547d442bcf',
+                     '7ecf8954-e49a-4605-992e-99fcee397935',
+                     '9cc3281a-fefb-408e-8cf0-10637a06d84a',
+                     '025e723d-b367-4812-820a-ae8bf8b80af4',
+                     '83a80bfd-8954-4571-8fc7-ac9e8435156e',
+                     '89af91c0-033d-4e30-8ac4-f29a3b407dc1',
+                     '99fa3670-aa1a-45f6-ba8e-803c976a1163',
+                     '430a6575-86b3-4cf6-b72e-0f7fce3ed342',
+                     'a35830e1-4535-47c6-aa23-be295a57ee1c',
+                     'aea3994b-0888-41c1-8e8c-69f6615d07cf',
+                     'bce3d09b-e296-4f2b-9af4-834db6412429',
+                     'd32a5ea6-1ca1-4635-b522-2253568ae35b',
+                     'f20cecd6-9f82-4bde-a013-eb327612dc4d',
+                     ]
+        self.assertEqual(len(nodes), 15)
+        self.assertEqual(set(nodes), set(node_list))
+
+        # Terminal/alias node
+        root_parents = [
+            {'table': '89af91c0-033d-4e30-8ac4-f29a3b407dc1'},
+            {'phylogeny': 'bce3d09b-e296-4f2b-9af4-834db6412429'}]
+        self.assertEqual(nodes[node_list[0]]['parents'], root_parents)
+        # non-alias node
+        n1_parents = [{'table': '89af91c0-033d-4e30-8ac4-f29a3b407dc1'},
+                      ]
+        self.assertEqual(nodes[node_list[1]]['parents'], n1_parents)
+        # some other nodes
+        n2_parents = [{'tree': 'd32a5ea6-1ca1-4635-b522-2253568ae35b'},
+                      ]
+        self.assertEqual(nodes[node_list[2]]['parents'], n2_parents)
+        n3_parents = [{'demultiplexed_seqs':
+                       '99fa3670-aa1a-45f6-ba8e-803c976a1163'}]
+        self.assertEqual(nodes[node_list[3]]['parents'], n3_parents)
+        # import node
+        n10_parents = []
+        self.assertEqual(nodes[node_list[10]]['parents'], n10_parents)
+
+        # TODO: What do these nodes have in common beyond traversal?
+        # Is the traversal algo a useful view at all?
+        # ['ffb7cee3-2f1f-4988-90cc-efd5184ef003',
+        #  '89af91c0-033d-4e30-8ac4-f29a3b407dc1',
+        #  '99fa3670-aa1a-45f6-ba8e-803c976a1163',
+        #  'a35830e1-4535-47c6-aa23-be295a57ee1c',
+        #  'bce3d09b-e296-4f2b-9af4-834db6412429',
+        #  '7ecf8954-e49a-4605-992e-99fcee397935',
+        #  '99fa3670-aa1a-45f6-ba8e-803c976a1163',
+        #  'a35830e1-4535-47c6-aa23-be295a57ee1c'
+
+    # TODO NEXT: Consider the question above (is this traversal useful), and
+    # then delete or relocate traversal, simplify repr, etc
     def test_v5_traverse_uuids(self):
         exp = {'ffb7cee3-2f1f-4988-90cc-efd5184ef003':
                {'89af91c0-033d-4e30-8ac4-f29a3b407dc1':

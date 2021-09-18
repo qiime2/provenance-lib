@@ -69,8 +69,6 @@ class YamlConstructorTests(unittest.TestCase):
 
     def test_no_provenance_constructor(self):
         tag = "!no-provenance '34b07e56-27a5-4f03-ae57-ff427b50aaa1'"
-        # This context manager prevents the warning under test from
-        # propagating to the test session's Warning Summary
         with self.assertWarnsRegex(UserWarning,
                                    'Artifact 34b07e.*prior to provenance'):
             actual = yaml.safe_load(tag)

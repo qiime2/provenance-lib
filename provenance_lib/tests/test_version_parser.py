@@ -1,10 +1,11 @@
 import codecs
 import os
 import unittest
+import warnings
 import zipfile
 
 from .test_parse import DATA_DIR, TEST_DATA
-from ..version_parser import _VERSION_MATCHER, get_version
+from ..version_parser import _VERSION_MATCHER, parse_version
 
 
 class GetVersionTests(unittest.TestCase):
@@ -12,35 +13,40 @@ class GetVersionTests(unittest.TestCase):
     v5_qzv_version_bad = os.path.join(DATA_DIR, 'VERSION_bad.qzv')
     v5_qzv_version_short = os.path.join(DATA_DIR, 'VERSION_short.qzv')
     v5_qzv_version_long = os.path.join(DATA_DIR, 'VERSION_long.qzv')
+    uuid = '8854f06a-872f-4762-87b7-4541d0f283d4'
 
     # High-level checks only. Detailed tests of the VERSION_MATCHER regex are
     # in test_archive_formats.VersionMatcherTests to reduce overhead
 
-    def test_get_version_no_VERSION_file(self):
+    def test_parse_version_no_VERSION_file(self):
         with zipfile.ZipFile(self.v5_no_version) as zf:
-            with self.assertRaisesRegex(ValueError, 'VERSION.*nonexistent'):
-                get_version(zf)
+            with self.assertRaisesRegex(
+                    ValueError, f'(?s)VERSION.*nonexistent.*{self.uuid}'):
+                parse_version(zf)
 
-    def test_get_version_VERSION_bad(self):
+    def test_parse_version_VERSION_bad(self):
         with zipfile.ZipFile(self.v5_qzv_version_bad) as zf:
-            with self.assertRaisesRegex(ValueError, 'VERSION.*out of spec'):
-                get_version(zf)
+            with self.assertRaisesRegex(
+                    ValueError, f'VERSION.*out of spec.*{self.uuid}'):
+                parse_version(zf)
 
     def test_short_VERSION(self):
         with zipfile.ZipFile(self.v5_qzv_version_short) as zf:
-            with self.assertRaisesRegex(ValueError, 'VERSION.*out of spec'):
-                get_version(zf)
+            with self.assertRaisesRegex(
+                    ValueError, f'VERSION.*out of spec.*{self.uuid}'):
+                parse_version(zf)
 
     def test_long_VERSION(self):
         with zipfile.ZipFile(self.v5_qzv_version_long) as zf:
-            with self.assertRaisesRegex(ValueError, 'VERSION.*out of spec'):
-                get_version(zf)
+            with self.assertRaisesRegex(
+                    ValueError, f'VERSION.*out of spec.*{self.uuid}'):
+                parse_version(zf)
 
     def test_version_nums(self):
         for arch_ver in TEST_DATA:
             qzv = os.path.join(DATA_DIR, 'v' + arch_ver + '_uu_emperor.qzv')
             with zipfile.ZipFile(qzv) as zf:
-                exp_arch, exp_frmwk = get_version(zf)
+                exp_arch, exp_frmwk = parse_version(zf)
                 self.assertEqual(exp_arch, TEST_DATA[arch_ver]['av'])
                 self.assertEqual(exp_frmwk, TEST_DATA[arch_ver]['fwv'])
 
@@ -64,6 +70,8 @@ class ArchiveVersionMatcherTests(unittest.TestCase):
         )
         self.assertNotRegex(longy, _VERSION_MATCHER)
 
+    warnings.filterwarnings('ignore', 'invalid escape sequence',
+                            DeprecationWarning)
     splitvm = codecs.decode(_VERSION_MATCHER.encode('utf-8'),
                             'unicode-escape').split(sep='\n')
     re_l1, re_l2, re_l3 = splitvm

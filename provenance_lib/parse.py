@@ -1,4 +1,5 @@
 from __future__ import annotations
+from dataclasses import dataclass
 from io import BytesIO
 import pathlib
 import pandas as pd
@@ -11,8 +12,8 @@ import bibtexparser as bp
 from networkx import DiGraph
 import yaml
 
-from .checksum_validator import validate_checksums
-from .version_parser import get_version
+from . import checksum_validator
+from . import version_parser
 from .yaml_constructors import CONSTRUCTOR_REGISTRY, MetadataInfo
 
 # Alias string as UUID so we can specify types more clearly
@@ -22,22 +23,27 @@ for key in CONSTRUCTOR_REGISTRY:
     yaml.SafeLoader.add_constructor(key, CONSTRUCTOR_REGISTRY[key])
 
 
+@dataclass(frozen=True)
+class Config():
+    perform_checksum_validation: bool = True
+    # TODO: I think parse_study_metadata should default to false.
+    # Isn't Metadata parsing only useful if we want to use the same metadata
+    # for our replay as we did in the original? This would require identical
+    # UUIDs, as well as an identical mapping of metadata to those UUIDs. This
+    # seems like a neat trick, but probably the less common use case?
+    parse_study_metadata: bool = True
+
+
 class ProvDAG(DiGraph):
     """
     A single-rooted DAG of ProvNode objects, representing a single QIIME 2
     Archive.
     """
-    _num_results: int
-    _archv_contents: Dict[UUID, ProvNode]
-    _archive_md: _ResultMetadata
-
-    # TODO: remove this? replace with a collection of terminal uuids
     @property
     def root_uuid(self) -> UUID:
         """The UUID of the terminal node of one QIIME 2 Archive"""
-        return self._archive_md.uuid
+        return self.parser_results.root_md.uuid
 
-    # TODO: remove this? replace with a collection of terminal nodes
     @property
     def root_node(self) -> ProvNode:
         """The terminal ProvNode of one QIIME 2 Archive"""
@@ -45,37 +51,9 @@ class ProvDAG(DiGraph):
 
     def get_result(self, uuid) -> ProvNode:
         """Returns a ProvNode from this ProvDAG selected by UUID"""
-        return self._archv_contents[uuid]
+        return self.parser_results.archive_contents[uuid]
 
-    def __str__(self) -> str:
-        return repr(self._archive_md)
-
-    def __repr__(self) -> str:
-        # Traverse DAG, printing UUIDs
-        # TODO: Improve this repr to remove id duplication
-        r_str = self.__str__() + "\nContains Results:\n"
-        uuid_yaml = yaml.dump(self.traverse_uuids())
-        r_str += uuid_yaml
-        return r_str
-
-    def traverse_uuids(self, node_id: UUID = None) -> \
-            Mapping[UUID, Optional[ProvNode]]:
-        """ depth-first traversal of this ProvNode's ancestors """
-        # Use this DAG's root uuid by default
-        node_id = self.root_uuid if node_id is None else node_id
-        local_parents = dict()
-        if not self.nodes[node_id].get('parents'):
-            local_parents = {node_id: None}
-        else:
-            sub_dag = dict()  # type: Dict[UUID, Optional[ProvNode]]
-            parents = self.nodes[node_id]['parents']
-            parent_uuids = (list(parent.values())[0] for parent in parents)
-            for uuid in parent_uuids:
-                sub_dag.update(self.traverse_uuids(uuid))
-            local_parents[node_id] = sub_dag  # type: ignore
-        return local_parents
-
-    def __init__(self, archive_fp: str):
+    def __init__(self, cfg: Config, archive_fp: str):
         """
         Create a ProvDAG (digraph) by:
             0. Creating an empty nx.digraph
@@ -86,9 +64,10 @@ class ProvDAG(DiGraph):
         """
         super().__init__()
         with zipfile.ZipFile(archive_fp) as zf:
-            handler = FormatHandler(zf)
-            self._archive_md, self._num_results, self._archv_contents = \
-                handler.parse(zf)
+            handler = FormatHandler(cfg, zf)
+            self.parser_results = handler.parse(zf)
+            self.provenance_is_valid = self.parser_results.provenance_is_valid
+            self.checksum_diff = self.parser_results.checksum_diff
 
             # Nodes are literally UUIDs. Entire ProvNodes and select other data
             # are stored as attributes.
@@ -102,16 +81,16 @@ class ProvDAG(DiGraph):
             # might have to re-implement nx's union logic to preference the
             # non-empty provNode, which I think should be avoided.
 
-            con = self._archv_contents
+            arc_contents = self.parser_results.archive_contents
             node_contents = [
-                (n_id, dict(full_ProvNode_payload=con[n_id],
-                            type=con[n_id].sem_type,
-                            format=con[n_id].format,
-                            framework_version=con[n_id].framework_version,
-                            archive_version=con[n_id].archive_version,
-                            has_provenance=con[n_id].has_provenance,
-                            provenance_is_valid=con[n_id].provenance_is_valid,
-                            )) for n_id in self._archv_contents]
+                (n_id, dict(
+                    full_ProvNode_payload=arc_contents[n_id],
+                    type=arc_contents[n_id].sem_type,
+                    format=arc_contents[n_id].format,
+                    framework_version=arc_contents[n_id].framework_version,
+                    archive_version=arc_contents[n_id].archive_version,
+                    has_provenance=arc_contents[n_id].has_provenance,
+                    )) for n_id in arc_contents]
             self.add_nodes_from(node_contents)
 
             # Add attributes which only exist if provenance was captured
@@ -125,9 +104,6 @@ class ProvDAG(DiGraph):
                         parents=provnode.parents,
                     )
                     self.nodes[node].update(action_properties)
-                if not provnode.provenance_is_valid:
-                    self.nodes[node].update({'checksum_diff':
-                                             provnode.checksum_diff})
                 self.nodes[node]['metadata'] = provnode.metadata
 
             # NOTE: When parsing v1+ archives, v0 ancestor nodes without
@@ -150,10 +126,33 @@ class ProvDAG(DiGraph):
                         ebunch.append((parent_uuid, node_id,
                                        {'type': type}))
             self.add_edges_from(ebunch)
-            # TODO: Handle nested provenance correctly
-            # Our digraph contains all directories in the archive,
-            # and doesn't handle aliases in the same way that q2view does.
-            # We'll need to consider the semantics here.
+
+    def __str__(self) -> str:
+        return repr(self.parser_results.root_md)
+
+    def __repr__(self) -> str:
+        # Traverse DAG, printing UUIDs
+        # TODO: test list of nodes in graph directly, and then replace this
+        # with a simple _repr_, dropping traverse_uuids in the process
+        r_str = self.__str__() + "\nContains Results:\n"
+        uuid_yaml = yaml.dump(self.traverse_uuids(self.root_uuid))
+        r_str += uuid_yaml
+        return r_str
+
+    def traverse_uuids(self, node_id: UUID) -> \
+            Mapping[UUID, Optional[ProvNode]]:
+        """ depth-first traversal of this ProvNode's ancestors """
+        local_parents = dict()
+        if not self.nodes[node_id].get('parents'):
+            local_parents = {node_id: None}
+        else:
+            sub_dag = dict()  # type: Dict[UUID, Optional[ProvNode]]
+            parents = self.nodes[node_id]['parents']
+            parent_uuids = (list(parent.values())[0] for parent in parents)
+            for uuid in parent_uuids:
+                sub_dag.update(self.traverse_uuids(uuid))
+            local_parents[node_id] = sub_dag  # type: ignore
+        return local_parents
 
 
 class ProvNode:
@@ -195,6 +194,8 @@ class ProvNode:
         Returns None if this action has no metadata because the archive has no
         provenance.
         """
+        self._metadata: Optional[Dict[str, pd.DataFrame]]
+
         md = None
         if hasattr(self, '_metadata'):
             md = self._metadata
@@ -208,6 +209,8 @@ class ProvNode:
 
         Returns [] if this "action" is an Import
         """
+        self._artifacts_passed_as_md: List[Dict[str, UUID]]
+
         inputs = self.action._action_details.get('inputs')
         parents = [] if inputs is None else inputs
 
@@ -222,16 +225,11 @@ class ProvNode:
         This constructor is intentionally flexible, and will parse any
         files handed to it. It is the responsibility of the ParserVx classes to
         decide what files need to be passed.
-
-        For Archive Versions in which `checksums.md5` is present,
-        it validates the Archive.
-        For Archive formats prior to v5, we assume correctness.
         """
-        self.provenance_is_valid = True
         for fp in fps_for_this_result:
             if fp.name == 'VERSION':
                 self._archive_version, self._framework_version = \
-                    get_version(zf, fp)
+                    version_parser.parse_version(zf, fp)
             elif fp.name == 'metadata.yaml':
                 self._result_md = _ResultMetadata(zf, str(fp))
             elif fp.name == 'action.yaml':
@@ -239,28 +237,17 @@ class ProvNode:
             elif fp.name == 'citations.bib':
                 self.citations = _Citations(zf, str(fp))
             elif fp.name == 'checksums.md5':
-                # self.checksum_diff: Optional[ChecksumDiff]
-                self.provenance_is_valid, self.checksum_diff = \
-                    validate_checksums(zf)
+                # Handled in ProvDAG
+                pass
 
         # If the _Action constructor finds metadata files, we parse them
-        # TODO: This should be a user-facing option, right?
-        # Isn't Metadata parsing only useful if we want to use the
-        # same metadata for our replay as we did in the original.
-        # This would require identical UUIDs, as well as an
-        # identical mapping of metadata to those UUIDs.
-        # This seems like a neat trick, but not a common use case?
-
-        # This only makes sense if we have provenance to track. Otherwise,
-        # there is no action.yaml to interrogate.
-        # TODO NEXT: test what happens if archive has had action.yaml removed
         if self.has_provenance:
             all_metadata_fps, self._artifacts_passed_as_md = \
-                self._get_metadata_from_Action()
+                self._get_metadata_from_Action(self.action._action_details)
             self._metadata = self._parse_metadata(zf, all_metadata_fps)
 
     def _get_metadata_from_Action(
-        self, mock_action_details: Dict[str, List] = None) \
+        self, action_details: Dict[str, List]) \
             -> Tuple[Dict[str, str], List[Dict[str, UUID]]]:
         """
         Gathers data related to Metadata and MetadataColumn-based metadata
@@ -280,10 +267,6 @@ class ProvNode:
         - all-metadata conforms to {parameter_name: relative_filename}
         - artifacts_as_metadata is a list of single-item dictionaries
         conforming to [{'artifact_passed_as_metadata': <uuid>}, ...]
-
-        By default, this operates on this ProvNode's action._action_details.
-        The optional `action_details` parameter is provided only to simplify
-        testing, allowing us to pass hardcoded 'action_details' dictionaries.
 
         Input data looks like this:
 
@@ -316,8 +299,6 @@ class ProvNode:
         without these Artifact inputs, so our DAG must be able to track them as
         parents to a given node.
         """
-        action_details = mock_action_details \
-            if mock_action_details is not None else self.action._action_details
         all_metadata = dict()
         artifacts_as_metadata = []
         if (all_params := action_details.get('parameters')) is not None:
@@ -482,7 +463,7 @@ class ParserV0():
     expected_files = ('metadata.yaml', 'VERSION')  # type: Tuple[str, ...]
 
     @classmethod
-    def _get_root_md(cls, zf: zipfile.ZipFile, root_uuid: UUID) \
+    def _parse_root_md(cls, zf: zipfile.ZipFile, root_uuid: UUID) \
             -> _ResultMetadata:
         """ Get archive metadata including root uuid """
         # All files in zf start with root uuid, so we'll grab it from the first
@@ -493,46 +474,73 @@ class ParserV0():
         return _ResultMetadata(zf, root_md_fp)
 
     @classmethod
-    def parse_prov(cls, zf: zipfile.ZipFile) -> \
-            Tuple[_ResultMetadata, int, Dict[UUID, ProvNode]]:
+    def _validate_checksums(cls, zf: zipfile.ZipFile) -> \
+            Tuple[checksum_validator.ValidationCodes,
+                  Optional[checksum_validator.ChecksumDiff]]:
+        """
+        V0 archives predate provenance tracking, so
+        - provenance_is_valid = False
+        - checksum_diff = None
+        """
+        return (checksum_validator.ValidationCodes.PREDATES_CHECKSUMS,
+                None)
+
+    @classmethod
+    def parse_prov(cls, cfg: Config, zf: zipfile.ZipFile) -> ParserResults:
         archv_contents = {}
         num_results = 1
+
+        if cfg.perform_checksum_validation:
+            provenance_is_valid, checksum_diff = cls._validate_checksums(zf)
+        else:
+            provenance_is_valid, checksum_diff = (
+                checksum_validator.ValidationCodes.VALIDATION_OPTOUT, None)
+
         uuid = pathlib.Path(zf.namelist()[0]).parts[0]
 
         warnings.warn(f"Artifact {uuid} was created prior to provenance" +
                       " tracking. Provenance data will be incomplete.",
                       UserWarning)
 
-        root_md = cls._get_root_md(zf, uuid)
+        root_md = cls._parse_root_md(zf, uuid)
         prov_data_fps = [pathlib.Path(uuid) / fp for fp in cls.expected_files]
         archv_contents[uuid] = ProvNode(zf, prov_data_fps)
-        return (root_md, num_results, archv_contents)
+
+        return ParserResults(
+            root_md, num_results, archv_contents, provenance_is_valid,
+            checksum_diff
+            )
 
 
 class ParserV1(ParserV0):
     """
     Parser for V1 archives. These track provenance, so we parse it.
     """
-    expected_files: Tuple[str, ...]
     version_string = 1
+    expected_files_in_all_nodes: Tuple[str, ...]
+    expected_files_root_only: Tuple[str, ...]
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames (like Metadata, which may or may
     # not be present in an archive) should not be included here.
-    expected_files = ('metadata.yaml', 'action/action.yaml', 'VERSION')
+    expected_files_root_only = tuple()
+    expected_files_in_all_nodes = (
+        'metadata.yaml', 'action/action.yaml', 'VERSION')
 
     @classmethod
-    def _get_prov_data_fps(
-        cls, zf: zipfile.ZipFile, expected_files: Tuple['str', ...]) -> \
-            List[pathlib.Path]:
-        return [pathlib.Path(fp) for fp in zf.namelist()
-                if 'provenance' in fp
-                # and any of the filenames above show up in the filepath
-                and any(map(lambda x: x in fp, expected_files))
-                ]
+    def _validate_checksums(cls, zf: zipfile.ZipFile) -> \
+            Tuple[checksum_validator.ValidationCodes,
+                  Optional[checksum_validator.ChecksumDiff]]:
+        """
+        Provenance is initially assumed valid because we have no checksums,
+        so:
+        - provenance_is_valid = False
+        - checksum_diff = None
+        """
+        return (checksum_validator.ValidationCodes.PREDATES_CHECKSUMS,
+                None)
 
     @classmethod
-    def parse_prov(cls, zf: zipfile.ZipFile) -> \
-            Tuple[_ResultMetadata, int, Dict[UUID, ProvNode]]:
+    def parse_prov(cls, cfg: Config, zf: zipfile.ZipFile) -> ParserResults:
         """
         Parses provenance data for one Archive.
 
@@ -543,38 +551,77 @@ class ParserV1(ParserV0):
         non-root provenance files live inside 'artifacts/<uuid>'
         e.g: <archive_root_uuid>/provenance/artifacts/<uuid>/metadata.yaml
         or <archive_root_uuid>/provenance/artifacts/<uuid>/action/action.yaml
-
-        Note: we create a list of filepaths to parse into ProvNodes
-        naively, from the version-specific list of files we expect will always
-        be present, `expected_files`. This saves us from filtering repeatedly,
-        but may cause problems if expected files have been removed by the user.
-        Targeted error/warning messages for missing VERSION, metadata.yaml,
-        and checksums.md5 have been written elsewhere.
         """
         archv_contents = {}
         num_results = 0
 
-        prov_data_fps = cls._get_prov_data_fps(zf, cls.expected_files)
+        if cfg.perform_checksum_validation:
+            provenance_is_valid, checksum_diff = cls._validate_checksums(zf)
+        else:
+            provenance_is_valid, checksum_diff = (
+                checksum_validator.ValidationCodes.VALIDATION_OPTOUT, None)
+
+        prov_data_fps = cls._get_prov_data_fps(
+            zf, cls.expected_files_in_all_nodes + cls.expected_files_root_only)
         root_uuid = pathlib.Path(zf.namelist()[0]).parts[0]
 
-        root_md = cls._get_root_md(zf, root_uuid)
+        root_md = cls._parse_root_md(zf, root_uuid)
 
         # make a provnode for each UUID
         for fp in prov_data_fps:
+            fps_for_this_result = []
             # if no 'artifacts' -> this is provenance for the archive root
             if 'artifacts' not in fp.parts:
                 node_uuid = root_uuid
                 prefix = pathlib.Path(node_uuid) / 'provenance'
+                root_only_expected_fps = [
+                    pathlib.Path(node_uuid) / filename for filename in
+                    cls.expected_files_root_only]
+                fps_for_this_result += root_only_expected_fps
             else:
                 node_uuid = cls._get_nonroot_uuid(fp)
                 prefix = pathlib.Path(*fp.parts[0:4])
 
             if node_uuid not in archv_contents:
-                fps_for_this_result = [prefix / name
-                                       for name in cls.expected_files]
                 num_results += 1
+                fps_for_this_result = [
+                    prefix / name for name in cls.expected_files_in_all_nodes]
+
+                # Warn/reset provenance_is_valid if expected files are missing
+                files_are_missing = False
+                error_contents = "Malformed Archive: "
+                for fp in fps_for_this_result:
+                    if fp not in prov_data_fps:
+                        files_are_missing = True
+                        provenance_is_valid = \
+                            checksum_validator.ValidationCodes.INVALID
+                        error_contents += (
+                            f"{fp.name} file for node {node_uuid} misplaced "
+                            "or nonexistent.\n")
+
+                if(files_are_missing):
+                    error_contents += (f"Archive {root_uuid} may be corrupt "
+                                       "or provenance may be false.")
+                    raise ValueError(error_contents)
+
                 archv_contents[node_uuid] = ProvNode(zf, fps_for_this_result)
-        return (root_md, num_results, archv_contents)
+
+        return ParserResults(
+            root_md, num_results, archv_contents, provenance_is_valid,
+            checksum_diff
+        )
+
+    # TODO: We can probably remove this, but keeping it for now because removal
+    # breaks the num_results counter (which we can probably also remove)
+    @classmethod
+    def _get_prov_data_fps(
+        cls, zf: zipfile.ZipFile, expected_files: Tuple['str', ...]) -> \
+            List[pathlib.Path]:
+        return [pathlib.Path(fp) for fp in zf.namelist()
+                if 'provenance' in fp
+                # and any of the filenames above show up in the filepath
+                and any(map(lambda x: x in fp, expected_files))
+                ]
 
     @classmethod
     def _get_nonroot_uuid(cls, fp: pathlib.Path) -> UUID:
@@ -597,7 +644,8 @@ class ParserV2(ParserV1):
     version_string = 2
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames should not be included here.
-    expected_files = ParserV1.expected_files
+    expected_files_in_all_nodes = ParserV1.expected_files_in_all_nodes
+    expected_files_root_only = ParserV1.expected_files_root_only
 
 
 class ParserV3(ParserV2):
@@ -608,7 +656,8 @@ class ParserV3(ParserV2):
     version_string = 3
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames should not be included here.
-    expected_files = ParserV2.expected_files
+    expected_files_in_all_nodes = ParserV2.expected_files_in_all_nodes
+    expected_files_root_only = ParserV2.expected_files_root_only
 
 
 class ParserV4(ParserV3):
@@ -616,22 +665,56 @@ class ParserV4(ParserV3):
     Parser for V4 archives. Adds citations to dir structure, changes to
     action.yaml incl transformers
     """
-    expected_files: Tuple[str, ...]
     version_string = 4
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames should not be included here.
-    expected_files = (*ParserV3.expected_files, 'citations.bib')
+    expected_files_in_all_nodes = ParserV3.expected_files_in_all_nodes + \
+        ('citations.bib', )
+    expected_files_root_only = ParserV3.expected_files_root_only
 
 
 class ParserV5(ParserV4):
     """
-    Parser for V5 archives. Adds checksums.md5
+    Parser for V5 archives. Adds checksum validation with checksums.md5
     """
-    expected_files: Tuple[str, ...]
     version_string = 5
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames should not be included here.
-    expected_files = (*ParserV4.expected_files, 'checksums.md5')
+    expected_files_in_all_nodes = ParserV4.expected_files_in_all_nodes
+    expected_files_root_only = ('checksums.md5', )
+
+    @classmethod
+    def _validate_checksums(cls, zf: zipfile.ZipFile) -> \
+            Tuple[checksum_validator.ValidationCodes,
+                  Optional[checksum_validator.ChecksumDiff]]:
+        """
+        With v5, we can actually validate checksums, so use checksum_validator
+        to return:
+        - provenance_is_valid: bool
+        - checksum_diff: Optional[ChecksumDiff], where None only if
+            checksums.md5 is missing
+        """
+        return checksum_validator.validate_checksums(zf)
+
+    @classmethod
+    def parse_prov(cls, cfg: Config, zf: zipfile.ZipFile) -> ParserResults:
+        """
+        Parses provenance data for one Archive, applying the local
+        _validate_checksums() method to the v1 parser
+        """
+        return super().parse_prov(cfg, zf)
+
+
+@dataclass
+class ParserResults():
+    """
+    Results generated by a ParserVx
+    """
+    root_md: _ResultMetadata
+    num_results: int
+    archive_contents: Dict[UUID, ProvNode]
+    provenance_is_valid: checksum_validator.ValidationCodes
+    checksum_diff: Optional[checksum_validator.ChecksumDiff]
 
 
 class FormatHandler():
@@ -651,16 +734,17 @@ class FormatHandler():
 
     @property
     def archive_version(self):
-        return self._archv_vrsn
+        return self._archive_version
 
     @property
     def framework_version(self):
         return self._frmwk_vrsn
 
-    def __init__(self, zf: zipfile.ZipFile):
-        self._archv_vrsn, self._frmwk_vrsn = get_version(zf)
-        self.parser = self._FORMAT_REGISTRY[self._archv_vrsn]
+    def __init__(self, cfg: Config, zf: zipfile.ZipFile):
+        self.cfg = cfg
+        self._archive_version, self._frmwk_vrsn = \
+            version_parser.parse_version(zf)
+        self.parser = self._FORMAT_REGISTRY[self._archive_version]
 
-    def parse(self, zf: zipfile.ZipFile) -> \
-            Tuple[_ResultMetadata, int, Dict[UUID, ProvNode]]:
-        return self.parser.parse_prov(zf)
+    def parse(self, zf: zipfile.ZipFile) -> ParserResults:
+        return self.parser.parse_prov(self.cfg, zf)

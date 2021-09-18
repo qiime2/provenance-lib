@@ -75,16 +75,16 @@ def metadata_path_constructor(loader, node) -> MetadataInfo:
 
 def no_provenance_constructor(loader, node) -> UUID:
     """
-    Constructor for !no-provenance tags. These tags are produced when an input
-    has no /provenance dir, as is the case with v0 archives that have been
-    used in analyses in QIIME2 V1+. They look like this:
+    Constructor for !no-provenance tags. These tags are written by QIIME 2 when
+    an input has no /provenance dir, as in the case of v0 archives that have
+    been used in analyses in QIIME2 V1+. They look like this:
 
     action:
        inputs:
        -   table: !no-provenance '34b07e56-27a5-4f03-ae57-ff427b50aaa1'
 
-    TODO: Add an attribute to this node indicating it is problematic, so it can
-    be colored when drawing. Also, to the ProvDAG?
+    For now at least, this constructor warns but otherwise disregards the
+    no-provenance-ness of these. The v0 parser deals with them directly anyway.
     """
     uuid = loader.construct_scalar(node)
     warnings.warn(f"Artifact {uuid} was created prior to provenance tracking. "

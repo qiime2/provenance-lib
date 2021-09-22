@@ -280,30 +280,16 @@ class ProvDAGTests(unittest.TestCase):
         n10_parents = []
         self.assertEqual(nodes[node_list[10]]['parents'], n10_parents)
 
-        # TODO: What do these nodes have in common beyond traversal?
-        # Is the traversal algo a useful view at all?
-        # ['ffb7cee3-2f1f-4988-90cc-efd5184ef003',
-        #  '89af91c0-033d-4e30-8ac4-f29a3b407dc1',
-        #  '99fa3670-aa1a-45f6-ba8e-803c976a1163',
-        #  'a35830e1-4535-47c6-aa23-be295a57ee1c',
-        #  'bce3d09b-e296-4f2b-9af4-834db6412429',
-        #  '7ecf8954-e49a-4605-992e-99fcee397935',
-        #  '99fa3670-aa1a-45f6-ba8e-803c976a1163',
-        #  'a35830e1-4535-47c6-aa23-be295a57ee1c'
-
-    # TODO NEXT: Consider the question above (is this traversal useful), and
-    # then delete or relocate traversal, simplify repr, etc
-    def test_v5_traverse_uuids(self):
-        exp = {'ffb7cee3-2f1f-4988-90cc-efd5184ef003':
-               {'89af91c0-033d-4e30-8ac4-f29a3b407dc1':
-                {'99fa3670-aa1a-45f6-ba8e-803c976a1163':
-                 {'a35830e1-4535-47c6-aa23-be295a57ee1c': None}},
-                'bce3d09b-e296-4f2b-9af4-834db6412429':
-                {'7ecf8954-e49a-4605-992e-99fcee397935':
-                 {'99fa3670-aa1a-45f6-ba8e-803c976a1163':
-                  {'a35830e1-4535-47c6-aa23-be295a57ee1c': None}}}}}
+    def test_v5_get_nested_provenance_nodes(self):
+        exp = {'ffb7cee3-2f1f-4988-90cc-efd5184ef003',
+               'bce3d09b-e296-4f2b-9af4-834db6412429',
+               '89af91c0-033d-4e30-8ac4-f29a3b407dc1',
+               '7ecf8954-e49a-4605-992e-99fcee397935',
+               '99fa3670-aa1a-45f6-ba8e-803c976a1163',
+               'a35830e1-4535-47c6-aa23-be295a57ee1c',
+               }
         root_uuid = TEST_DATA['5']['uuid']
-        actual = self.dags['5'].traverse_uuids(root_uuid)
+        actual = self.dags['5'].get_nested_provenance_nodes(root_uuid)
         self.assertEqual(actual, exp)
 
     def test_v5_repr_contains(self):

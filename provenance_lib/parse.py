@@ -4,7 +4,7 @@ from io import BytesIO
 import pathlib
 import pandas as pd
 from datetime import timedelta
-from typing import List, Dict, Mapping, Tuple, Optional
+from typing import List, Dict, Set, Tuple, Optional
 import warnings
 import zipfile
 
@@ -133,26 +133,28 @@ class ProvDAG(DiGraph):
     def __repr__(self) -> str:
         # Traverse DAG, printing UUIDs
         # TODO: test list of nodes in graph directly, and then replace this
-        # with a simple _repr_, dropping traverse_uuids in the process
+        # with a simple _repr_, dropping get_nested_provenance_nodes in the
+        # process
         r_str = self.__str__() + "\nContains Results:\n"
-        uuid_yaml = yaml.dump(self.traverse_uuids(self.root_uuid))
+        uuid_yaml = yaml.dump(self.get_nested_provenance_nodes(self.root_uuid))
         r_str += uuid_yaml
         return r_str
 
-    def traverse_uuids(self, node_id: UUID) -> \
-            Mapping[UUID, Optional[ProvNode]]:
-        """ depth-first traversal of this ProvNode's ancestors """
-        local_parents = dict()
-        if not self.nodes[node_id].get('parents'):
-            local_parents = {node_id: None}
-        else:
-            sub_dag = dict()  # type: Dict[UUID, Optional[ProvNode]]
+    def get_nested_provenance_nodes(self, node_id: UUID) -> Set[UUID]:
+        """
+        Depth-first traversal of this ProvNode's ancestors, returns the set of
+        nodes that represent "nested" provenance, like that seen in q2view.
+
+        Because the terminal/alias nodes created by pipelines show _pipeline_
+        inputs, this simple recursion skips over all inner nodes.
+        """
+        nodes = {node_id}
+        if self.nodes[node_id].get('parents'):
             parents = self.nodes[node_id]['parents']
             parent_uuids = (list(parent.values())[0] for parent in parents)
             for uuid in parent_uuids:
-                sub_dag.update(self.traverse_uuids(uuid))
-            local_parents[node_id] = sub_dag  # type: ignore
-        return local_parents
+                nodes = nodes | self.get_nested_provenance_nodes(uuid)
+        return nodes
 
 
 class ProvNode:

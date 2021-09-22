@@ -127,18 +127,10 @@ class ProvDAG(DiGraph):
                                        {'type': type}))
             self.add_edges_from(ebunch)
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         return repr(self.parser_results.root_md)
 
-    def __repr__(self) -> str:
-        # Traverse DAG, printing UUIDs
-        # TODO: test list of nodes in graph directly, and then replace this
-        # with a simple _repr_, dropping get_nested_provenance_nodes in the
-        # process
-        r_str = self.__str__() + "\nContains Results:\n"
-        uuid_yaml = yaml.dump(self.get_nested_provenance_nodes(self.root_uuid))
-        r_str += uuid_yaml
-        return r_str
+    __str__ = __repr__
 
     def get_nested_provenance_nodes(self, node_id: UUID) -> Set[UUID]:
         """

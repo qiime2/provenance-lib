@@ -225,18 +225,17 @@ class ProvDAGTests(unittest.TestCase):
                          ['ffb7cee3-2f1f-4988-90cc-efd5184ef003']
                          ['type'])
 
-    def test_str(self):
+    def test_repr(self):
         for dag_vzn in self.dags:
             uuid = TEST_DATA[dag_vzn]['uuid']
             self.assertRegex(str(self.dags[dag_vzn]),
                              f'(?s)UUID:\t\t{uuid}.*Type.*Data Format')
 
-    def test_repr(self):
+    def test_str(self):
         for dag_vzn in self.dags:
             uuid = TEST_DATA[dag_vzn]['uuid']
-            self.assertRegex(
-                repr(self.dags[dag_vzn]),
-                f'(?s)UUID:\t\t{uuid}.*Type.*Data Format.*Contains')
+            self.assertRegex(str(self.dags[dag_vzn]),
+                             f'(?s)UUID:\t\t{uuid}.*Type.*Data Format')
 
     def test_v5_captures_full_history(self):
         nodes = self.dags['5'].nodes
@@ -291,19 +290,6 @@ class ProvDAGTests(unittest.TestCase):
         root_uuid = TEST_DATA['5']['uuid']
         actual = self.dags['5'].get_nested_provenance_nodes(root_uuid)
         self.assertEqual(actual, exp)
-
-    def test_v5_repr_contains(self):
-        self.assertRegex(repr(self.dags['5']),
-                         ('ffb7cee3-2f1f-4988-90cc-efd5184ef003:\n'
-                          '  89af91c0-033d-4e30-8ac4-f29a3b407dc1:\n'
-                          '    99fa3670-aa1a-45f6-ba8e-803c976a1163:\n'
-                          '      a35830e1-4535-47c6-aa23-be295a57ee1c: null\n'
-                          '  bce3d09b-e296-4f2b-9af4-834db6412429:\n'
-                          '    7ecf8954-e49a-4605-992e-99fcee397935:\n'
-                          '      99fa3670-aa1a-45f6-ba8e-803c976a1163:\n'
-                          '        a35830e1-4535-47c6-aa23-be295a57ee1c: null'
-                          '\n')
-                         )
 
     def test_invalid_provenance(self):
         """

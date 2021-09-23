@@ -97,7 +97,7 @@ class ProvDAG(DiGraph):
             node_contents = [
                 (n_id, dict(
                     full_ProvNode_payload=arc_contents[n_id],
-                    type=arc_contents[n_id].sem_type,
+                    type=arc_contents[n_id].type,
                     format=arc_contents[n_id].format,
                     framework_version=arc_contents[n_id].framework_version,
                     archive_version=arc_contents[n_id].archive_version,
@@ -169,7 +169,7 @@ class ProvNode:
         return self._result_md.uuid
 
     @property
-    def sem_type(self) -> str:
+    def type(self) -> str:
         return self._result_md.type
 
     @property
@@ -351,7 +351,7 @@ class ProvNode:
         return all_md
 
     def __repr__(self) -> str:
-        return f'ProvNode({self.uuid}, {self.sem_type}, fmt={self.format})'
+        return f'ProvNode({self.uuid}, {self.type}, fmt={self.format})'
 
     def __str__(self) -> UUID:
         return f'{self.uuid}'

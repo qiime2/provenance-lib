@@ -186,7 +186,7 @@ class ProvDAGTests(unittest.TestCase):
             self.assertEqual(self.dags[vz].checksum_diff,
                              TEST_DATA[vz]['checksum'])
 
-    def test_v5root_node_attributes(self):
+    def test_v5_root_node_attributes(self):
         # Many of these attributes are being tested across version formats in
         # the ProvNode tests. We're not going to worry about all the details
         root_node = self.dags['5'].nodes[TEST_DATA['5']['uuid']]
@@ -840,7 +840,7 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
     def test_properties_with_viz(self):
         for node in self.nodes:
             self.assertEqual(self.nodes[node].uuid, TEST_DATA[node]['uuid'])
-            self.assertEqual(self.nodes[node].sem_type, 'Visualization')
+            self.assertEqual(self.nodes[node].type, 'Visualization')
             self.assertEqual(self.nodes[node].format, None)
             self.assertEqual(self.nodes[node].archive_version,
                              TEST_DATA[node]['av'])

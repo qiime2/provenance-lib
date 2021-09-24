@@ -90,7 +90,7 @@ class ProvDAG(DiGraph):
             arc_contents = self.parser_results.archive_contents
             node_contents = [
                 (n_id, dict(
-                    full_ProvNode_payload=arc_contents[n_id],
+                    data=arc_contents[n_id],
                     type=arc_contents[n_id].type,
                     format=arc_contents[n_id].format,
                     framework_version=arc_contents[n_id].framework_version,
@@ -101,7 +101,7 @@ class ProvDAG(DiGraph):
 
             # Add attributes which only exist if provenance was captured
             for node in self.nodes:
-                provnode = self.nodes[node]['full_ProvNode_payload']
+                provnode = self.nodes[node]['data']
                 if provnode.has_provenance:
                     action_properties = dict(
                         action_type=provnode.action.action_type,

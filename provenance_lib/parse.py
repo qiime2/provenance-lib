@@ -48,8 +48,15 @@ class ParserResults():
 
 class ProvDAG(DiGraph):
     """
-    A single-rooted DAG of ProvNode objects, representing a single QIIME 2
-    Archive.
+    A single-rooted DAG of UUIDs representing a single QIIME 2 Archive.
+
+    Nodes are literally UUIDs (strings), and store ProvNodes in a `data`
+    attribute.
+
+    Though NetworkX supports the use of custom objects as nodes, querying the
+    DAG for an individual graph node requires keying with object literals,
+    which feels much less intuitive than with e.g. the UUID string of the
+    ProvNode you want to access, and would make testing a bit clunky.
     """
     @property
     def root_uuid(self) -> UUID:
@@ -68,11 +75,10 @@ class ProvDAG(DiGraph):
     def __init__(self, cfg: Config, archive_fp: str):
         """
         Create a ProvDAG (digraph) by:
-            0. Creating an empty nx.digraph
-            1. parsing the raw data from the zip archive
-            2. adding nodes with their associated guaranteed data
-            3. adding provenance-dependent data to nodes with provenance
-            4. Connect nodes with edges
+            0. Create an empty nx.digraph
+            1. parse the raw data from the zip archive
+            2. add nodes with their associated data
+            3. Connect nodes with edges
         """
         super().__init__()
         with zipfile.ZipFile(archive_fp) as zf:
@@ -80,18 +86,6 @@ class ProvDAG(DiGraph):
             self.parser_results = handler.parse(zf)
             self.provenance_is_valid = self.parser_results.provenance_is_valid
             self.checksum_diff = self.parser_results.checksum_diff
-
-            # Nodes are literally UUIDs. Entire ProvNodes and select other data
-            # are stored as attributes.
-
-            # TODO: If our nodes are ProvNodes instead of uuids, do we get
-            # these attributes, queryable, "for free"? Do we only get
-            # "enhanced" node equality checking? And if so, is that really a
-            # value? Related - how does nx.union_some_dags work? If node
-            # attributes are .updated, then uuid might make this less painful.
-            # Otherwise, we're replacing one ProvNode with another, and we
-            # might have to re-implement nx's union logic to preference the
-            # non-empty provNode, which I think should be avoided.
 
             arc_contents = self.parser_results.archive_contents
             node_contents = [

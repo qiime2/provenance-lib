@@ -50,13 +50,33 @@ class ProvDAG(DiGraph):
     """
     A single-rooted DAG of UUIDs representing a single QIIME 2 Archive.
 
-    Nodes are literally UUIDs (strings), and store ProvNodes in a `data`
-    attribute.
 
+    DAG Attributes:
+
+    parser_results: ParserResults
+    provenance_is_valid: checksum_validator.ValidationCodes
+    self.checksum_diff = checksum_validator.ChecksumDiff
+
+    Nodes are literally UUIDs (strings)
+    Every node has the following attributes:
+    node_data: Optional[ProvNode]
+    has_provenance: bool
+
+    Notes:
+
+    No-provenance nodes:
+    When parsing v1+ archives, v0 ancestor nodes without tracked provenance
+    (e.g. !no-provenance inputs) are discovered only as parents to the current
+    inputs. They are added to the DAG when we add in-edges to "real" provenance
+    nodes. These nodes are explicitly assigned the node attributes above,
+    allowing red-flagging of no-provenance nodes with a slightly cleaner API,
+    as all nodes should have a boolean value for that attribute.
+
+    Custom node objects:
     Though NetworkX supports the use of custom objects as nodes, querying the
     DAG for an individual graph node requires keying with object literals,
     which feels much less intuitive than with e.g. the UUID string of the
-    ProvNode you want to access, and would make testing a bit clunky.
+    ProvNode you want to access, and might make testing a bit clunky.
     """
     @property
     def root_uuid(self) -> UUID:
@@ -77,8 +97,9 @@ class ProvDAG(DiGraph):
         Create a ProvDAG (digraph) by:
             0. Create an empty nx.digraph
             1. parse the raw data from the zip archive
-            2. add nodes with their associated data
-            3. Connect nodes with edges
+            2. gather nodes with their associated data
+            3. Add edges to graph (adding !no-provenance nodes)
+            4. Create guaranteed node attributes for these no-provenance nodes
         """
         super().__init__()
         with zipfile.ZipFile(archive_fp) as zf:
@@ -88,50 +109,27 @@ class ProvDAG(DiGraph):
             self.checksum_diff = self.parser_results.checksum_diff
 
             arc_contents = self.parser_results.archive_contents
-            node_contents = [
+            nbunch = [
                 (n_id, dict(
-                    data=arc_contents[n_id],
-                    type=arc_contents[n_id].type,
-                    format=arc_contents[n_id].format,
-                    framework_version=arc_contents[n_id].framework_version,
-                    archive_version=arc_contents[n_id].archive_version,
+                    node_data=arc_contents[n_id],
                     has_provenance=arc_contents[n_id].has_provenance,
                     )) for n_id in arc_contents]
-            self.add_nodes_from(node_contents)
-
-            # Add attributes which only exist if provenance was captured
-            for node in self.nodes:
-                provnode = self.nodes[node]['data']
-                if provnode.has_provenance:
-                    action_properties = dict(
-                        action_type=provnode.action.action_type,
-                        plugin=provnode.action.plugin,
-                        runtime=provnode.action.runtime,
-                        parents=provnode.parents,
-                    )
-                    self.nodes[node].update(action_properties)
-                self.nodes[node]['metadata'] = provnode.metadata
-
-            # NOTE: When parsing v1+ archives, v0 ancestor nodes without
-            # tracked provenance (e.g. !no-provenance inputs) are discovered
-            # only as parents to the current inputs, and are added to our DAG
-            # when we add in-edges to "real" provenance nodes below.
-
-            # As such, dag.nodes[<uuid>] returns an empty dict if the node has
-            # no provenance. The has_provenance attribute allows red-flagging
-            # of nodes with something like this, even if we end up adding
-            # other attributes (e.g. type) to our no-provenance nodes:
-            # `if not dag.nodes[<uuid>].get(has_provenance)`
+            self.add_nodes_from(nbunch)
 
             ebunch = []
-            for node_id, data in self.nodes(data=True):
-                if data.get('parents'):
-                    for parent in data['parents']:
+            for node_id, attrs in self.nodes(data=True):
+                if parents := attrs['node_data'].parents:
+                    for parent in parents:
                         type = tuple(parent.keys())[0]
                         parent_uuid = tuple(parent.values())[0]
                         ebunch.append((parent_uuid, node_id,
                                        {'type': type}))
             self.add_edges_from(ebunch)
+
+            for node_id, attrs in self.nodes(data=True):
+                if attrs.get('node_data') is None:
+                    attrs['has_provenance'] = False
+                    attrs['node_data'] = None
 
     def __repr__(self) -> str:
         return repr(self.parser_results.root_md)
@@ -147,8 +145,7 @@ class ProvDAG(DiGraph):
         inputs, this simple recursion skips over all inner nodes.
         """
         nodes = {node_id}
-        if self.nodes[node_id].get('parents'):
-            parents = self.nodes[node_id]['parents']
+        if parents := self.nodes[node_id]['node_data'].parents:
             parent_uuids = (list(parent.values())[0] for parent in parents)
             for uuid in parent_uuids:
                 nodes = nodes | self.get_nested_provenance_nodes(uuid)
@@ -202,7 +199,7 @@ class ProvNode:
         return md
 
     @property
-    def parents(self) -> List[Dict[str, UUID]]:
+    def parents(self) -> Optional[List[Dict[str, UUID]]]:
         """
         a list of single-item {Type: UUID} dicts describing this
         action's inputs, and including Artifacts passed as Metadata parameters.
@@ -210,6 +207,9 @@ class ProvNode:
         Returns [] if this "action" is an Import
         """
         self._artifacts_passed_as_md: List[Dict[str, UUID]]
+
+        if not self.has_provenance:
+            return None
 
         inputs = self.action._action_details.get('inputs')
         parents = [] if inputs is None else inputs

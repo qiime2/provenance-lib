@@ -187,23 +187,13 @@ class ProvDAGTests(unittest.TestCase):
                              TEST_DATA[vz]['checksum'])
 
     def test_v5_root_node_attributes(self):
-        # Many of these attributes are being tested across version formats in
-        # the ProvNode tests. We're not going to worry about all the details
-        root_node = self.dags['5'].nodes[TEST_DATA['5']['uuid']]
-        self.assertEqual(root_node['type'], 'Visualization')
-        self.assertEqual(root_node['format'], None)
-        self.assertEqual(root_node['framework_version'], '2018.11.0')
-        self.assertEqual(root_node['archive_version'], '5')
-        self.assertEqual(root_node['action_type'], 'pipeline')
-        self.assertEqual(root_node['plugin'], 'diversity')
-        self.assertIn({'table': '89af91c0-033d-4e30-8ac4-f29a3b407dc1'},
-                      root_node['parents'])
-        self.assertIn({'phylogeny': 'bce3d09b-e296-4f2b-9af4-834db6412429'},
-                      root_node['parents'])
-        self.assertEqual(root_node['runtime'],
-                         timedelta(seconds=5, microseconds=249201))
-        self.assertIn('metadata', root_node['metadata'])
-        self.assertEqual(type(root_node['metadata']['metadata']), pd.DataFrame)
+        root_uuid = TEST_DATA['5']['uuid']
+        root_node = self.dags['5'].nodes[root_uuid]
+        self.assertTrue(root_node['has_provenance'])
+        self.assertEqual(type(root_node['node_data']), ProvNode)
+        # Smoke-test that this is actually the node we're looking for
+        # Node attributes are tested properly in ProvNodeTests
+        self.assertEqual(root_node['node_data'].uuid, root_uuid)
 
     def test_V5_has_edges(self):
         self.assertTrue(self.dags['5'].has_edge(
@@ -263,21 +253,26 @@ class ProvDAGTests(unittest.TestCase):
         root_parents = [
             {'table': '89af91c0-033d-4e30-8ac4-f29a3b407dc1'},
             {'phylogeny': 'bce3d09b-e296-4f2b-9af4-834db6412429'}]
-        self.assertEqual(nodes[node_list[0]]['parents'], root_parents)
+        self.assertEqual(nodes[node_list[0]]['node_data'].parents,
+                         root_parents)
         # non-alias node
         n1_parents = [{'table': '89af91c0-033d-4e30-8ac4-f29a3b407dc1'},
                       ]
-        self.assertEqual(nodes[node_list[1]]['parents'], n1_parents)
+        self.assertEqual(nodes[node_list[1]]['node_data'].parents,
+                         n1_parents)
         # some other nodes
         n2_parents = [{'tree': 'd32a5ea6-1ca1-4635-b522-2253568ae35b'},
                       ]
-        self.assertEqual(nodes[node_list[2]]['parents'], n2_parents)
+        self.assertEqual(nodes[node_list[2]]['node_data'].parents,
+                         n2_parents)
         n3_parents = [{'demultiplexed_seqs':
                        '99fa3670-aa1a-45f6-ba8e-803c976a1163'}]
-        self.assertEqual(nodes[node_list[3]]['parents'], n3_parents)
+        self.assertEqual(nodes[node_list[3]]['node_data'].parents,
+                         n3_parents)
         # import node
         n10_parents = []
-        self.assertEqual(nodes[node_list[10]]['parents'], n10_parents)
+        self.assertEqual(nodes[node_list[10]]['node_data'].parents,
+                         n10_parents)
 
     def test_v5_get_nested_provenance_nodes(self):
         exp = {'ffb7cee3-2f1f-4988-90cc-efd5184ef003',
@@ -437,6 +432,22 @@ class ProvDAGTests(unittest.TestCase):
                                 f'Checksums.*invalid.*{root_uuid}',
                                 UserWarning)
                             ProvDAG(Config(), chopped_archive)
+
+    def test_mixed_v0_v1_archive(self):
+        mixed_archive_fp = os.path.join(DATA_DIR, 'mixed_v0_v1_uu_emperor.qzv')
+        v1_uuid = TEST_DATA['1']['uuid']
+        v0_uuid = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
+
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
+            dag = ProvDAG(Config(), mixed_archive_fp)
+            n1 = dag.nodes[v1_uuid]
+            n0 = dag.nodes[v0_uuid]
+            self.assertEqual(n1['has_provenance'], True)
+            self.assertEqual(n1['node_data'].uuid, v1_uuid)
+
+            self.assertEqual(n0['has_provenance'], False)
+            self.assertEqual(n0['node_data'], None)
 
 
 class ProvDAGTestsNoChecksumValidation(unittest.TestCase):
@@ -987,6 +998,11 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
         exp = [{'table': '89af91c0-033d-4e30-8ac4-f29a3b407dc1'},
                {'phylogeny': 'bce3d09b-e296-4f2b-9af4-834db6412429'}]
         self.assertEqual(self.nodes['5'].parents, exp)
+
+    def test_parents_no_prov(self):
+        no_prov_node = self.nodes['0']
+        self.assertFalse(no_prov_node.has_provenance)
+        self.assertEqual(no_prov_node.parents, None)
 
     def test_parents_with_artifact_passed_as_md(self):
         exp = [{'tree': 'e710bdc5-e875-4876-b238-5451e3e8eb46'},

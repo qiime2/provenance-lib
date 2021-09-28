@@ -143,6 +143,9 @@ class ProvDAG(DiGraph):
 
         Because the terminal/alias nodes created by pipelines show _pipeline_
         inputs, this simple recursion skips over all inner nodes.
+
+        TODO: This traversal returns a set of UUIDs. In the long run, we're
+        probably looking for a proper nx.GraphView
         """
         nodes = {node_id}
         if parents := self.nodes[node_id]['node_data'].parents:

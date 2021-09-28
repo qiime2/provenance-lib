@@ -139,13 +139,7 @@ class ProvDAGTests(unittest.TestCase):
                 self.assertEqual(node, self.dags[dag_version].root_node)
 
     def test_number_of_actions(self):
-        # TODO: remove _num_results and rely on node.len()?
-        # This decision should be made once we've decided how to represent
-        # nodes, e.g. nested or all-nodes/raw
-        # At that time, remove one of these assertions
         for dag_version in self.dags:
-            self.assertEqual(self.dags[dag_version].parser_results.num_results,
-                             TEST_DATA[dag_version]['n_res'])
             self.assertEqual(len(self.dags[dag_version]),
                              TEST_DATA[dag_version]['n_res'])
 
@@ -176,7 +170,7 @@ class ProvDAGTests(unittest.TestCase):
                              _ResultMetadata)
             self.assertEqual(self.dags[vz].parser_results.root_md.uuid,
                              TEST_DATA[vz]['uuid'])
-            self.assertEqual(self.dags[vz].parser_results.num_results,
+            self.assertEqual(len(self.dags[vz]),
                              TEST_DATA[vz]['n_res'])
             self.assertIs(
                 type(self.dags[vz].parser_results.archive_contents),
@@ -476,7 +470,7 @@ class ProvDAGTestsNoChecksumValidation(unittest.TestCase):
                              _ResultMetadata)
             self.assertEqual(dags[vz].parser_results.root_md.uuid,
                              TEST_DATA[vz]['uuid'])
-            self.assertEqual(dags[vz].parser_results.num_results,
+            self.assertEqual(len(dags[vz]),
                              TEST_DATA[vz]['n_res'])
             self.assertIs(type(dags[vz].parser_results.archive_contents), dict)
             self.assertEqual(dags[vz].provenance_is_valid,
@@ -572,7 +566,7 @@ class ParserVxTests(unittest.TestCase):
                 self.assertEqual(root_md.type,  'Visualization')
                 self.assertEqual(root_md.format, None)
                 # Does this archive have the right number of Results?
-                self.assertEqual(res.num_results,
+                self.assertEqual(len(res.archive_contents),
                                  TEST_DATA[archive_version]['n_res'])
                 # Is contents a dict?
                 self.assertIs(type(res.archive_contents), dict)
@@ -676,8 +670,7 @@ class FormatHandlerTests(unittest.TestCase):
             self.assertEqual(md.uuid, uuid)
             self.assertEqual(md.type, 'Visualization')
             self.assertEqual(md.format, None)
-            self.assertIs(type(parser_results.num_results), int)
-            self.assertEqual(parser_results.num_results, 15)
+            self.assertEqual(len(parser_results.archive_contents), 15)
             self.assertIn(uuid, parser_results.archive_contents)
             self.assertIs(
                 type(parser_results.archive_contents[uuid]), ProvNode)

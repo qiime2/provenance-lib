@@ -27,7 +27,7 @@ if __name__ == '__main__':
     print(f'{repr(dummy_DAG)}')
     print(f'{dummy_DAG.root_node._result_md}')
     print(f'- was made by q2-{plurg} {ackshun}')
-    print(f'- contains prov. data from {dummy_DAG.parser_results.num_results}'
+    print(f'- contains prov. data from {len(dummy_DAG)}'
           ' QIIME 2 Results, mostly ancestors')
     # print(dummy_DAG._archive_contents)
 

@@ -135,7 +135,7 @@ class ProvDAGTests(unittest.TestCase):
                 all_filenames = zf.namelist()
                 root_md_fnames = filter(is_root_provnode_data, all_filenames)
                 root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
-                node = ProvNode(zf, root_md_fps)
+                node = ProvNode(Config(), zf, root_md_fps)
                 self.assertEqual(node, self.dags[dag_version].root_node)
 
     def test_number_of_actions(self):
@@ -792,6 +792,7 @@ class CitationsTests(unittest.TestCase):
 class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
     @classmethod
     def setUpClass(cls):
+        cfg = Config()
         # Build root nodes for all archive format versions
         cls.nodes = dict()
         for k in list(TEST_DATA):
@@ -799,7 +800,7 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                 all_filenames = zf.namelist()
                 root_md_fnames = filter(is_root_provnode_data, all_filenames)
                 root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
-                cls.nodes[k] = ProvNode(zf, root_md_fps)
+                cls.nodes[k] = ProvNode(cfg, zf, root_md_fps)
 
         # Build a minimal node in which Artifacts are passed as metadata
         filename = pathlib.Path('minimal_v4_artifact_as_md.zip')
@@ -807,6 +808,7 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
         artifact_as_md_fp = os.path.join(DATA_DIR, filename)
         with zipfile.ZipFile(artifact_as_md_fp) as zf:
             cls.art_as_md_node = ProvNode(
+                cfg,
                 zf,
                 [pfx / 'VERSION',
                  pfx / 'metadata.yaml',
@@ -823,7 +825,7 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                 ('metadata.yaml' in fp or 'action.yaml' in fp
                  or 'VERSION' in fp
                  )]
-            cls.nonroot_non_md_node = ProvNode(zf, node_fps)
+            cls.nonroot_non_md_node = ProvNode(cfg, zf, node_fps)
 
             # Build a nonroot node with study metadata
             node_id = '0af08fa8-48b7-4c6a-83c6-e0f766156343'
@@ -834,7 +836,14 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                 ('metadata.yaml' in fp or 'action.yaml' in fp
                  or 'VERSION' in fp
                  )]
-            cls.nonroot_md_node = ProvNode(zf, node_fps)
+            cls.nonroot_md_node = ProvNode(cfg, zf, node_fps)
+
+            # Build a root node and don't parse study metadata files
+            node_id = TEST_DATA['5']['uuid']
+            root_md_fnames = filter(is_root_provnode_data, zf.namelist())
+            root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
+            cfg = Config(parse_study_metadata=False)
+            cls.dont_parse_md_files_node = ProvNode(cfg, zf, root_md_fps)
 
     def test_smoke(self):
         self.assertTrue(True)
@@ -950,6 +959,9 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
         self.assertEqual(type(self.nodes['5'].metadata['metadata']),
                          pd.DataFrame)
 
+    def test_metadata_not_available_in_property_w_opt_out(self):
+        self.assertEqual(self.dont_parse_md_files_node.metadata, None)
+
     def test_metadata_is_correct(self):
         # Were parameter names captured correctly?
         self.assertIn('sample_metadata', self.art_as_md_node.metadata)
@@ -1016,6 +1028,6 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                 if import_node_id in fp
                 and any(map(lambda x: x in fp, reqd_fps))
                 ]
-            import_node = ProvNode(zf, import_node_fps)
+            import_node = ProvNode(Config(), zf, import_node_fps)
 
         self.assertEqual(import_node.parents, [])

@@ -97,7 +97,9 @@ class ProvDAG(DiGraph):
             0. Create an empty nx.digraph
             1. parse the raw data from the zip archive
             2. gather nodes with their associated data
-            3. Add edges to graph (adding !no-provenance nodes)
+            3. Add edges to graph (adding all !no-provenance nodes and any
+               artifacts passed as metadata that aren't predecessors of the
+               root node)
             4. Create guaranteed node attributes for these no-provenance nodes
         """
         super().__init__()
@@ -191,7 +193,7 @@ class ProvNode:
         Returns {} if this action took in no Metadata or MetadataColumn
 
         Returns None if this action has no metadata because the archive has no
-        provenance.
+        provenance, or the user opted out of metadata parsing.
         """
         self._metadata: Optional[Dict[str, pd.DataFrame]]
 
@@ -219,7 +221,7 @@ class ProvNode:
         artifacts_as_metadata = self._artifacts_passed_as_md
         return parents + artifacts_as_metadata
 
-    def __init__(self, zf: zipfile.ZipFile,
+    def __init__(self, cfg: Config, zf: zipfile.ZipFile,
                  fps_for_this_result: List[pathlib.Path]) -> None:
         """
         Constructs a ProvNode from a zipfile and some filepaths.
@@ -246,7 +248,8 @@ class ProvNode:
         if self.has_provenance:
             all_metadata_fps, self._artifacts_passed_as_md = \
                 self._get_metadata_from_Action(self.action._action_details)
-            self._metadata = self._parse_metadata(zf, all_metadata_fps)
+            if cfg.parse_study_metadata:
+                self._metadata = self._parse_metadata(zf, all_metadata_fps)
 
     def _get_metadata_from_Action(
         self, action_details: Dict[str, List]) \
@@ -505,7 +508,7 @@ class ParserV0():
 
         root_md = cls._parse_root_md(zf, uuid)
         prov_data_fps = [pathlib.Path(uuid) / fp for fp in cls.expected_files]
-        archv_contents[uuid] = ProvNode(zf, prov_data_fps)
+        archv_contents[uuid] = ProvNode(cfg, zf, prov_data_fps)
 
         return ParserResults(
             root_md, archv_contents, provenance_is_valid, checksum_diff
@@ -602,7 +605,8 @@ class ParserV1(ParserV0):
                                        "or provenance may be false.")
                     raise ValueError(error_contents)
 
-                archv_contents[node_uuid] = ProvNode(zf, fps_for_this_result)
+                archv_contents[node_uuid] = ProvNode(cfg, zf,
+                                                     fps_for_this_result)
 
         return ParserResults(
             root_md, archv_contents, provenance_is_valid, checksum_diff

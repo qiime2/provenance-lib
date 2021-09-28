@@ -27,11 +27,11 @@ if __name__ == '__main__':
     print(f'{repr(dummy_DAG)}')
     print(f'{dummy_DAG.root_node._result_md}')
     print(f'- was made by q2-{plurg} {ackshun}')
-    print(f'- contains prov. data from {dummy_DAG.parser_results.num_results}'
+    print(f'- contains prov. data from {len(dummy_DAG)}'
           ' QIIME 2 Results, mostly ancestors')
     # print(dummy_DAG._archive_contents)
 
     print(f'\nIts prov DAG looks like\n{dummy_DAG}')
 
     print('#########################################')
-    print(dummy_DAG.nodes['ffb7cee3-2f1f-4988-90cc-efd5184ef003']['parents'])
+    print(dummy_DAG.nodes['ffb7cee3-2f1f-4988-90cc-efd5184ef003']['node_data'].parents)

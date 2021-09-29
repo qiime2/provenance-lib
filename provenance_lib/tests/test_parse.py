@@ -181,13 +181,17 @@ class ProvDAGTests(unittest.TestCase):
                              TEST_DATA[vz]['checksum'])
 
     def test_v5_root_node_attributes(self):
+        dag = self.dags['5']
         root_uuid = TEST_DATA['5']['uuid']
-        root_node = self.dags['5'].nodes[root_uuid]
-        self.assertTrue(root_node['has_provenance'])
-        self.assertEqual(type(root_node['node_data']), ProvNode)
+        root_node = dag.get_node_data(root_uuid)
+        # Check node at the dag level
+        self.assertTrue(dag.node_has_provenance(root_uuid))
+        # Check inner node attribute is the same
+        self.assertTrue(root_node.has_provenance)
+        self.assertEqual(type(root_node), ProvNode)
         # Smoke-test that this is actually the node we're looking for
         # Node attributes are tested properly in ProvNodeTests
-        self.assertEqual(root_node['node_data'].uuid, root_uuid)
+        self.assertEqual(root_node.uuid, root_uuid)
 
     def test_V5_has_edges(self):
         self.assertTrue(self.dags['5'].has_edge(
@@ -435,13 +439,11 @@ class ProvDAGTests(unittest.TestCase):
         with self.assertWarnsRegex(
                 UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
             dag = ProvDAG(archive_fp=mixed_archive_fp)
-            n1 = dag.nodes[v1_uuid]
-            n0 = dag.nodes[v0_uuid]
-            self.assertEqual(n1['has_provenance'], True)
-            self.assertEqual(n1['node_data'].uuid, v1_uuid)
+            self.assertEqual(dag.node_has_provenance(v1_uuid), True)
+            self.assertEqual(dag.get_node_data(v1_uuid).uuid, v1_uuid)
 
-            self.assertEqual(n0['has_provenance'], False)
-            self.assertEqual(n0['node_data'], None)
+            self.assertEqual(dag.node_has_provenance(v0_uuid), False)
+            self.assertEqual(dag.get_node_data(v0_uuid), None)
 
 
 class ProvDAGTestsNoChecksumValidation(unittest.TestCase):

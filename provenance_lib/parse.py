@@ -54,7 +54,7 @@ class ProvDAG(DiGraph):
 
     parser_results: ParserResults
     provenance_is_valid: checksum_validator.ValidationCodes
-    self.checksum_diff = checksum_validator.ChecksumDiff
+    checksum_diff = checksum_validator.ChecksumDiff
 
     Nodes are literally UUIDs (strings)
     Every node has the following attributes:
@@ -85,11 +85,22 @@ class ProvDAG(DiGraph):
     @property
     def root_node(self) -> ProvNode:
         """The terminal ProvNode of one QIIME 2 Archive"""
-        return self.get_result(self.root_uuid)
+        return self.get_node_data(self.root_uuid)
 
-    def get_result(self, uuid) -> ProvNode:
+    @property
+    def provenance_is_valid(self) -> checksum_validator.ValidationCodes:
+        return self.parser_results.provenance_is_valid
+
+    @property
+    def checksum_diff(self) -> Optional[checksum_validator.ChecksumDiff]:
+        return self.parser_results.checksum_diff
+
+    def node_has_provenance(self, uuid: UUID) -> bool:
+        return self.nodes[uuid]['has_provenance']
+
+    def get_node_data(self, uuid: UUID) -> ProvNode:
         """Returns a ProvNode from this ProvDAG selected by UUID"""
-        return self.parser_results.archive_contents[uuid]
+        return self.nodes[uuid]['node_data']
 
     def __init__(self, archive_fp: str, cfg: Config = Config()):
         """
@@ -106,8 +117,6 @@ class ProvDAG(DiGraph):
         with zipfile.ZipFile(archive_fp) as zf:
             handler = FormatHandler(cfg, zf)
             self.parser_results = handler.parse(zf)
-            self.provenance_is_valid = self.parser_results.provenance_is_valid
-            self.checksum_diff = self.parser_results.checksum_diff
 
             arc_contents = self.parser_results.archive_contents
             nbunch = [
@@ -149,7 +158,7 @@ class ProvDAG(DiGraph):
         probably looking for a proper nx.GraphView
         """
         nodes = {node_id}
-        if parents := self.nodes[node_id]['node_data'].parents:
+        if parents := self.get_node_data(node_id).parents:
             parent_uuids = (list(parent.values())[0] for parent in parents)
             for uuid in parent_uuids:
                 nodes = nodes | self.get_nested_provenance_nodes(uuid)
@@ -244,7 +253,6 @@ class ProvNode:
                 # Handled in ProvDAG
                 pass
 
-        # If the _Action constructor finds metadata files, we parse them
         if self.has_provenance:
             all_metadata_fps, self._artifacts_passed_as_md = \
                 self._get_metadata_from_Action(self.action._action_details)

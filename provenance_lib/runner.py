@@ -17,7 +17,7 @@ if __name__ == '__main__':
         raise ValueError('Please pass one filepath to a QIIME 2 Archive')
 
     archive_fp = sys.argv[1]
-    dummy_DAG = ProvDAG(Config(), archive_fp)
+    dummy_DAG = ProvDAG(archive_fp)
 
     r_uuid = dummy_DAG.root_uuid
     deets = dummy_DAG.get_result(r_uuid).action._action_details

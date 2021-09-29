@@ -91,7 +91,7 @@ class ProvDAG(DiGraph):
         """Returns a ProvNode from this ProvDAG selected by UUID"""
         return self.parser_results.archive_contents[uuid]
 
-    def __init__(self, cfg: Config, archive_fp: str):
+    def __init__(self, archive_fp: str, cfg: Config = Config()):
         """
         Create a ProvDAG (digraph) by:
             0. Create an empty nx.digraph

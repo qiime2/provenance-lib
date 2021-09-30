@@ -26,12 +26,7 @@ for key in CONSTRUCTOR_REGISTRY:
 @dataclass(frozen=True)
 class Config():
     perform_checksum_validation: bool = True
-    # TODO: I think parse_study_metadata should default to false.
-    # Isn't Metadata parsing only useful if we want to use the same metadata
-    # for our replay as we did in the original? This would require identical
-    # UUIDs, as well as an identical mapping of metadata to those UUIDs. This
-    # seems like a neat trick, but probably the less common use case?
-    parse_study_metadata: bool = True
+    parse_study_metadata: bool = False
 
 
 @dataclass

@@ -794,7 +794,7 @@ class CitationsTests(unittest.TestCase):
 class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
     @classmethod
     def setUpClass(cls):
-        cfg = Config()
+        cfg = Config(parse_study_metadata=True)
         # Build root nodes for all archive format versions
         cls.nodes = dict()
         for k in list(TEST_DATA):

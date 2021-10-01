@@ -14,3 +14,10 @@ test-cov: lint
 
 mypy:
 	mypy -p provenance_lib
+
+uml:
+	# pyreverse is packaged with pylint, and installable with `pip install pylint`
+	pyreverse -ASmy -k -o png provenance_lib/ --ignore tests
+
+uml-full:
+	pyreverse -ASmy -o png provenance_lib/ --ignore tests

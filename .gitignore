@@ -127,3 +127,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Pyreverse UML diagrams
+classes.png
+packages.png

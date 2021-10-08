@@ -10,7 +10,7 @@ import zipfile
 
 import bibtexparser as bp
 import networkx as nx
-from networkx.classes.reportviews import NodeView
+from networkx.classes.reportviews import NodeView  # type: ignore
 import yaml
 
 from . import checksum_validator

@@ -465,10 +465,13 @@ class ParserV0():
     Parser for V0 archives. These have no provenance, so we only parse metadata
     """
     version_string = 0
+
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames (like Metadata, which may or may
     # not be present in an archive) should not be included here.
-    expected_files = ('metadata.yaml', 'VERSION')  # type: Tuple[str, ...]
+    expected_files_root_only = tuple()  # type: Tuple[str, ...]
+    expected_files_in_all_nodes = (
+        'metadata.yaml', 'VERSION')  # type: Tuple[str, ...]
 
     @classmethod
     def _parse_root_md(cls, zf: zipfile.ZipFile, root_uuid: UUID) \
@@ -510,7 +513,8 @@ class ParserV0():
                       UserWarning)
 
         root_md = cls._parse_root_md(zf, uuid)
-        prov_data_fps = [pathlib.Path(uuid) / fp for fp in cls.expected_files]
+        expected_files = cls.expected_files_in_all_nodes
+        prov_data_fps = [pathlib.Path(uuid) / fp for fp in expected_files]
         archv_contents[uuid] = ProvNode(cfg, zf, prov_data_fps)
 
         return ParserResults(
@@ -523,14 +527,11 @@ class ParserV1(ParserV0):
     Parser for V1 archives. These track provenance, so we parse it.
     """
     version_string = 1
-    expected_files_in_all_nodes: Tuple[str, ...]
-    expected_files_root_only: Tuple[str, ...]
     # These are files we expect will be present in every QIIME2 archive with
-    # this format. "Optional" filenames (like Metadata, which may or may
-    # not be present in an archive) should not be included here.
-    expected_files_root_only = tuple()
-    expected_files_in_all_nodes = (
-        'metadata.yaml', 'action/action.yaml', 'VERSION')
+    # this format. "Optional" filenames should not be included here.
+    expected_files_root_only = ParserV0.expected_files_root_only
+    expected_files_in_all_nodes = ParserV0.expected_files_in_all_nodes + \
+        ('action/action.yaml', )
 
     @classmethod
     def _validate_checksums(cls, zf: zipfile.ZipFile) -> \

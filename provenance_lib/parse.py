@@ -95,13 +95,12 @@ class ProvDAG():
     def nodes(self) -> NodeView:
         return self.dag.nodes
 
-    # TODO: Change u, v to in/out if appropriate?
-    def has_edge(self, u, v) -> bool:
+    def has_edge(self, start_node, end_node) -> bool:
         """
         Returns True if the edge u, v is in the graph
         Calls nx.DiGraph.has_edge
         """
-        return self.dag.has_edge(u, v)
+        return self.dag.has_edge(start_node, end_node)
 
     def node_has_provenance(self, uuid: UUID) -> bool:
         return self.dag.nodes[uuid]['has_provenance']

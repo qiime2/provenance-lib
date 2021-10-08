@@ -9,7 +9,8 @@ import warnings
 import zipfile
 
 import bibtexparser as bp
-from networkx import DiGraph
+import networkx as nx
+from networkx.classes.reportviews import NodeView
 import yaml
 
 from . import checksum_validator
@@ -40,7 +41,7 @@ class ParserResults():
     checksum_diff: Optional[checksum_validator.ChecksumDiff]
 
 
-class ProvDAG(DiGraph):
+class ProvDAG():
     """
     A single-rooted DAG of UUIDs representing a single QIIME 2 Archive.
 
@@ -90,12 +91,24 @@ class ProvDAG(DiGraph):
     def checksum_diff(self) -> Optional[checksum_validator.ChecksumDiff]:
         return self.parser_results.checksum_diff
 
+    @property
+    def nodes(self) -> NodeView:
+        return self.dag.nodes
+
+    # TODO: Change u, v to in/out if appropriate?
+    def has_edge(self, u, v) -> bool:
+        """
+        Returns True if the edge u, v is in the graph
+        Calls nx.DiGraph.has_edge
+        """
+        return self.dag.has_edge(u, v)
+
     def node_has_provenance(self, uuid: UUID) -> bool:
-        return self.nodes[uuid]['has_provenance']
+        return self.dag.nodes[uuid]['has_provenance']
 
     def get_node_data(self, uuid: UUID) -> ProvNode:
         """Returns a ProvNode from this ProvDAG selected by UUID"""
-        return self.nodes[uuid]['node_data']
+        return self.dag.nodes[uuid]['node_data']
 
     def __init__(self, archive_fp: str, cfg: Config = Config()):
         """
@@ -110,9 +123,9 @@ class ProvDAG(DiGraph):
         """
         # TODO: NEXT - stop subclassign DiGraph and start this by creating a
         # DiGraph "owned by" this class.
-        # Check whether this allows us to reverse direction, create GraphViews, etc
+        # Check whether this allows us to reverse direction, create views, etc
 
-        super().__init__()
+        self.dag = nx.DiGraph()
         with zipfile.ZipFile(archive_fp) as zf:
             handler = FormatHandler(cfg, zf)
             self.parser_results = handler.parse(zf)
@@ -123,19 +136,19 @@ class ProvDAG(DiGraph):
                     node_data=arc_contents[n_id],
                     has_provenance=arc_contents[n_id].has_provenance,
                     )) for n_id in arc_contents]
-            self.add_nodes_from(nbunch)
+            self.dag.add_nodes_from(nbunch)
 
             ebunch = []
-            for node_id, attrs in self.nodes(data=True):
+            for node_id, attrs in self.dag.nodes(data=True):
                 if parents := attrs['node_data'].parents:
                     for parent in parents:
                         type = tuple(parent.keys())[0]
                         parent_uuid = tuple(parent.values())[0]
                         ebunch.append((parent_uuid, node_id,
                                        {'type': type}))
-            self.add_edges_from(ebunch)
+            self.dag.add_edges_from(ebunch)
 
-            for node_id, attrs in self.nodes(data=True):
+            for node_id, attrs in self.dag.nodes(data=True):
                 if attrs.get('node_data') is None:
                     attrs['has_provenance'] = False
                     attrs['node_data'] = None
@@ -144,6 +157,9 @@ class ProvDAG(DiGraph):
         return repr(self.parser_results.root_md)
 
     __str__ = __repr__
+
+    def __len__(self) -> int:
+        return len(self.dag)
 
     def get_nested_provenance_nodes(self, node_id: UUID) -> Set[UUID]:
         """

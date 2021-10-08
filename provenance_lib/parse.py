@@ -160,6 +160,13 @@ class ProvDAG():
     def __len__(self) -> int:
         return len(self.dag)
 
+    # TODO: This is fragile, breaking if nodes are relabeled because it relies
+    # on node.parents. Either renaming nodes should be disallowed, we should do
+    # the above, or we should traverse # the graph without relying on .parents
+    # at all
+
+    # See graphviews notebook for an example, and for a proper graphview
+    # return for the TODO below
     def get_nested_provenance_nodes(self, node_id: UUID) -> Set[UUID]:
         """
         Depth-first traversal of this ProvNode's ancestors, returns the set of

@@ -194,10 +194,10 @@ class ProvDAGTests(unittest.TestCase):
         self.assertEqual(root_node.uuid, root_uuid)
 
     def test_V5_has_edges(self):
-        self.assertTrue(self.dags['5'].dag.has_edge(
+        self.assertTrue(self.dags['5'].has_edge(
             '89af91c0-033d-4e30-8ac4-f29a3b407dc1',
             'ffb7cee3-2f1f-4988-90cc-efd5184ef003'))
-        self.assertTrue(self.dags['5'].dag.has_edge(
+        self.assertTrue(self.dags['5'].has_edge(
             'bce3d09b-e296-4f2b-9af4-834db6412429',
             'ffb7cee3-2f1f-4988-90cc-efd5184ef003'))
 

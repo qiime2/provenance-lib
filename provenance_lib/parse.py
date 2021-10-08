@@ -108,6 +108,10 @@ class ProvDAG(DiGraph):
                root node)
             4. Create guaranteed node attributes for these no-provenance nodes
         """
+        # TODO: NEXT - stop subclassign DiGraph and start this by creating a
+        # DiGraph "owned by" this class.
+        # Check whether this allows us to reverse direction, create GraphViews, etc
+
         super().__init__()
         with zipfile.ZipFile(archive_fp) as zf:
             handler = FormatHandler(cfg, zf)

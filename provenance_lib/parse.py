@@ -141,10 +141,8 @@ class ProvDAG():
             for node_id, attrs in self.dag.nodes(data=True):
                 if parents := attrs['node_data'].parents:
                     for parent in parents:
-                        type = tuple(parent.keys())[0]
                         parent_uuid = tuple(parent.values())[0]
-                        ebunch.append((parent_uuid, node_id,
-                                       {'type': type}))
+                        ebunch.append((parent_uuid, node_id))
             self.dag.add_edges_from(ebunch)
 
             for node_id, attrs in self.dag.nodes(data=True):

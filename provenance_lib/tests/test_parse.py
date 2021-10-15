@@ -201,24 +201,6 @@ class ProvDAGTests(unittest.TestCase):
             'bce3d09b-e296-4f2b-9af4-834db6412429',
             'ffb7cee3-2f1f-4988-90cc-efd5184ef003'))
 
-    def test_v5_edge_types(self):
-        # TODO: If we keep using edge attributes (probably drop em),
-        # We should consider whether to provide a helper function or
-        # __getitem__ implementation on ProvDAG so that we can get dag nodes
-        # with the DiGraph-native syntax. This could potentially be as simple
-        # as setting __getitem__ equal to self.dag.__getitem__, if that doesn't
-        # break anything else
-        self.assertEqual('table',
-                         self.dags['5'].dag
-                         ['89af91c0-033d-4e30-8ac4-f29a3b407dc1']
-                         ['ffb7cee3-2f1f-4988-90cc-efd5184ef003']
-                         ['type'])
-        self.assertEqual('phylogeny',
-                         self.dags['5'].dag
-                         ['bce3d09b-e296-4f2b-9af4-834db6412429']
-                         ['ffb7cee3-2f1f-4988-90cc-efd5184ef003']
-                         ['type'])
-
     def test_repr(self):
         for dag_vzn in self.dags:
             uuid = TEST_DATA[dag_vzn]['uuid']

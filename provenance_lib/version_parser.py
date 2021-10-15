@@ -11,6 +11,12 @@ _VERSION_MATCHER = (
     r'framework: '
     r'(?:20[0-9]{2}|2)\.(?:[1-9][0-2]?|0)\.[0-9](?:\.dev[0-9]?)?\Z')
 
+# TODO: double-check that 'dirty' state isn't written to version files
+# when we create a new artifact using a dev version in active development
+
+# TODO: Add convenience function that takes only a filepath to the archive
+# opens a zipfile handle and parses version
+
 
 def parse_version(zf: zipfile.ZipFile,
                   fp: Optional[pathlib.Path] = None) -> Tuple[str, str]:

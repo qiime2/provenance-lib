@@ -5,7 +5,23 @@ import warnings
 import zipfile
 
 from .test_parse import DATA_DIR, TEST_DATA
-from ..version_parser import _VERSION_MATCHER, parse_version
+from ..version_parser import (
+    _VERSION_MATCHER, parse_version, parse_version_from_fp
+)
+
+
+class ParseVersionFromFPTests(unittest.TestCase):
+    """
+    Simple tests for from_fp convenience function, which passes an fp through
+    to `parse_version`. Comprehensive tests for that function below.
+    """
+
+    def test_parse_version_from_fp(self):
+        fp = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
+        actual = parse_version_from_fp(fp)
+        self.assertEqual(actual,
+                         (TEST_DATA['5']['av'],
+                          TEST_DATA['5']['fwv']))
 
 
 class GetVersionTests(unittest.TestCase):
@@ -46,9 +62,9 @@ class GetVersionTests(unittest.TestCase):
         for arch_ver in TEST_DATA:
             qzv = os.path.join(DATA_DIR, 'v' + arch_ver + '_uu_emperor.qzv')
             with zipfile.ZipFile(qzv) as zf:
-                exp_arch, exp_frmwk = parse_version(zf)
-                self.assertEqual(exp_arch, TEST_DATA[arch_ver]['av'])
-                self.assertEqual(exp_frmwk, TEST_DATA[arch_ver]['fwv'])
+                act_arch, act_frmwk = parse_version(zf)
+                self.assertEqual(act_arch, TEST_DATA[arch_ver]['av'])
+                self.assertEqual(act_frmwk, TEST_DATA[arch_ver]['fwv'])
 
 
 class ArchiveVersionMatcherTests(unittest.TestCase):

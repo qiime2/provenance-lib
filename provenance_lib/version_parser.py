@@ -14,8 +14,17 @@ _VERSION_MATCHER = (
 # TODO: double-check that 'dirty' state isn't written to version files
 # when we create a new artifact using a dev version in active development
 
-# TODO: Add convenience function that takes only a filepath to the archive
-# opens a zipfile handle and parses version
+
+def parse_version_from_fp(fp: pathlib.Path) -> Tuple[str, str]:
+    """
+    Convenience function that takes a zip archive filepath and parses the root
+    VERSION file of the archive, returning (archive_version, framework_version)
+
+    Intended for use as a standalone for this module, rather than for the
+    current implementation.
+    """
+    with zipfile.ZipFile(fp) as zf:
+        return parse_version(zf)
 
 
 def parse_version(zf: zipfile.ZipFile,

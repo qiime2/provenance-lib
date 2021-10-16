@@ -23,6 +23,26 @@ class ParseVersionFromFPTests(unittest.TestCase):
                          (TEST_DATA['5']['av'],
                           TEST_DATA['5']['fwv']))
 
+    def test_qza_written_in_dirty_dev_state(self):
+        """
+        The test archive was produced by running feature-table merge in a dev
+        version of QIIME 2 in which q2-feature-table was in a 'dirty' state.
+
+        This test proves only that at the time of 2021.10, the framework did
+        not track dirty environment state in framework version numbers.
+
+        TODO: This (and its supporting .qza) can probably be removed/replaced
+        before we ship, as it will not provide long-term benefit.
+
+        Alternately, we could write a test in test_parse.ProvDAGTests that
+        confirms the presence of a dirty plugin version and a clean dev VERSION
+        Probably overkill though.
+        """
+        fp = os.path.join(DATA_DIR, 'table_written_in_dev_version.qza')
+        actual = parse_version_from_fp(fp)
+        self.assertEqual(actual,
+                         ('5', '2021.10.0.dev0'))
+
 
 class GetVersionTests(unittest.TestCase):
     v5_no_version = os.path.join(DATA_DIR, 'VERSION_missing.qzv')

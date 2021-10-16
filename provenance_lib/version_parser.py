@@ -11,9 +11,6 @@ _VERSION_MATCHER = (
     r'framework: '
     r'(?:20[0-9]{2}|2)\.(?:[1-9][0-2]?|0)\.[0-9](?:\.dev[0-9]?)?\Z')
 
-# TODO: double-check that 'dirty' state isn't written to version files
-# when we create a new artifact using a dev version in active development
-
 
 def parse_version_from_fp(fp: pathlib.Path) -> Tuple[str, str]:
     """

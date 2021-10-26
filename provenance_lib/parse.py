@@ -120,10 +120,6 @@ class ProvDAG():
                root node)
             4. Create guaranteed node attributes for these no-provenance nodes
         """
-        # TODO: NEXT - stop subclassign DiGraph and start this by creating a
-        # DiGraph "owned by" this class.
-        # Check whether this allows us to reverse direction, create views, etc
-
         self.dag = nx.DiGraph()
         with zipfile.ZipFile(archive_fp) as zf:
             handler = FormatHandler(cfg, zf)
@@ -149,6 +145,8 @@ class ProvDAG():
                 if attrs.get('node_data') is None:
                     attrs['has_provenance'] = False
                     attrs['node_data'] = None
+                    # TODO for union: add node to a set of nodes owned by the
+                    # DAG object so that union is possible without re-traversal
 
     def __repr__(self) -> str:
         return repr(self.parser_results.root_md)
@@ -158,13 +156,6 @@ class ProvDAG():
     def __len__(self) -> int:
         return len(self.dag)
 
-    # TODO: This is fragile, breaking if nodes are relabeled because it relies
-    # on node.parents. Either renaming nodes should be disallowed, we should do
-    # the above, or we should traverse # the graph without relying on .parents
-    # at all
-
-    # See graphviews notebook for an example, and for a proper graphview
-    # return for the TODO below
     def get_nested_provenance_nodes(self, node_id: UUID) -> Set[UUID]:
         """
         Depth-first traversal of this ProvNode's ancestors, returns the set of
@@ -172,6 +163,14 @@ class ProvDAG():
 
         Because the terminal/alias nodes created by pipelines show _pipeline_
         inputs, this simple recursion skips over all inner nodes.
+
+        TODO: This is fragile, breaking if nodes are relabeled because it
+        relies on node.parents. Either renaming nodes should be disallowed,
+        or we should traverse the graph without relying on .parents. There
+        may be another solution in graphviews notebook.
+
+        See graphviews notebook for an example, and for a proper graphview
+        return for the TODO below
 
         TODO: This traversal returns a set of UUIDs. In the long run, we're
         probably looking for a proper nx.GraphView

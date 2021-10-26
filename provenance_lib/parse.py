@@ -4,7 +4,7 @@ from io import BytesIO
 import pathlib
 import pandas as pd
 from datetime import timedelta
-from typing import List, Dict, Set, Tuple, Optional
+from typing import List, Dict, Mapping, Set, Tuple, Optional
 import warnings
 import zipfile
 
@@ -95,6 +95,15 @@ class ProvDAG():
     def nodes(self) -> NodeView:
         return self.dag.nodes
 
+    @property
+    def nested_view(self) -> nx.DiGraph:
+        nested_nodes = self.get_nested_provenance_nodes(self.root_uuid)
+
+        def n_filter(node):
+            return node in nested_nodes
+
+        return nx.subgraph_view(self.dag, filter_node=n_filter)
+
     def has_edge(self, start_node, end_node) -> bool:
         """
         Returns True if the edge u, v is in the graph
@@ -108,6 +117,20 @@ class ProvDAG():
     def get_node_data(self, uuid: UUID) -> ProvNode:
         """Returns a ProvNode from this ProvDAG selected by UUID"""
         return self.dag.nodes[uuid]['node_data']
+
+    def relabel_nodes(self, mapping: Mapping) -> None:
+        """
+        Helper method for safe use of nx.relabel.relabel_nodes.
+        Updates the DAG's root UUID to match the new label,
+        to head off KeyErrors downstream.
+
+        Updates the labels of self.dag in place.
+        Users who need a copy of self.dag should use nx.relabel.relabel_nodes
+        directly, and proceed at their own risk.
+        """
+        nx.relabel_nodes(self.dag, mapping, copy=False)
+        self.parser_results.root_md.uuid = \
+            mapping[self.parser_results.root_md.uuid]
 
     def __init__(self, archive_fp: str, cfg: Config = Config()):
         """
@@ -156,30 +179,23 @@ class ProvDAG():
     def __len__(self) -> int:
         return len(self.dag)
 
-    def get_nested_provenance_nodes(self, node_id: UUID) -> Set[UUID]:
+    def get_nested_provenance_nodes(self, _node_id: UUID = None) -> Set[UUID]:
         """
-        Depth-first traversal of this ProvNode's ancestors, returns the set of
-        nodes that represent "nested" provenance, like that seen in q2view.
+        Selective depth-first traversal of this node_id's ancestors.
+        Returns a graphview of the nodes that represent "nested" provenance,
+        like that seen in q2view (i.e. all standalone Actions and Visualizers,
+        and a single node for each Pipeline).
 
         Because the terminal/alias nodes created by pipelines show _pipeline_
         inputs, this simple recursion skips over all inner nodes.
 
-        TODO: This is fragile, breaking if nodes are relabeled because it
-        relies on node.parents. Either renaming nodes should be disallowed,
-        or we should traverse the graph without relying on .parents. There
-        may be another solution in graphviews notebook.
-
-        See graphviews notebook for an example, and for a proper graphview
-        return for the TODO below
-
-        TODO: This traversal returns a set of UUIDs. In the long run, we're
-        probably looking for a proper nx.GraphView
+        NOTE: _node_id exists primarily to support recursive calls,
+        and may produce unexpected results if e.g. a nested node ID is passed.
         """
-        nodes = {node_id}
-        if parents := self.get_node_data(node_id)._parents:
-            parent_uuids = (list(parent.values())[0] for parent in parents)
-            for uuid in parent_uuids:
-                nodes = nodes | self.get_nested_provenance_nodes(uuid)
+        nodes = set() if _node_id is None else {_node_id}
+        parents = [edge_pair[0] for edge_pair in self.dag.in_edges(_node_id)]
+        for uuid in parents:
+            nodes = nodes | self.get_nested_provenance_nodes(uuid)
         return nodes
 
 

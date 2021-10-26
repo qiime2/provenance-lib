@@ -135,7 +135,7 @@ class ProvDAG():
 
             ebunch = []
             for node_id, attrs in self.dag.nodes(data=True):
-                if parents := attrs['node_data'].parents:
+                if parents := attrs['node_data']._parents:
                     for parent in parents:
                         parent_uuid = tuple(parent.values())[0]
                         ebunch.append((parent_uuid, node_id))
@@ -176,7 +176,7 @@ class ProvDAG():
         probably looking for a proper nx.GraphView
         """
         nodes = {node_id}
-        if parents := self.get_node_data(node_id).parents:
+        if parents := self.get_node_data(node_id)._parents:
             parent_uuids = (list(parent.values())[0] for parent in parents)
             for uuid in parent_uuids:
                 nodes = nodes | self.get_nested_provenance_nodes(uuid)
@@ -230,12 +230,18 @@ class ProvNode:
         return md
 
     @property
-    def parents(self) -> Optional[List[Dict[str, UUID]]]:
+    def _parents(self) -> Optional[List[Dict[str, UUID]]]:
         """
         a list of single-item {Type: UUID} dicts describing this
         action's inputs, and including Artifacts passed as Metadata parameters.
 
         Returns [] if this "action" is an Import
+
+        NOTE: This property is "private" because it is unsafe,
+        reporting original node IDs that are not updated if the user renames
+        nodes using the ProvDAG/networkx API (e.g. nx.relabel_nodes).
+        ProvDAG and its extensions should use the networkx.DiGraph itself to
+        work with ancestry.
         """
         self._artifacts_passed_as_md: List[Dict[str, UUID]]
 

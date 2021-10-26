@@ -239,25 +239,25 @@ class ProvDAGTests(unittest.TestCase):
         root_parents = [
             {'table': '89af91c0-033d-4e30-8ac4-f29a3b407dc1'},
             {'phylogeny': 'bce3d09b-e296-4f2b-9af4-834db6412429'}]
-        self.assertEqual(nodes[node_list[0]]['node_data'].parents,
+        self.assertEqual(nodes[node_list[0]]['node_data']._parents,
                          root_parents)
         # non-alias node
         n1_parents = [{'table': '89af91c0-033d-4e30-8ac4-f29a3b407dc1'},
                       ]
-        self.assertEqual(nodes[node_list[1]]['node_data'].parents,
+        self.assertEqual(nodes[node_list[1]]['node_data']._parents,
                          n1_parents)
         # some other nodes
         n2_parents = [{'tree': 'd32a5ea6-1ca1-4635-b522-2253568ae35b'},
                       ]
-        self.assertEqual(nodes[node_list[2]]['node_data'].parents,
+        self.assertEqual(nodes[node_list[2]]['node_data']._parents,
                          n2_parents)
         n3_parents = [{'demultiplexed_seqs':
                        '99fa3670-aa1a-45f6-ba8e-803c976a1163'}]
-        self.assertEqual(nodes[node_list[3]]['node_data'].parents,
+        self.assertEqual(nodes[node_list[3]]['node_data']._parents,
                          n3_parents)
         # import node
         n10_parents = []
-        self.assertEqual(nodes[node_list[10]]['node_data'].parents,
+        self.assertEqual(nodes[node_list[10]]['node_data']._parents,
                          n10_parents)
 
     def test_v5_get_nested_provenance_nodes(self):
@@ -992,12 +992,12 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
     def test_parents(self):
         exp = [{'table': '89af91c0-033d-4e30-8ac4-f29a3b407dc1'},
                {'phylogeny': 'bce3d09b-e296-4f2b-9af4-834db6412429'}]
-        self.assertEqual(self.nodes['5'].parents, exp)
+        self.assertEqual(self.nodes['5']._parents, exp)
 
     def test_parents_no_prov(self):
         no_prov_node = self.nodes['0']
         self.assertFalse(no_prov_node.has_provenance)
-        self.assertEqual(no_prov_node.parents, None)
+        self.assertEqual(no_prov_node._parents, None)
 
     def test_parents_with_artifact_passed_as_md(self):
         exp = [{'tree': 'e710bdc5-e875-4876-b238-5451e3e8eb46'},
@@ -1006,7 +1006,7 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                {'artifact_passed_as_metadata':
                 '415409a4-371d-4c69-9433-e3eaba5301b4'},
                ]
-        actual = self.art_as_md_node.parents
+        actual = self.art_as_md_node._parents
         self.assertEqual(actual, exp)
 
     def test_parents_for_import_node(self):
@@ -1020,4 +1020,4 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                 ]
             import_node = ProvNode(Config(), zf, import_node_fps)
 
-        self.assertEqual(import_node.parents, [])
+        self.assertEqual(import_node._parents, [])

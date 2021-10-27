@@ -5,7 +5,43 @@ import warnings
 import zipfile
 
 from .test_parse import DATA_DIR, TEST_DATA
-from ..version_parser import _VERSION_MATCHER, parse_version
+from ..version_parser import (
+    _VERSION_MATCHER, parse_version, parse_version_from_fp
+)
+
+
+class ParseVersionFromFPTests(unittest.TestCase):
+    """
+    Simple tests for from_fp convenience function, which passes an fp through
+    to `parse_version`. Comprehensive tests for that function below.
+    """
+
+    def test_parse_version_from_fp(self):
+        fp = os.path.join(DATA_DIR, 'v5_uu_emperor.qzv')
+        actual = parse_version_from_fp(fp)
+        self.assertEqual(actual,
+                         (TEST_DATA['5']['av'],
+                          TEST_DATA['5']['fwv']))
+
+    def test_qza_written_in_dirty_dev_state(self):
+        """
+        The test archive was produced by running feature-table merge in a dev
+        version of QIIME 2 in which q2-feature-table was in a 'dirty' state.
+
+        This test proves only that at the time of 2021.10, the framework did
+        not track dirty environment state in framework version numbers.
+
+        TODO: This (and its supporting .qza) can probably be removed/replaced
+        before we ship, as it will not provide long-term benefit.
+
+        Alternately, we could write a test in test_parse.ProvDAGTests that
+        confirms the presence of a dirty plugin version and a clean dev VERSION
+        Probably overkill though.
+        """
+        fp = os.path.join(DATA_DIR, 'table_written_in_dev_version.qza')
+        actual = parse_version_from_fp(fp)
+        self.assertEqual(actual,
+                         ('5', '2021.10.0.dev0'))
 
 
 class GetVersionTests(unittest.TestCase):
@@ -46,9 +82,9 @@ class GetVersionTests(unittest.TestCase):
         for arch_ver in TEST_DATA:
             qzv = os.path.join(DATA_DIR, 'v' + arch_ver + '_uu_emperor.qzv')
             with zipfile.ZipFile(qzv) as zf:
-                exp_arch, exp_frmwk = parse_version(zf)
-                self.assertEqual(exp_arch, TEST_DATA[arch_ver]['av'])
-                self.assertEqual(exp_frmwk, TEST_DATA[arch_ver]['fwv'])
+                act_arch, act_frmwk = parse_version(zf)
+                self.assertEqual(act_arch, TEST_DATA[arch_ver]['av'])
+                self.assertEqual(act_frmwk, TEST_DATA[arch_ver]['fwv'])
 
 
 class ArchiveVersionMatcherTests(unittest.TestCase):

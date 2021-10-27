@@ -4,7 +4,7 @@ from io import BytesIO
 import pathlib
 import pandas as pd
 from datetime import timedelta
-from typing import List, Dict, Set, Tuple, Optional
+from typing import List, Dict, Mapping, Set, Tuple, Optional
 import warnings
 import zipfile
 
@@ -95,6 +95,15 @@ class ProvDAG():
     def nodes(self) -> NodeView:
         return self.dag.nodes
 
+    @property
+    def nested_view(self) -> nx.DiGraph:
+        nested_nodes = self.get_nested_provenance_nodes(self.root_uuid)
+
+        def n_filter(node):
+            return node in nested_nodes
+
+        return nx.subgraph_view(self.dag, filter_node=n_filter)
+
     def has_edge(self, start_node, end_node) -> bool:
         """
         Returns True if the edge u, v is in the graph
@@ -109,6 +118,20 @@ class ProvDAG():
         """Returns a ProvNode from this ProvDAG selected by UUID"""
         return self.dag.nodes[uuid]['node_data']
 
+    def relabel_nodes(self, mapping: Mapping) -> None:
+        """
+        Helper method for safe use of nx.relabel.relabel_nodes.
+        Updates the DAG's root UUID to match the new label,
+        to head off KeyErrors downstream.
+
+        Updates the labels of self.dag in place.
+        Users who need a copy of self.dag should use nx.relabel.relabel_nodes
+        directly, and proceed at their own risk.
+        """
+        nx.relabel_nodes(self.dag, mapping, copy=False)
+        self.parser_results.root_md.uuid = \
+            mapping[self.parser_results.root_md.uuid]
+
     def __init__(self, archive_fp: str, cfg: Config = Config()):
         """
         Create a ProvDAG (digraph) by:
@@ -120,10 +143,6 @@ class ProvDAG():
                root node)
             4. Create guaranteed node attributes for these no-provenance nodes
         """
-        # TODO: NEXT - stop subclassign DiGraph and start this by creating a
-        # DiGraph "owned by" this class.
-        # Check whether this allows us to reverse direction, create views, etc
-
         self.dag = nx.DiGraph()
         with zipfile.ZipFile(archive_fp) as zf:
             handler = FormatHandler(cfg, zf)
@@ -139,18 +158,18 @@ class ProvDAG():
 
             ebunch = []
             for node_id, attrs in self.dag.nodes(data=True):
-                if parents := attrs['node_data'].parents:
+                if parents := attrs['node_data']._parents:
                     for parent in parents:
-                        type = tuple(parent.keys())[0]
                         parent_uuid = tuple(parent.values())[0]
-                        ebunch.append((parent_uuid, node_id,
-                                       {'type': type}))
+                        ebunch.append((parent_uuid, node_id))
             self.dag.add_edges_from(ebunch)
 
             for node_id, attrs in self.dag.nodes(data=True):
                 if attrs.get('node_data') is None:
                     attrs['has_provenance'] = False
                     attrs['node_data'] = None
+                    # TODO for union: add node to a set of nodes owned by the
+                    # DAG object so that union is possible without re-traversal
 
     def __repr__(self) -> str:
         return repr(self.parser_results.root_md)
@@ -160,29 +179,23 @@ class ProvDAG():
     def __len__(self) -> int:
         return len(self.dag)
 
-    # TODO: This is fragile, breaking if nodes are relabeled because it relies
-    # on node.parents. Either renaming nodes should be disallowed, we should do
-    # the above, or we should traverse # the graph without relying on .parents
-    # at all
-
-    # See graphviews notebook for an example, and for a proper graphview
-    # return for the TODO below
-    def get_nested_provenance_nodes(self, node_id: UUID) -> Set[UUID]:
+    def get_nested_provenance_nodes(self, _node_id: UUID = None) -> Set[UUID]:
         """
-        Depth-first traversal of this ProvNode's ancestors, returns the set of
-        nodes that represent "nested" provenance, like that seen in q2view.
+        Selective depth-first traversal of this node_id's ancestors.
+        Returns a graphview of the nodes that represent "nested" provenance,
+        like that seen in q2view (i.e. all standalone Actions and Visualizers,
+        and a single node for each Pipeline).
 
         Because the terminal/alias nodes created by pipelines show _pipeline_
         inputs, this simple recursion skips over all inner nodes.
 
-        TODO: This traversal returns a set of UUIDs. In the long run, we're
-        probably looking for a proper nx.GraphView
+        NOTE: _node_id exists primarily to support recursive calls,
+        and may produce unexpected results if e.g. a nested node ID is passed.
         """
-        nodes = {node_id}
-        if parents := self.get_node_data(node_id).parents:
-            parent_uuids = (list(parent.values())[0] for parent in parents)
-            for uuid in parent_uuids:
-                nodes = nodes | self.get_nested_provenance_nodes(uuid)
+        nodes = set() if _node_id is None else {_node_id}
+        parents = [edge_pair[0] for edge_pair in self.dag.in_edges(_node_id)]
+        for uuid in parents:
+            nodes = nodes | self.get_nested_provenance_nodes(uuid)
         return nodes
 
 
@@ -233,12 +246,18 @@ class ProvNode:
         return md
 
     @property
-    def parents(self) -> Optional[List[Dict[str, UUID]]]:
+    def _parents(self) -> Optional[List[Dict[str, UUID]]]:
         """
         a list of single-item {Type: UUID} dicts describing this
         action's inputs, and including Artifacts passed as Metadata parameters.
 
         Returns [] if this "action" is an Import
+
+        NOTE: This property is "private" because it is unsafe,
+        reporting original node IDs that are not updated if the user renames
+        nodes using the ProvDAG/networkx API (e.g. nx.relabel_nodes).
+        ProvDAG and its extensions should use the networkx.DiGraph itself to
+        work with ancestry.
         """
         self._artifacts_passed_as_md: List[Dict[str, UUID]]
 

@@ -201,24 +201,6 @@ class ProvDAGTests(unittest.TestCase):
             'bce3d09b-e296-4f2b-9af4-834db6412429',
             'ffb7cee3-2f1f-4988-90cc-efd5184ef003'))
 
-    def test_v5_edge_types(self):
-        # TODO: If we keep using edge attributes (probably drop em),
-        # We should consider whether to provide a helper function or
-        # __getitem__ implementation on ProvDAG so that we can get dag nodes
-        # with the DiGraph-native syntax. This could potentially be as simple
-        # as setting __getitem__ equal to self.dag.__getitem__, if that doesn't
-        # break anything else
-        self.assertEqual('table',
-                         self.dags['5'].dag
-                         ['89af91c0-033d-4e30-8ac4-f29a3b407dc1']
-                         ['ffb7cee3-2f1f-4988-90cc-efd5184ef003']
-                         ['type'])
-        self.assertEqual('phylogeny',
-                         self.dags['5'].dag
-                         ['bce3d09b-e296-4f2b-9af4-834db6412429']
-                         ['ffb7cee3-2f1f-4988-90cc-efd5184ef003']
-                         ['type'])
-
     def test_repr(self):
         for dag_vzn in self.dags:
             uuid = TEST_DATA[dag_vzn]['uuid']
@@ -257,25 +239,25 @@ class ProvDAGTests(unittest.TestCase):
         root_parents = [
             {'table': '89af91c0-033d-4e30-8ac4-f29a3b407dc1'},
             {'phylogeny': 'bce3d09b-e296-4f2b-9af4-834db6412429'}]
-        self.assertEqual(nodes[node_list[0]]['node_data'].parents,
+        self.assertEqual(nodes[node_list[0]]['node_data']._parents,
                          root_parents)
         # non-alias node
         n1_parents = [{'table': '89af91c0-033d-4e30-8ac4-f29a3b407dc1'},
                       ]
-        self.assertEqual(nodes[node_list[1]]['node_data'].parents,
+        self.assertEqual(nodes[node_list[1]]['node_data']._parents,
                          n1_parents)
         # some other nodes
         n2_parents = [{'tree': 'd32a5ea6-1ca1-4635-b522-2253568ae35b'},
                       ]
-        self.assertEqual(nodes[node_list[2]]['node_data'].parents,
+        self.assertEqual(nodes[node_list[2]]['node_data']._parents,
                          n2_parents)
         n3_parents = [{'demultiplexed_seqs':
                        '99fa3670-aa1a-45f6-ba8e-803c976a1163'}]
-        self.assertEqual(nodes[node_list[3]]['node_data'].parents,
+        self.assertEqual(nodes[node_list[3]]['node_data']._parents,
                          n3_parents)
         # import node
         n10_parents = []
-        self.assertEqual(nodes[node_list[10]]['node_data'].parents,
+        self.assertEqual(nodes[node_list[10]]['node_data']._parents,
                          n10_parents)
 
     def test_v5_get_nested_provenance_nodes(self):
@@ -289,6 +271,49 @@ class ProvDAGTests(unittest.TestCase):
         root_uuid = TEST_DATA['5']['uuid']
         actual = self.dags['5'].get_nested_provenance_nodes(root_uuid)
         self.assertEqual(actual, exp)
+
+    def test_v5_relabel_nodes(self):
+        # This function modifies labels in place, so create a local ProvDAG
+        # to protect our test data
+        dag = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        # Test new node names
+        exp_nodes = ['ffb7cee3',
+                     '0af08fa8',
+                     '3b7d36ff',
+                     '7ecf8954',
+                     '9cc3281a',
+                     '025e723d',
+                     '83a80bfd',
+                     '89af91c0',
+                     '99fa3670',
+                     '430a6575',
+                     'a35830e1',
+                     'aea3994b',
+                     'bce3d09b',
+                     'd32a5ea6',
+                     'f20cecd6',
+                     ]
+        new_labels = {node: node[:8] for node in dag.nodes}
+        dag.relabel_nodes(new_labels)
+        for node in exp_nodes:
+            self.assertIn(node, dag.nodes)
+
+        # Confirm root_uuid state is consistent with the relabeled node names
+        self.assertEqual(dag.root_uuid, exp_nodes[0])
+
+    def test_v5_nested_view(self):
+        exp_nodes = {'ffb7cee3-2f1f-4988-90cc-efd5184ef003',
+                     'bce3d09b-e296-4f2b-9af4-834db6412429',
+                     '89af91c0-033d-4e30-8ac4-f29a3b407dc1',
+                     '7ecf8954-e49a-4605-992e-99fcee397935',
+                     '99fa3670-aa1a-45f6-ba8e-803c976a1163',
+                     'a35830e1-4535-47c6-aa23-be295a57ee1c',
+                     }
+        view = self.dags['5'].nested_view
+        self.assertIsInstance(view, DiGraph)
+        self.assertEqual(len(view), 6)
+        for node in exp_nodes:
+            self.assertIn(node, view.nodes)
 
     def test_invalid_provenance(self):
         """
@@ -1010,12 +1035,12 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
     def test_parents(self):
         exp = [{'table': '89af91c0-033d-4e30-8ac4-f29a3b407dc1'},
                {'phylogeny': 'bce3d09b-e296-4f2b-9af4-834db6412429'}]
-        self.assertEqual(self.nodes['5'].parents, exp)
+        self.assertEqual(self.nodes['5']._parents, exp)
 
     def test_parents_no_prov(self):
         no_prov_node = self.nodes['0']
         self.assertFalse(no_prov_node.has_provenance)
-        self.assertEqual(no_prov_node.parents, None)
+        self.assertEqual(no_prov_node._parents, None)
 
     def test_parents_with_artifact_passed_as_md(self):
         exp = [{'tree': 'e710bdc5-e875-4876-b238-5451e3e8eb46'},
@@ -1024,7 +1049,7 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                {'artifact_passed_as_metadata':
                 '415409a4-371d-4c69-9433-e3eaba5301b4'},
                ]
-        actual = self.art_as_md_node.parents
+        actual = self.art_as_md_node._parents
         self.assertEqual(actual, exp)
 
     def test_parents_for_import_node(self):
@@ -1038,4 +1063,4 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                 ]
             import_node = ProvNode(Config(), zf, import_node_fps)
 
-        self.assertEqual(import_node.parents, [])
+        self.assertEqual(import_node._parents, [])

@@ -36,4 +36,4 @@ if __name__ == '__main__':
     print('#########################################')
     print(
           dummy_DAG
-          .get_node_data('ffb7cee3-2f1f-4988-90cc-efd5184ef003').parents)
+          .get_node_data('ffb7cee3-2f1f-4988-90cc-efd5184ef003')._parents)

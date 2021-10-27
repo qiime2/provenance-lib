@@ -301,6 +301,20 @@ class ProvDAGTests(unittest.TestCase):
         # Confirm root_uuid state is consistent with the relabeled node names
         self.assertEqual(dag.root_uuid, exp_nodes[0])
 
+    def test_v5_nested_view(self):
+        exp_nodes = {'ffb7cee3-2f1f-4988-90cc-efd5184ef003',
+                     'bce3d09b-e296-4f2b-9af4-834db6412429',
+                     '89af91c0-033d-4e30-8ac4-f29a3b407dc1',
+                     '7ecf8954-e49a-4605-992e-99fcee397935',
+                     '99fa3670-aa1a-45f6-ba8e-803c976a1163',
+                     'a35830e1-4535-47c6-aa23-be295a57ee1c',
+                     }
+        view = self.dags['5'].nested_view
+        self.assertIsInstance(view, DiGraph)
+        self.assertEqual(len(view), 6)
+        for node in exp_nodes:
+            self.assertIn(node, view.nodes)
+
     def test_invalid_provenance(self):
         """
         Mangle an intact v5 Archive so that its checksums.md5 is invalid,

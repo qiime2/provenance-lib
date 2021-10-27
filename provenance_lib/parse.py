@@ -127,6 +127,10 @@ class ProvDAG():
         Updates the labels of self.dag in place.
         Users who need a copy of self.dag should use nx.relabel.relabel_nodes
         directly, and proceed at their own risk.
+
+        # TODO: self.archive_contents state is not updated. Can we avoid saving
+        # that data entirely and just split the ParserResults up immediately
+        # when they're generated in the __init__?
         """
         nx.relabel_nodes(self.dag, mapping, copy=False)
         self.parser_results.root_md.uuid = \
@@ -136,11 +140,13 @@ class ProvDAG():
         """
         Create a ProvDAG (digraph) by:
             0. Create an empty nx.digraph
-            1. parse the raw data from the zip archive
-            2. gather nodes with their associated data
-            3. Add edges to graph (adding all !no-provenance nodes and any
+            1. parse the raw data from the zip archive into a ParserResults
+            2. gather nodes with their associated data into an n_bunch and add
+               to the DiGraph
+            3. Add edges to graph (including all !no-provenance nodes and any
                artifacts passed as metadata that aren't predecessors of the
-               root node)
+               root node). In the process, add a set of artifacts passed as
+               metadata to the ProvDAG to speed up Union
             4. Create guaranteed node attributes for these no-provenance nodes
         """
         self.dag = nx.DiGraph()

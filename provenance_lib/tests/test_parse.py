@@ -272,6 +272,35 @@ class ProvDAGTests(unittest.TestCase):
         actual = self.dags['5'].get_nested_provenance_nodes(root_uuid)
         self.assertEqual(actual, exp)
 
+    def test_v5_relabel_nodes(self):
+        # This function modifies labels in place, so create a local ProvDAG
+        # to protect our test data
+        dag = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        # Test new node names
+        exp_nodes = ['ffb7cee3',
+                     '0af08fa8',
+                     '3b7d36ff',
+                     '7ecf8954',
+                     '9cc3281a',
+                     '025e723d',
+                     '83a80bfd',
+                     '89af91c0',
+                     '99fa3670',
+                     '430a6575',
+                     'a35830e1',
+                     'aea3994b',
+                     'bce3d09b',
+                     'd32a5ea6',
+                     'f20cecd6',
+                     ]
+        new_labels = {node: node[:8] for node in dag.nodes}
+        dag.relabel_nodes(new_labels)
+        for node in exp_nodes:
+            self.assertIn(node, dag.nodes)
+
+        # Confirm root_uuid state is consistent with the relabeled node names
+        self.assertEqual(dag.root_uuid, exp_nodes[0])
+
     def test_invalid_provenance(self):
         """
         Mangle an intact v5 Archive so that its checksums.md5 is invalid,

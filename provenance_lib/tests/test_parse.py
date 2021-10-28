@@ -179,6 +179,7 @@ class ProvDAGTests(unittest.TestCase):
                              TEST_DATA[vz]['prov_is_valid'])
             self.assertEqual(self.dags[vz].checksum_diff,
                              TEST_DATA[vz]['checksum'])
+            self.assertEqual(self.dags[vz].artifacts_passed_as_metadata, set())
 
     def test_v5_root_node_attributes(self):
         dag = self.dags['5']
@@ -837,6 +838,8 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
 
         # Build a minimal node in which Artifacts are passed as metadata
         filename = pathlib.Path('minimal_v4_artifact_as_md.zip')
+        # This manufactured v4 test archive "happens" to have the same root
+        # UUID as the standard v5 archive
         pfx = pathlib.Path(TEST_DATA['5']['uuid'])
         artifact_as_md_fp = os.path.join(DATA_DIR, filename)
         with zipfile.ZipFile(artifact_as_md_fp) as zf:

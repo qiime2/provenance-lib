@@ -163,10 +163,14 @@ class ProvDAG():
             self.dag.add_nodes_from(nbunch)
 
             ebunch = []
+            self.artifacts_passed_as_metadata = set()
             for node_id, attrs in self.dag.nodes(data=True):
                 if parents := attrs['node_data']._parents:
                     for parent in parents:
-                        parent_uuid = tuple(parent.values())[0]
+                        # parent is a single-item {type: uuid} dict
+                        parent_type, parent_uuid = list(parent.items())[0]
+                        if parent_type == 'artifact_passed_as_metadata':
+                            self.artifacts_passed_as_metadata.add(parent_uuid)
                         ebunch.append((parent_uuid, node_id))
             self.dag.add_edges_from(ebunch)
 
@@ -174,8 +178,6 @@ class ProvDAG():
                 if attrs.get('node_data') is None:
                     attrs['has_provenance'] = False
                     attrs['node_data'] = None
-                    # TODO for union: add node to a set of nodes owned by the
-                    # DAG object so that union is possible without re-traversal
 
     def __repr__(self) -> str:
         return repr(self.parser_results.root_md)

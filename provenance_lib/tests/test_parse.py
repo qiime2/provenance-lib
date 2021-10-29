@@ -478,6 +478,56 @@ class ProvDAGTests(unittest.TestCase):
             self.assertEqual(dag.get_node_data(v0_uuid), None)
 
 
+class ProvDAGUnionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # TODO: We'll need different test data now that this is Union
+        filename = pathlib.Path('minimal_v4_artifact_as_md.zip')
+        artifact_as_md_fp = os.path.join(DATA_DIR, filename)
+        cls.dag = ProvDAG(artifact_as_md_fp)
+
+    # This should only trigger if something fails in setup or above
+    # e.g. if a ProvDag fails to initialize
+    def test_smoke(self):
+        self.assertTrue(True)
+
+    def test_basic_union(self):
+        pass
+
+    def test_union_all_with_multiple_inputs(self):
+        pass
+
+    def test_one_artifact_supersets_another(self):
+        pass
+
+    def test_graphs_disjoint_same_analysis(self):
+        """
+        E.g. there are just qzvs missing from the set of unioned archives
+        """
+        pass
+
+    def test_graphs_disjoint_different_analyses(self):
+        """
+        E.g. a stray archive got mixed in from an unrelated analysis
+        """
+        pass
+
+    def test_dag_with_no_provenance(self):
+        """
+        "All" v0 archives
+        """
+        pass
+
+    def test_dag_with_mixed_archives(self):
+        """
+        e.g. v0 and v3 archives in the same analysis
+        """
+        pass
+
+    def test_dag_with_artifacts_passed_as_metadata(self):
+        pass
+
+
 class ProvDAGTestsNoChecksumValidation(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

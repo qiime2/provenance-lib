@@ -51,8 +51,10 @@ class ProvDAG():
     parser_results: ParserResults
     provenance_is_valid: checksum_validator.ValidationCodes
     checksum_diff = checksum_validator.ChecksumDiff
+    artifacts_passed_as_metadata = Set[UUID]
+    dag = nx.DiGraph
 
-    Nodes are literally UUIDs (strings)
+    DiGraph nodes are literally UUIDs (strings)
     Every node has the following attributes:
     node_data: Optional[ProvNode]
     has_provenance: bool
@@ -136,6 +138,26 @@ class ProvDAG():
         self.parser_results.root_md.uuid = \
             mapping[self.parser_results.root_md.uuid]
 
+    def union(self, others: List[ProvDAG]) -> ProvDAG:
+        """
+        Creates a new ProvDAG by unioning the graphs in an arbitrary number
+        of ProvDAGs.
+
+        TODO: These params don't line up nicely with compose_all. Maybe this
+        shouldn't be a method on ProvDAG? If we drop ProvDAG as it stands,
+        we'll need an API for Mounters/Loaders that can produce nx.DiGraphs,
+        and functions that allow us to get terminal outputs from arbitrary
+        DiGraphs etc.
+        """
+        dags = [self.dag] + [dag.dag for dag in others]
+        self.dag = nx.compose_all(dags)
+        # TODO: Handle the following:
+        # TODO NEXT: root node adjustment:
+        # - root_node and root_uuid adjustments (should be based on a DAG view)
+        # - parser_results (collect or drop - probably drop)
+        # - provenance_is_valid - capture the least-good code
+        # - checksum_diff - Can we union the checksum_diff fields?
+
     def __init__(self, archive_fp: str, cfg: Config = Config()):
         """
         Create a ProvDAG (digraph) by:
@@ -163,6 +185,7 @@ class ProvDAG():
             self.dag.add_nodes_from(nbunch)
 
             ebunch = []
+            # TODO: Can this be dropped? Proooobably
             self.artifacts_passed_as_metadata = set()
             for node_id, attrs in self.dag.nodes(data=True):
                 if parents := attrs['node_data']._parents:

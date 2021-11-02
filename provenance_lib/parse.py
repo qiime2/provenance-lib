@@ -185,15 +185,11 @@ class ProvDAG():
             self.dag.add_nodes_from(nbunch)
 
             ebunch = []
-            # TODO: Can this be dropped? Proooobably
-            self.artifacts_passed_as_metadata = set()
             for node_id, attrs in self.dag.nodes(data=True):
                 if parents := attrs['node_data']._parents:
                     for parent in parents:
                         # parent is a single-item {type: uuid} dict
-                        parent_type, parent_uuid = list(parent.items())[0]
-                        if parent_type == 'artifact_passed_as_metadata':
-                            self.artifacts_passed_as_metadata.add(parent_uuid)
+                        parent_uuid = tuple(parent.values())[0]
                         ebunch.append((parent_uuid, node_id))
             self.dag.add_edges_from(ebunch)
 

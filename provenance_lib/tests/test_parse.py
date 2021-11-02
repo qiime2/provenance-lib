@@ -179,7 +179,6 @@ class ProvDAGTests(unittest.TestCase):
                              TEST_DATA[vz]['prov_is_valid'])
             self.assertEqual(self.dags[vz].checksum_diff,
                              TEST_DATA[vz]['checksum'])
-            self.assertEqual(self.dags[vz].artifacts_passed_as_metadata, set())
 
     def test_v5_root_node_attributes(self):
         dag = self.dags['5']

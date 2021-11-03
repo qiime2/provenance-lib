@@ -96,7 +96,7 @@ class ProvDAG():
     @property
     def root_uuid(self) -> UUID:
         """The UUID of the terminal node of one QIIME 2 Archive"""
-        return self.parser_results.root_md.uuid
+        return self._root_uuid
 
     @property
     def root_node(self) -> ProvNode:
@@ -105,11 +105,11 @@ class ProvDAG():
 
     @property
     def provenance_is_valid(self) -> checksum_validator.ValidationCodes:
-        return self.parser_results.provenance_is_valid
+        return self._provenance_is_valid
 
     @property
     def checksum_diff(self) -> Optional[checksum_validator.ChecksumDiff]:
-        return self.parser_results.checksum_diff
+        return self._checksum_diff
 
     @property
     def nodes(self) -> NodeView:
@@ -128,7 +128,7 @@ class ProvDAG():
         """
         Create a ProvDAG (digraph) by:
             0. Create an empty nx.digraph
-            1. parse the raw data from the zip archive into a ParserResults
+            1. parse the raw data from the zip archive
             2. gather nodes with their associated data into an n_bunch and add
                to the DiGraph
             3. Add edges to graph (including all !no-provenance nodes)
@@ -137,14 +137,17 @@ class ProvDAG():
         self.dag = nx.DiGraph()
         with zipfile.ZipFile(archive_fp) as zf:
             handler = FormatHandler(cfg, zf)
-            self.parser_results = handler.parse(zf)
+            parser_results = handler.parse(zf)
+            self._root_uuid = parser_results.root_md.uuid
+            archive_contents = parser_results.archive_contents
+            self._provenance_is_valid = parser_results.provenance_is_valid
+            self._checksum_diff = parser_results.checksum_diff
 
-            arc_contents = self.parser_results.archive_contents
             nbunch = [
                 (n_id, dict(
-                    node_data=arc_contents[n_id],
-                    has_provenance=arc_contents[n_id].has_provenance,
-                    )) for n_id in arc_contents]
+                    node_data=archive_contents[n_id],
+                    has_provenance=archive_contents[n_id].has_provenance,
+                    )) for n_id in archive_contents]
             self.dag.add_nodes_from(nbunch)
 
             ebunch = []
@@ -162,7 +165,7 @@ class ProvDAG():
                     attrs['node_data'] = None
 
     def __repr__(self) -> str:
-        return repr(self.parser_results.root_md)
+        return repr(self.root_node._result_md)
 
     __str__ = __repr__
 
@@ -192,14 +195,10 @@ class ProvDAG():
         Updates the labels of self.dag in place.
         Users who need a copy of self.dag should use nx.relabel.relabel_nodes
         directly, and proceed at their own risk.
-
-        # TODO: self.archive_contents state is not updated. Can we avoid saving
-        # that data entirely and just split the ParserResults up immediately
-        # when they're generated in the __init__?
         """
         nx.relabel_nodes(self.dag, mapping, copy=False)
-        self.parser_results.root_md.uuid = \
-            mapping[self.parser_results.root_md.uuid]
+        self._root_uuid = \
+            mapping[self._root_uuid]
 
     def union(self, others: List[ProvDAG]) -> None:
         """
@@ -220,7 +219,6 @@ class ProvDAG():
         # TODO: Handle the following:
         # TODO NEXT: root node adjustment:
         # - root_node and root_uuid adjustments (should be based on a DAG view)
-        # - parser_results (collect or drop - probably drop)
         # - provenance_is_valid - capture the least-good code
         # - checksum_diff - Can we union the checksum_diff fields?
 

@@ -8,13 +8,14 @@ import warnings
 import zipfile
 
 from networkx import DiGraph
+from networkx.classes.reportviews import NodeView  # type: ignore
 
 from ..checksum_validator import ChecksumDiff, ValidationCodes
 from ..parse import (
     ProvDAG, ProvNode, FormatHandler,
     _Action, _Citations, _ResultMetadata,
     ParserV0, ParserV1, ParserV2, ParserV3, ParserV4, ParserV5,
-    ParserResults, Config,
+    Config,
 )
 from ..yaml_constructors import MetadataInfo
 
@@ -165,20 +166,21 @@ class ProvDAGTests(unittest.TestCase):
 
     def test_dag_attributes(self):
         for vz in self.dags:
-            self.assertEqual(type(self.dags[vz].parser_results), ParserResults)
-            self.assertEqual(type(self.dags[vz].parser_results.root_md),
-                             _ResultMetadata)
-            self.assertEqual(self.dags[vz].parser_results.root_md.uuid,
+            self.assertEqual(self.dags[vz].root_uuid,
                              TEST_DATA[vz]['uuid'])
-            self.assertEqual(len(self.dags[vz]),
-                             TEST_DATA[vz]['n_res'])
-            self.assertIs(
-                type(self.dags[vz].parser_results.archive_contents),
-                dict)
+            self.assertEqual(type(self.dags[vz].root_node), ProvNode)
+            self.assertEqual(self.dags[vz].root_node.uuid,
+                             TEST_DATA[vz]['uuid'])
             self.assertEqual(self.dags[vz].provenance_is_valid,
                              TEST_DATA[vz]['prov_is_valid'])
             self.assertEqual(self.dags[vz].checksum_diff,
                              TEST_DATA[vz]['checksum'])
+            self.assertEqual(type(self.dags[vz].nodes), NodeView)
+            # Node count acts as a proxy test for completeness here
+            self.assertEqual(len(self.dags[vz].nodes), TEST_DATA[vz]['n_res'])
+            self.assertEqual(type(self.dags[vz].dag), DiGraph)
+            self.assertEqual(len(self.dags[vz]),
+                             TEST_DATA[vz]['n_res'])
 
     def test_v5_root_node_attributes(self):
         dag = self.dags['5']
@@ -569,14 +571,11 @@ class ProvDAGTestsNoChecksumValidation(unittest.TestCase):
     def test_no_checksum_validation_intact_archives(self):
         dags = self.no_checksum_dags
         for vz in dags:
-            self.assertEqual(type(dags[vz].parser_results), ParserResults)
-            self.assertEqual(type(dags[vz].parser_results.root_md),
-                             _ResultMetadata)
-            self.assertEqual(dags[vz].parser_results.root_md.uuid,
+            self.assertEqual(dags[vz].root_uuid,
                              TEST_DATA[vz]['uuid'])
+            # Node count acts as a proxy test for completeness here
             self.assertEqual(len(dags[vz]),
                              TEST_DATA[vz]['n_res'])
-            self.assertIs(type(dags[vz].parser_results.archive_contents), dict)
             self.assertEqual(dags[vz].provenance_is_valid,
                              ValidationCodes.VALIDATION_OPTOUT)
             self.assertEqual(dags[vz].checksum_diff, None)

@@ -93,37 +93,6 @@ class ProvDAG():
     which feels much less intuitive than with e.g. the UUID string of the
     ProvNode you want to access, and would make testing a bit clunky.
     """
-    @property
-    def root_uuid(self) -> UUID:
-        """The UUID of the terminal node of one QIIME 2 Archive"""
-        return self._root_uuid
-
-    @property
-    def root_node(self) -> ProvNode:
-        """The terminal ProvNode of one QIIME 2 Archive"""
-        return self.get_node_data(self.root_uuid)
-
-    @property
-    def provenance_is_valid(self) -> checksum_validator.ValidationCodes:
-        return self._provenance_is_valid
-
-    @property
-    def checksum_diff(self) -> Optional[checksum_validator.ChecksumDiff]:
-        return self._checksum_diff
-
-    @property
-    def nodes(self) -> NodeView:
-        return self.dag.nodes
-
-    @property
-    def nested_view(self) -> nx.DiGraph:
-        nested_nodes = self.get_nested_provenance_nodes(self.root_uuid)
-
-        def n_filter(node):
-            return node in nested_nodes
-
-        return nx.subgraph_view(self.dag, filter_node=n_filter)
-
     def __init__(self, archive_fp: str, cfg: Config = Config()):
         """
         Create a ProvDAG (digraph) by:
@@ -171,6 +140,37 @@ class ProvDAG():
 
     def __len__(self) -> int:
         return len(self.dag)
+
+    @property
+    def root_uuid(self) -> UUID:
+        """The UUID of the terminal node of one QIIME 2 Archive"""
+        return self._root_uuid
+
+    @property
+    def root_node(self) -> ProvNode:
+        """The terminal ProvNode of one QIIME 2 Archive"""
+        return self.get_node_data(self.root_uuid)
+
+    @property
+    def provenance_is_valid(self) -> checksum_validator.ValidationCodes:
+        return self._provenance_is_valid
+
+    @property
+    def checksum_diff(self) -> Optional[checksum_validator.ChecksumDiff]:
+        return self._checksum_diff
+
+    @property
+    def nodes(self) -> NodeView:
+        return self.dag.nodes
+
+    @property
+    def nested_view(self) -> nx.DiGraph:
+        nested_nodes = self.get_nested_provenance_nodes(self.root_uuid)
+
+        def n_filter(node):
+            return node in nested_nodes
+
+        return nx.subgraph_view(self.dag, filter_node=n_filter)
 
     def has_edge(self, start_node, end_node) -> bool:
         """

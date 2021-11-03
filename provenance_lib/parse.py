@@ -46,15 +46,33 @@ class ProvDAG():
     A single-rooted DAG of UUIDs representing a single QIIME 2 Archive.
 
 
-    DAG Attributes:
+    ## DAG Attributes
 
-    parser_results: ParserResults
+    root_uuid: UUID
+    root_node: ProvNode
     provenance_is_valid: checksum_validator.ValidationCodes
-    checksum_diff = checksum_validator.ChecksumDiff
-    artifacts_passed_as_metadata = Set[UUID]
+    checksum_diff: checksum_validator.ChecksumDiff
+    nodes: networkx.classes.reportview.NodeView
     dag = nx.DiGraph
 
+    ## Methods/builtin suport
+    `len` - ProvDAG supports the builtin len just as nx.DiGraph does, returning
+            the number of nodes in `mydag.dag`
+
+    ## GraphViews
+    Graphviews are subgraphs of networkx graphs. They behave just like DiGraphs
+    unless you take many views of views, at which point they lag.
+
+    complete: `mydag.dag` is the DiGraph containing all recorded provenance
+               nodes for this ProvDAG
+    nested_view: `mydag.nested_view` returns a DiGraph (GraphView) containing a
+                 node for each standalone Action or Visualizer and one single
+                 node for each Pipeline (like q2view provenance trees)
+
+    ## Nodes
+
     DiGraph nodes are literally UUIDs (strings)
+
     Every node has the following attributes:
     node_data: Optional[ProvNode]
     has_provenance: bool
@@ -66,14 +84,14 @@ class ProvDAG():
     (e.g. !no-provenance inputs) are discovered only as parents to the current
     inputs. They are added to the DAG when we add in-edges to "real" provenance
     nodes. These nodes are explicitly assigned the node attributes above,
-    allowing red-flagging of no-provenance nodes with a slightly cleaner API,
-    as all nodes should have a boolean value for that attribute.
+    allowing red-flagging of no-provenance nodes, as all nodes have a
+    has_provenance attribute
 
     Custom node objects:
     Though NetworkX supports the use of custom objects as nodes, querying the
     DAG for an individual graph node requires keying with object literals,
     which feels much less intuitive than with e.g. the UUID string of the
-    ProvNode you want to access, and might make testing a bit clunky.
+    ProvNode you want to access, and would make testing a bit clunky.
     """
     @property
     def root_uuid(self) -> UUID:

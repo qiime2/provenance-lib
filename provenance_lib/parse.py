@@ -106,58 +106,6 @@ class ProvDAG():
 
         return nx.subgraph_view(self.dag, filter_node=n_filter)
 
-    def has_edge(self, start_node, end_node) -> bool:
-        """
-        Returns True if the edge u, v is in the graph
-        Calls nx.DiGraph.has_edge
-        """
-        return self.dag.has_edge(start_node, end_node)
-
-    def node_has_provenance(self, uuid: UUID) -> bool:
-        return self.dag.nodes[uuid]['has_provenance']
-
-    def get_node_data(self, uuid: UUID) -> ProvNode:
-        """Returns a ProvNode from this ProvDAG selected by UUID"""
-        return self.dag.nodes[uuid]['node_data']
-
-    def relabel_nodes(self, mapping: Mapping) -> None:
-        """
-        Helper method for safe use of nx.relabel.relabel_nodes.
-        Updates the DAG's root UUID to match the new label,
-        to head off KeyErrors downstream.
-
-        Updates the labels of self.dag in place.
-        Users who need a copy of self.dag should use nx.relabel.relabel_nodes
-        directly, and proceed at their own risk.
-
-        # TODO: self.archive_contents state is not updated. Can we avoid saving
-        # that data entirely and just split the ParserResults up immediately
-        # when they're generated in the __init__?
-        """
-        nx.relabel_nodes(self.dag, mapping, copy=False)
-        self.parser_results.root_md.uuid = \
-            mapping[self.parser_results.root_md.uuid]
-
-    def union(self, others: List[ProvDAG]) -> ProvDAG:
-        """
-        Creates a new ProvDAG by unioning the graphs in an arbitrary number
-        of ProvDAGs.
-
-        TODO: These params don't line up nicely with compose_all. Maybe this
-        shouldn't be a method on ProvDAG? If we drop ProvDAG as it stands,
-        we'll need an API for Mounters/Loaders that can produce nx.DiGraphs,
-        and functions that allow us to get terminal outputs from arbitrary
-        DiGraphs etc.
-        """
-        dags = [self.dag] + [dag.dag for dag in others]
-        self.dag = nx.compose_all(dags)
-        # TODO: Handle the following:
-        # TODO NEXT: root node adjustment:
-        # - root_node and root_uuid adjustments (should be based on a DAG view)
-        # - parser_results (collect or drop - probably drop)
-        # - provenance_is_valid - capture the least-good code
-        # - checksum_diff - Can we union the checksum_diff fields?
-
     def __init__(self, archive_fp: str, cfg: Config = Config()):
         """
         Create a ProvDAG (digraph) by:
@@ -202,6 +150,61 @@ class ProvDAG():
 
     def __len__(self) -> int:
         return len(self.dag)
+
+    def has_edge(self, start_node, end_node) -> bool:
+        """
+        Returns True if the edge u, v is in the graph
+        Calls nx.DiGraph.has_edge
+        """
+        return self.dag.has_edge(start_node, end_node)
+
+    def node_has_provenance(self, uuid: UUID) -> bool:
+        return self.dag.nodes[uuid]['has_provenance']
+
+    def get_node_data(self, uuid: UUID) -> ProvNode:
+        """Returns a ProvNode from this ProvDAG selected by UUID"""
+        return self.dag.nodes[uuid]['node_data']
+
+    def relabel_nodes(self, mapping: Mapping) -> None:
+        """
+        Helper method for safe use of nx.relabel.relabel_nodes.
+        Updates the DAG's root UUID to match the new label,
+        to head off KeyErrors downstream.
+
+        Updates the labels of self.dag in place.
+        Users who need a copy of self.dag should use nx.relabel.relabel_nodes
+        directly, and proceed at their own risk.
+
+        # TODO: self.archive_contents state is not updated. Can we avoid saving
+        # that data entirely and just split the ParserResults up immediately
+        # when they're generated in the __init__?
+        """
+        nx.relabel_nodes(self.dag, mapping, copy=False)
+        self.parser_results.root_md.uuid = \
+            mapping[self.parser_results.root_md.uuid]
+
+    def union(self, others: List[ProvDAG]) -> None:
+        """
+        Creates a new ProvDAG by unioning the graphs in an arbitrary number
+        of ProvDAGs.
+
+        TODO: Should this have a copy=bool parameter so we can return a copy
+        or mutate locally?
+
+        TODO: These params don't line up nicely with compose_all. Maybe this
+        shouldn't be a method on ProvDAG? If we drop ProvDAG as it stands,
+        we'll need an API for Mounters/Loaders that can produce nx.DiGraphs,
+        and functions that allow us to get terminal outputs from arbitrary
+        DiGraphs etc.
+        """
+        dags = [self.dag] + [dag.dag for dag in others]
+        self.dag = nx.compose_all(dags)
+        # TODO: Handle the following:
+        # TODO NEXT: root node adjustment:
+        # - root_node and root_uuid adjustments (should be based on a DAG view)
+        # - parser_results (collect or drop - probably drop)
+        # - provenance_is_valid - capture the least-good code
+        # - checksum_diff - Can we union the checksum_diff fields?
 
     def get_nested_provenance_nodes(self, _node_id: UUID = None) -> Set[UUID]:
         """
@@ -291,8 +294,7 @@ class ProvNode:
         inputs = self.action._action_details.get('inputs')
         parents = [] if inputs is None else inputs
 
-        artifacts_as_metadata = self._artifacts_passed_as_md
-        return parents + artifacts_as_metadata
+        return parents + self._artifacts_passed_as_md
 
     def __init__(self, cfg: Config, zf: zipfile.ZipFile,
                  fps_for_this_result: List[pathlib.Path]) -> None:

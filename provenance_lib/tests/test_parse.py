@@ -886,6 +886,9 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
                 cls.nodes[k] = ProvNode(cfg, zf, root_md_fps)
 
         # Build a minimal node in which Artifacts are passed as metadata
+        # NOTE: This file breaks some assumptions about qzas for simplicity.
+        # e.g. it doesn't contain provenance data for its results passed as md
+        # and may need to be replaced if these nodes adopt new behavior.
         filename = pathlib.Path('minimal_v4_artifact_as_md.zip')
         # This manufactured v4 test archive "happens" to have the same root
         # UUID as the standard v5 archive

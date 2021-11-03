@@ -165,10 +165,7 @@ class ProvDAG():
             1. parse the raw data from the zip archive into a ParserResults
             2. gather nodes with their associated data into an n_bunch and add
                to the DiGraph
-            3. Add edges to graph (including all !no-provenance nodes and any
-               artifacts passed as metadata that aren't predecessors of the
-               root node). In the process, add a set of artifacts passed as
-               metadata to the ProvDAG to speed up Union
+            3. Add edges to graph (including all !no-provenance nodes)
             4. Create guaranteed node attributes for these no-provenance nodes
         """
         self.dag = nx.DiGraph()

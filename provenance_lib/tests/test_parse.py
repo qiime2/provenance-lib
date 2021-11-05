@@ -995,13 +995,14 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
     def test_str(self):
         for node_vzn in self.nodes:
             uuid = TEST_DATA[node_vzn]['uuid']
-            self.assertEqual(str(self.nodes[node_vzn]), f'{uuid}')
+            self.assertRegex(repr(self.nodes[node_vzn]),
+                             f'(?s)UUID:\t\t{uuid}.*Type.*Data Format')
 
     def test_repr(self):
         for node_vzn in self.nodes:
             uuid = TEST_DATA[node_vzn]['uuid']
-            self.assertEqual(repr(self.nodes[node_vzn]),
-                             f'ProvNode({uuid}, Visualization, fmt=None)')
+            self.assertRegex(repr(self.nodes[node_vzn]),
+                             f'(?s)UUID:\t\t{uuid}.*Type.*Data Format')
 
     def test_archive_version(self):
         for node_vzn in self.nodes:

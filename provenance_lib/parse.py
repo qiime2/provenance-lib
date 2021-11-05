@@ -440,10 +440,9 @@ class ProvNode:
         return all_md
 
     def __repr__(self) -> str:
-        return f'ProvNode({self.uuid}, {self.type}, fmt={self.format})'
+        return repr(self._result_md)
 
-    def __str__(self) -> UUID:
-        return f'{self.uuid}'
+    __str__ = __repr__
 
     def __hash__(self) -> int:
         return hash(self.uuid)

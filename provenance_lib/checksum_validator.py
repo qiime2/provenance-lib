@@ -15,6 +15,7 @@ ChecksumDiff = collections.namedtuple(
 
 
 class ValidationCodes(Enum):
+    # TODO: Rename in the singular
     """
     Codes indicating the level of validation a ProvDAG has passed.
 

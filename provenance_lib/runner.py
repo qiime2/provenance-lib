@@ -19,13 +19,16 @@ if __name__ == '__main__':
     archive_fp = sys.argv[1]
     dummy_DAG = ProvDAG(archive_fp)
 
-    r_uuid = dummy_DAG.root_uuid
-    deets = dummy_DAG.get_node_data(r_uuid).action._action_details
+    # We're only parsing one Artifact here, so need to grab the only term. uuid
+    terminal_uuid, *_ = dummy_DAG.terminal_uuids
+    deets = dummy_DAG.get_node_data(terminal_uuid).action._action_details
     plurg = deets['plugin']
     ackshun = deets['action']
 
     print(f'{repr(dummy_DAG)}')
-    print(f'{dummy_DAG.root_node._result_md}')
+
+    terminal_node = next(iter(dummy_DAG.terminal_nodes))
+    print(f'{terminal_node._result_md}')
     print(f'- was made by q2-{plurg} {ackshun}')
     print(f'- contains prov. data from {len(dummy_DAG)}'
           ' QIIME 2 Results, mostly ancestors')

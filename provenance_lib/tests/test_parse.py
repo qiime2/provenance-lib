@@ -125,10 +125,12 @@ class ProvDAGTests(unittest.TestCase):
     def test_smoke(self):
         self.assertTrue(True)
 
-    def test_root_uuid_correct(self):
+    def test_terminal_uuid_correct(self):
         for dag_version in self.dags:
-            self.assertEqual(self.dags[dag_version].root_uuid,
-                             TEST_DATA[dag_version]['uuid'])
+            self.assertEqual(len(self.dags[dag_version].terminal_uuids), 1)
+            # This is deterministic because there is one uuid in the set:
+            terminal_uuid, *_ = self.dags[dag_version].terminal_uuids
+            self.assertEqual(terminal_uuid, TEST_DATA[dag_version]['uuid'])
 
     def test_root_node_is_archive_root(self):
         for dag_version in self.dags:
@@ -136,8 +138,11 @@ class ProvDAGTests(unittest.TestCase):
                 all_filenames = zf.namelist()
                 root_md_fnames = filter(is_root_provnode_data, all_filenames)
                 root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
-                node = ProvNode(Config(), zf, root_md_fps)
-                self.assertEqual(node, self.dags[dag_version].root_node)
+                exp_node = ProvNode(Config(), zf, root_md_fps)
+                self.assertEqual(len(self.dags[dag_version].terminal_uuids), 1)
+                # This is deterministic because there is one uuid in the set:
+                act_terminal_node, *_ = self.dags[dag_version].terminal_nodes
+                self.assertEqual(exp_node, act_terminal_node)
 
     def test_number_of_actions(self):
         for dag_version in self.dags:
@@ -166,11 +171,14 @@ class ProvDAGTests(unittest.TestCase):
 
     def test_dag_attributes(self):
         for vz in self.dags:
-            self.assertEqual(self.dags[vz].root_uuid,
+            self.assertEqual(len(self.dags[vz].terminal_uuids), 1)
+            # This is deterministic because there is one uuid in the set:
+            terminal_uuid, *_ = self.dags[vz].terminal_uuids
+            self.assertEqual(terminal_uuid,
                              TEST_DATA[vz]['uuid'])
-            self.assertEqual(type(self.dags[vz].root_node), ProvNode)
-            self.assertEqual(self.dags[vz].root_node.uuid,
-                             TEST_DATA[vz]['uuid'])
+            terminal_node, *_ = self.dags[vz].terminal_nodes
+            self.assertEqual(type(terminal_node), ProvNode)
+            self.assertEqual(terminal_node.uuid, TEST_DATA[vz]['uuid'])
             self.assertEqual(self.dags[vz].provenance_is_valid,
                              TEST_DATA[vz]['prov_is_valid'])
             self.assertEqual(self.dags[vz].checksum_diff,
@@ -207,13 +215,13 @@ class ProvDAGTests(unittest.TestCase):
         for dag_vzn in self.dags:
             uuid = TEST_DATA[dag_vzn]['uuid']
             self.assertRegex(repr(self.dags[dag_vzn]),
-                             (f'ProvDAG representing Artifacts.*{uuid}'))
+                             (f'ProvDAG.*Artifacts.*{uuid}'))
 
     def test_str(self):
         for dag_vzn in self.dags:
             uuid = TEST_DATA[dag_vzn]['uuid']
             self.assertRegex(repr(self.dags[dag_vzn]),
-                             (f'ProvDAG representing Artifacts.*{uuid}'))
+                             (f'ProvDAG.*Artifacts.*{uuid}'))
 
     def test_v5_captures_full_history(self):
         nodes = self.dags['5'].nodes
@@ -300,8 +308,14 @@ class ProvDAGTests(unittest.TestCase):
         for node in exp_nodes:
             self.assertIn(node, dag.nodes)
 
-        # Confirm root_uuid state is consistent with the relabeled node names
-        self.assertEqual(dag.root_uuid, exp_nodes[0])
+        # Confirm terminal_uuids state is consistent with the relabeled node
+        # names
+        print(dag._parsed_artifact_uuids)
+        print(dag.terminal_uuids)
+        self.assertEqual(len(dag.terminal_uuids), 1)
+        # This is deterministic because there is one uuid in the set:
+        terminal_uuid, *_ = dag.terminal_uuids
+        self.assertEqual(terminal_uuid, exp_nodes[0])
 
     def test_v5_nested_view(self):
         exp_nodes = {'ffb7cee3-2f1f-4988-90cc-efd5184ef003',
@@ -549,6 +563,13 @@ class ProvDAGUnionTests(unittest.TestCase):
     def test_dag_with_artifacts_passed_as_metadata(self):
         pass
 
+    def test_state_vars_after_union(self):
+        # Including dag._parsed_artifact_uuids and dag._terminal_uuids
+        pass
+
+    def test_terminal_uuids_prop_after_union(self):
+        pass
+
 
 class ProvDAGTestsNoChecksumValidation(unittest.TestCase):
     @classmethod
@@ -568,10 +589,13 @@ class ProvDAGTestsNoChecksumValidation(unittest.TestCase):
     def test_smoke(self):
         self.assertTrue(True)
 
-    def test_no_checksum_validation_intact_archives(self):
+    def test_no_checksum_validation_on_intact_artifact(self):
         dags = self.no_checksum_dags
         for vz in dags:
-            self.assertEqual(dags[vz].root_uuid,
+            self.assertEqual(len(dags[vz].terminal_uuids), 1)
+            # This is deterministic because there is one uuid in the set:
+            terminal_uuid, *_ = dags[vz].terminal_uuids
+            self.assertEqual(terminal_uuid,
                              TEST_DATA[vz]['uuid'])
             # Node count acts as a proxy test for completeness here
             self.assertEqual(len(dags[vz]),

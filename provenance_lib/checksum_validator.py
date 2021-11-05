@@ -7,6 +7,7 @@ import warnings
 import zipfile
 from typing import Optional, Tuple
 
+from .util import get_root_uuid
 from .version_parser import parse_version
 
 
@@ -61,7 +62,7 @@ def validate_checksums(zf: zipfile.ZipFile) -> Tuple[ValidationCode,
         checksum_diff = diff_checksums(zf)
         if checksum_diff != ChecksumDiff({}, {}, {}):
             # self._result_md may not have been parsed, so get uuid
-            root_uuid = pathlib.Path(zf.namelist()[0]).parts[0]
+            root_uuid = get_root_uuid(zf)
             warnings.warn(
                 f"Checksums are invalid for Archive {root_uuid}\n"
                 "Archive may be corrupt or provenance may be false"
@@ -99,7 +100,7 @@ def diff_checksums(zf: zipfile.ZipFile) -> ChecksumDiff:
     if int(archive_version) < 5:
         return ChecksumDiff({}, {}, {})
 
-    root_dir = pathlib.Path(pathlib.Path(zf.namelist()[0]).parts[0])
+    root_dir = pathlib.Path(get_root_uuid(zf))
     checksum_filename = root_dir / 'checksums.md5'
     obs = dict(x for x in md5sum_directory(zf).items()
                if x[0] != checksum_filename)

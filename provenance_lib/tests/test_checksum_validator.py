@@ -9,7 +9,7 @@ from ..checksum_validator import (
     validate_checksums, ChecksumDiff, ValidationCode,
 )
 from .test_parse import TEST_DATA
-from .util import (
+from .testing_utilities import (
     generate_archive_with_file_removed,
 )
 

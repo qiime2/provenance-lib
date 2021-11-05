@@ -15,10 +15,8 @@ import yaml
 
 from . import checksum_validator
 from . import version_parser
+from .util import UUID, get_root_uuid
 from .yaml_constructors import CONSTRUCTOR_REGISTRY, MetadataInfo
-
-# Alias string as UUID so we can specify types more clearly
-UUID = str
 
 for key in CONSTRUCTOR_REGISTRY:
     yaml.SafeLoader.add_constructor(key, CONSTRUCTOR_REGISTRY[key])
@@ -465,7 +463,7 @@ class ProvNode:
         and the appropriate Series or Dataframe respectively.
         """
         # TODO: Can we factor this out into a util function?
-        root_uuid = pathlib.Path(zf.namelist()[0]).parts[0]
+        root_uuid = get_root_uuid(zf)
         pfx = pathlib.Path(root_uuid) / 'provenance'
         if root_uuid == self.uuid:
             pfx = pfx / 'action'
@@ -634,7 +632,7 @@ class ParserV0():
             provenance_is_valid, checksum_diff = (
                 checksum_validator.ValidationCode.VALIDATION_OPTOUT, None)
 
-        uuid = pathlib.Path(zf.namelist()[0]).parts[0]
+        uuid = get_root_uuid(zf)
 
         warnings.warn(f"Artifact {uuid} was created prior to provenance" +
                       " tracking. Provenance data will be incomplete.",
@@ -697,7 +695,7 @@ class ParserV1(ParserV0):
 
         prov_data_fps = cls._get_prov_data_fps(
             zf, cls.expected_files_in_all_nodes + cls.expected_files_root_only)
-        root_uuid = pathlib.Path(zf.namelist()[0]).parts[0]
+        root_uuid = get_root_uuid(zf)
 
         root_md = cls._parse_root_md(zf, root_uuid)
 

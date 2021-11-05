@@ -19,7 +19,7 @@ from ..parse import (
 )
 from ..yaml_constructors import MetadataInfo
 
-from .util import (
+from .testing_utilities import (
     is_root_provnode_data, generate_archive_with_file_removed,
     ReallyEqualMixin,
 )

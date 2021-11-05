@@ -4,8 +4,7 @@ import pathlib
 import tempfile
 import zipfile
 
-# Alias string as UUID so we can specify types more clearly
-UUID = str
+from ..util import UUID
 
 
 def is_root_provnode_data(fp):

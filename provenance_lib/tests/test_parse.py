@@ -206,14 +206,14 @@ class ProvDAGTests(unittest.TestCase):
     def test_repr(self):
         for dag_vzn in self.dags:
             uuid = TEST_DATA[dag_vzn]['uuid']
-            self.assertRegex(str(self.dags[dag_vzn]),
-                             f'(?s)UUID:\t\t{uuid}.*Type.*Data Format')
+            self.assertRegex(repr(self.dags[dag_vzn]),
+                             (f'ProvDAG representing Artifacts.*{uuid}'))
 
     def test_str(self):
         for dag_vzn in self.dags:
             uuid = TEST_DATA[dag_vzn]['uuid']
-            self.assertRegex(str(self.dags[dag_vzn]),
-                             f'(?s)UUID:\t\t{uuid}.*Type.*Data Format')
+            self.assertRegex(repr(self.dags[dag_vzn]),
+                             (f'ProvDAG representing Artifacts.*{uuid}'))
 
     def test_v5_captures_full_history(self):
         nodes = self.dags['5'].nodes

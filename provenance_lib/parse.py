@@ -50,6 +50,9 @@ class ProvDAG():
 
     root_uuid: UUID
     root_node: ProvNode
+    _parsed_artifact_uuids: Set[UUID] - the set of user-passed terminal node
+        uuids. Used to generate properties like `terminal_uuids`, this is a
+        superset of terminal_uuids.
     provenance_is_valid: checksum_validator.ValidationCodes
     checksum_diff: checksum_validator.ChecksumDiff
     nodes: networkx.classes.reportview.NodeView
@@ -108,6 +111,8 @@ class ProvDAG():
             handler = FormatHandler(cfg, zf)
             parser_results = handler.parse(zf)
             self._root_uuid = parser_results.root_md.uuid
+            # TODO: This actually only captures one uuid right now.
+            self._parsed_artifact_uuids = {parser_results.root_md.uuid}
             archive_contents = parser_results.archive_contents
             self._provenance_is_valid = parser_results.provenance_is_valid
             self._checksum_diff = parser_results.checksum_diff
@@ -134,7 +139,7 @@ class ProvDAG():
                     attrs['node_data'] = None
 
     def __repr__(self) -> str:
-        return repr(self.root_node._result_md)
+        return f'ProvDAG representing Artifacts {self._parsed_artifact_uuids}'
 
     __str__ = __repr__
 

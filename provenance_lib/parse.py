@@ -37,7 +37,7 @@ class ParserResults():
     """
     root_md: _ResultMetadata
     archive_contents: Dict[UUID, ProvNode]
-    provenance_is_valid: checksum_validator.ValidationCodes
+    provenance_is_valid: checksum_validator.ValidationCode
     checksum_diff: Optional[checksum_validator.ChecksumDiff]
 
 
@@ -55,7 +55,7 @@ class ProvDAG():
         DAG, not including inner pipeline nodes.
     terminal_nodes: Set[ProvNode] - the terminal ProvNodes present in the DAG,
         not including inner pipeline nodes.
-    provenance_is_valid: checksum_validator.ValidationCodes
+    provenance_is_valid: checksum_validator.ValidationCode
     checksum_diff: checksum_validator.ChecksumDiff
     nodes: networkx.classes.reportview.NodeView
     dag = nx.DiGraph
@@ -181,7 +181,7 @@ class ProvDAG():
         return {self.get_node_data(uuid) for uuid in self.terminal_uuids}
 
     @property
-    def provenance_is_valid(self) -> checksum_validator.ValidationCodes:
+    def provenance_is_valid(self) -> checksum_validator.ValidationCode:
         return self._provenance_is_valid
 
     @property
@@ -614,14 +614,14 @@ class ParserV0():
 
     @classmethod
     def _validate_checksums(cls, zf: zipfile.ZipFile) -> \
-            Tuple[checksum_validator.ValidationCodes,
+            Tuple[checksum_validator.ValidationCode,
                   Optional[checksum_validator.ChecksumDiff]]:
         """
         V0 archives predate provenance tracking, so
         - provenance_is_valid = False
         - checksum_diff = None
         """
-        return (checksum_validator.ValidationCodes.PREDATES_CHECKSUMS,
+        return (checksum_validator.ValidationCode.PREDATES_CHECKSUMS,
                 None)
 
     @classmethod
@@ -632,7 +632,7 @@ class ParserV0():
             provenance_is_valid, checksum_diff = cls._validate_checksums(zf)
         else:
             provenance_is_valid, checksum_diff = (
-                checksum_validator.ValidationCodes.VALIDATION_OPTOUT, None)
+                checksum_validator.ValidationCode.VALIDATION_OPTOUT, None)
 
         uuid = pathlib.Path(zf.namelist()[0]).parts[0]
 
@@ -663,7 +663,7 @@ class ParserV1(ParserV0):
 
     @classmethod
     def _validate_checksums(cls, zf: zipfile.ZipFile) -> \
-            Tuple[checksum_validator.ValidationCodes,
+            Tuple[checksum_validator.ValidationCode,
                   Optional[checksum_validator.ChecksumDiff]]:
         """
         Provenance is initially assumed valid because we have no checksums,
@@ -671,7 +671,7 @@ class ParserV1(ParserV0):
         - provenance_is_valid = False
         - checksum_diff = None
         """
-        return (checksum_validator.ValidationCodes.PREDATES_CHECKSUMS,
+        return (checksum_validator.ValidationCode.PREDATES_CHECKSUMS,
                 None)
 
     @classmethod
@@ -693,7 +693,7 @@ class ParserV1(ParserV0):
             provenance_is_valid, checksum_diff = cls._validate_checksums(zf)
         else:
             provenance_is_valid, checksum_diff = (
-                checksum_validator.ValidationCodes.VALIDATION_OPTOUT, None)
+                checksum_validator.ValidationCode.VALIDATION_OPTOUT, None)
 
         prov_data_fps = cls._get_prov_data_fps(
             zf, cls.expected_files_in_all_nodes + cls.expected_files_root_only)
@@ -727,7 +727,7 @@ class ParserV1(ParserV0):
                     if fp not in prov_data_fps:
                         files_are_missing = True
                         provenance_is_valid = \
-                            checksum_validator.ValidationCodes.INVALID
+                            checksum_validator.ValidationCode.INVALID
                         error_contents += (
                             f"{fp.name} file for node {node_uuid} misplaced "
                             "or nonexistent.\n")
@@ -816,7 +816,7 @@ class ParserV5(ParserV4):
 
     @classmethod
     def _validate_checksums(cls, zf: zipfile.ZipFile) -> \
-            Tuple[checksum_validator.ValidationCodes,
+            Tuple[checksum_validator.ValidationCode,
                   Optional[checksum_validator.ChecksumDiff]]:
         """
         With v5, we can actually validate checksums, so use checksum_validator

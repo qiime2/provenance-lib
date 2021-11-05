@@ -6,7 +6,7 @@ import zipfile
 
 from ..checksum_validator import (
     diff_checksums, md5sum_directory, md5sum, from_checksum_format,
-    validate_checksums, ChecksumDiff, ValidationCodes,
+    validate_checksums, ChecksumDiff, ValidationCode,
 )
 from .test_parse import TEST_DATA
 from .util import (
@@ -24,7 +24,7 @@ class ValidateChecksumTests(unittest.TestCase):
             with zipfile.ZipFile(fp) as zf:
                 is_valid, diff = validate_checksums(zf)
 
-                self.assertEqual(is_valid, ValidationCodes.VALID)
+                self.assertEqual(is_valid, ValidationCode.VALID)
                 self.assertEqual(type(diff), ChecksumDiff)
                 self.assertEqual(diff, ChecksumDiff({}, {}, {}))
                 self.assertEqual(diff.added, {})
@@ -68,7 +68,7 @@ class ValidateChecksumTests(unittest.TestCase):
                     is_valid, diff = validate_checksums(zf)
 
             # Here we'll just check name for reasons of simplicity
-            self.assertEqual(is_valid, ValidationCodes.INVALID)
+            self.assertEqual(is_valid, ValidationCode.INVALID)
             self.assertEqual(list(diff.removed.keys()), ['metadata.yaml'])
             self.assertEqual(
                 diff.added,
@@ -99,7 +99,7 @@ class ValidateChecksumTests(unittest.TestCase):
                     is_valid, diff = validate_checksums(zf)
 
             # Here we'll just check name for reasons of simplicity
-            self.assertEqual(is_valid, ValidationCodes.INVALID)
+            self.assertEqual(is_valid, ValidationCode.INVALID)
             self.assertEqual(diff, None)
 
 

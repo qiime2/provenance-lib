@@ -10,7 +10,7 @@ import zipfile
 from networkx import DiGraph
 from networkx.classes.reportviews import NodeView  # type: ignore
 
-from ..checksum_validator import ChecksumDiff, ValidationCodes
+from ..checksum_validator import ChecksumDiff, ValidationCode
 from ..parse import (
     ProvDAG, ProvNode, FormatHandler,
     _Action, _Citations, _ResultMetadata,
@@ -33,7 +33,7 @@ TEST_DATA = {
           'n_res': 1,
           'qzv_fp': os.path.join(DATA_DIR, 'v0_uu_emperor.qzv'),
           'has_prov': False,
-          'prov_is_valid': ValidationCodes.PREDATES_CHECKSUMS,
+          'prov_is_valid': ValidationCode.PREDATES_CHECKSUMS,
           'checksum': None,
           },
     '1': {'parser': ParserV1,
@@ -44,7 +44,7 @@ TEST_DATA = {
           'n_res': 10,
           'qzv_fp': os.path.join(DATA_DIR, 'v1_uu_emperor.qzv'),
           'has_prov': True,
-          'prov_is_valid': ValidationCodes.PREDATES_CHECKSUMS,
+          'prov_is_valid': ValidationCode.PREDATES_CHECKSUMS,
           'checksum': None,
           },
     '2a': {'parser': ParserV2,
@@ -55,7 +55,7 @@ TEST_DATA = {
            'n_res': 10,
            'qzv_fp': os.path.join(DATA_DIR, 'v2a_uu_emperor.qzv'),
            'has_prov': True,
-           'prov_is_valid': ValidationCodes.PREDATES_CHECKSUMS,
+           'prov_is_valid': ValidationCode.PREDATES_CHECKSUMS,
            'checksum': None,
            },
     '2b': {'parser': ParserV2,
@@ -66,7 +66,7 @@ TEST_DATA = {
            'n_res': 14,
            'qzv_fp': os.path.join(DATA_DIR, 'v2b_uu_emperor.qzv'),
            'has_prov': True,
-           'prov_is_valid': ValidationCodes.PREDATES_CHECKSUMS,
+           'prov_is_valid': ValidationCode.PREDATES_CHECKSUMS,
            'checksum': None,
            },
     '3': {'parser': ParserV3,
@@ -77,7 +77,7 @@ TEST_DATA = {
           'n_res': 14,
           'qzv_fp': os.path.join(DATA_DIR, 'v3_uu_emperor.qzv'),
           'has_prov': True,
-          'prov_is_valid': ValidationCodes.PREDATES_CHECKSUMS,
+          'prov_is_valid': ValidationCode.PREDATES_CHECKSUMS,
           'checksum': None,
           },
     '4': {'parser': ParserV4,
@@ -88,7 +88,7 @@ TEST_DATA = {
           'n_res': 14,
           'qzv_fp': os.path.join(DATA_DIR, 'v4_uu_emperor.qzv'),
           'has_prov': True,
-          'prov_is_valid': ValidationCodes.PREDATES_CHECKSUMS,
+          'prov_is_valid': ValidationCode.PREDATES_CHECKSUMS,
           'checksum': None,
           },
     '5': {'parser': ParserV5,
@@ -99,7 +99,7 @@ TEST_DATA = {
           'n_res': 15,
           'qzv_fp': os.path.join(DATA_DIR, 'v5_uu_emperor.qzv'),
           'has_prov': True,
-          'prov_is_valid': ValidationCodes.VALID,
+          'prov_is_valid': ValidationCode.VALID,
           'checksum': ChecksumDiff({}, {}, {}),
           },
     }
@@ -380,7 +380,7 @@ class ProvDAGTests(unittest.TestCase):
 
             # Have we set provenance_is_valid correctly?
             self.assertEqual(a_dag.provenance_is_valid,
-                             ValidationCodes.INVALID)
+                             ValidationCode.INVALID)
 
             # Is the diff correct?
             diff = a_dag.checksum_diff
@@ -415,7 +415,7 @@ class ProvDAGTests(unittest.TestCase):
 
             # Have we set provenance_is_valid correctly?
             self.assertEqual(a_dag.provenance_is_valid,
-                             ValidationCodes.INVALID)
+                             ValidationCode.INVALID)
 
             # Is the diff correct?
             diff = a_dag.checksum_diff
@@ -439,7 +439,7 @@ class ProvDAGTests(unittest.TestCase):
 
             # Have we set provenance_is_valid correctly?
             self.assertEqual(a_dag.provenance_is_valid,
-                             ValidationCodes.INVALID)
+                             ValidationCode.INVALID)
 
             # Is the diff correct?
             diff = a_dag.checksum_diff
@@ -601,7 +601,7 @@ class ProvDAGTestsNoChecksumValidation(unittest.TestCase):
             self.assertEqual(len(dags[vz]),
                              TEST_DATA[vz]['n_res'])
             self.assertEqual(dags[vz].provenance_is_valid,
-                             ValidationCodes.VALIDATION_OPTOUT)
+                             ValidationCode.VALIDATION_OPTOUT)
             self.assertEqual(dags[vz].checksum_diff, None)
 
     def test_no_checksum_missing_checksums_md5(self):
@@ -616,7 +616,7 @@ class ProvDAGTestsNoChecksumValidation(unittest.TestCase):
 
             # Have we set provenance_is_valid correctly?
             self.assertEqual(
-                a_dag.provenance_is_valid, ValidationCodes.VALIDATION_OPTOUT)
+                a_dag.provenance_is_valid, ValidationCode.VALIDATION_OPTOUT)
 
             # Is the diff correct?
             diff = a_dag.checksum_diff

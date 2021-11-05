@@ -14,8 +14,7 @@ ChecksumDiff = collections.namedtuple(
     'ChecksumDiff', ['added', 'removed', 'changed'])
 
 
-class ValidationCodes(Enum):
-    # TODO: Rename in the singular
+class ValidationCode(Enum):
     """
     Codes indicating the level of validation a ProvDAG has passed.
 
@@ -48,13 +47,13 @@ class ValidationCodes(Enum):
     VALID = 3                   # Archive known to be valid
 
 
-def validate_checksums(zf: zipfile.ZipFile) -> Tuple[ValidationCodes,
+def validate_checksums(zf: zipfile.ZipFile) -> Tuple[ValidationCode,
                                                      Optional[ChecksumDiff]]:
     """
     Uses diff_checksums to validate the archive's provenance, warning the user
     if checksums.md5 is missing, or if the archive is corrupt/has been modified
     """
-    provenance_is_valid = ValidationCodes.VALID
+    provenance_is_valid = ValidationCode.VALID
     checksum_diff = None
 
     # One broad try/except here saves us many down the call stack
@@ -72,7 +71,7 @@ def validate_checksums(zf: zipfile.ZipFile) -> Tuple[ValidationCodes,
                 "\n"
                 f"Files changed since archive creation: {checksum_diff[2]}",
                 UserWarning)
-            provenance_is_valid = ValidationCodes.INVALID
+            provenance_is_valid = ValidationCode.INVALID
     # zipfiles KeyError if file not found. warn if checksums.md5 or any of the
     # filepaths it contains are missing
     except KeyError as err:
@@ -80,7 +79,7 @@ def validate_checksums(zf: zipfile.ZipFile) -> Tuple[ValidationCodes,
             str(err).strip('"') +
             ". Archive may be corrupt or provenance may be false",
             UserWarning)
-        provenance_is_valid = ValidationCodes.INVALID
+        provenance_is_valid = ValidationCode.INVALID
 
     return (provenance_is_valid, checksum_diff)
 

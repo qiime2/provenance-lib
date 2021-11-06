@@ -68,9 +68,9 @@ class ProvDAG():
 
     complete: `mydag.dag` is the DiGraph containing all recorded provenance
                nodes for this ProvDAG
-    nested_view: `mydag.nested_view` returns a DiGraph (GraphView) containing a
-                 node for each standalone Action or Visualizer and one single
-                 node for each Pipeline (like q2view provenance trees)
+    collapsed_view: `mydag.collapsed_view` returns a DiGraph (GraphView)
+    containing a node for each standalone Action or Visualizer and one single
+    node for each Pipeline (like q2view provenance trees)
 
     ## Nodes
 
@@ -168,8 +168,8 @@ class ProvDAG():
         """
         if self._terminal_uuids is not None:
             return self._terminal_uuids
-        nv = self.nested_view
-        self._terminal_uuids = {uuid for uuid, out_degree in nv.out_degree()
+        cv = self.collapsed_view
+        self._terminal_uuids = {uuid for uuid, out_degree in cv.out_degree()
                                 if out_degree == 0}
         return self._terminal_uuids
 
@@ -191,13 +191,13 @@ class ProvDAG():
         return self.dag.nodes
 
     @property
-    def nested_view(self) -> nx.DiGraph:
-        nested_nodes = set()
+    def collapsed_view(self) -> nx.DiGraph:
+        outer_nodes = set()
         for terminal_uuid in self._parsed_artifact_uuids:
-            nested_nodes |= self.get_nested_provenance_nodes(terminal_uuid)
+            outer_nodes |= self.get_outer_provenance_nodes(terminal_uuid)
 
         def n_filter(node):
-            return node in nested_nodes
+            return node in outer_nodes
 
         return nx.subgraph_view(self.dag, filter_node=n_filter)
 
@@ -264,10 +264,10 @@ class ProvDAG():
         # TODO:
         # - checksum_diff - Can we union the checksum_diff fields?
 
-    def get_nested_provenance_nodes(self, _node_id: UUID = None) -> Set[UUID]:
+    def get_outer_provenance_nodes(self, _node_id: UUID = None) -> Set[UUID]:
         """
         Selective depth-first traversal of this node_id's ancestors.
-        Returns the set of nodes that represent "nested" provenance
+        Returns the set of "outer" nodes that represent "nested" provenance
         like that seen in q2view (i.e. all standalone Actions and Visualizers,
         and a single node for each Pipeline).
 
@@ -275,12 +275,12 @@ class ProvDAG():
         inputs, this recursion skips over all inner nodes.
 
         NOTE: _node_id exists to support recursive calls and may produce
-        unexpected results if e.g. a nested node ID is passed.
+        unexpected results if e.g. an "inner" node ID is passed.
         """
         nodes = set() if _node_id is None else {_node_id}
         parents = [edge_pair[0] for edge_pair in self.dag.in_edges(_node_id)]
         for uuid in parents:
-            nodes = nodes | self.get_nested_provenance_nodes(uuid)
+            nodes = nodes | self.get_outer_provenance_nodes(uuid)
         return nodes
 
 

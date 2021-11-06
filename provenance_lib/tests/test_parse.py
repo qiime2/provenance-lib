@@ -270,7 +270,7 @@ class ProvDAGTests(unittest.TestCase):
         self.assertEqual(nodes[node_list[10]]['node_data']._parents,
                          n10_parents)
 
-    def test_v5_get_nested_provenance_nodes(self):
+    def test_v5_get_outer_provenance_nodes(self):
         exp = {'ffb7cee3-2f1f-4988-90cc-efd5184ef003',
                'bce3d09b-e296-4f2b-9af4-834db6412429',
                '89af91c0-033d-4e30-8ac4-f29a3b407dc1',
@@ -279,7 +279,7 @@ class ProvDAGTests(unittest.TestCase):
                'a35830e1-4535-47c6-aa23-be295a57ee1c',
                }
         root_uuid = TEST_DATA['5']['uuid']
-        actual = self.dags['5'].get_nested_provenance_nodes(root_uuid)
+        actual = self.dags['5'].get_outer_provenance_nodes(root_uuid)
         self.assertEqual(actual, exp)
 
     def test_v5_relabel_nodes(self):
@@ -317,7 +317,7 @@ class ProvDAGTests(unittest.TestCase):
         terminal_uuid, *_ = dag.terminal_uuids
         self.assertEqual(terminal_uuid, exp_nodes[0])
 
-    def test_v5_nested_view(self):
+    def test_v5_collapsed_view(self):
         exp_nodes = {'ffb7cee3-2f1f-4988-90cc-efd5184ef003',
                      'bce3d09b-e296-4f2b-9af4-834db6412429',
                      '89af91c0-033d-4e30-8ac4-f29a3b407dc1',
@@ -325,7 +325,7 @@ class ProvDAGTests(unittest.TestCase):
                      '99fa3670-aa1a-45f6-ba8e-803c976a1163',
                      'a35830e1-4535-47c6-aa23-be295a57ee1c',
                      }
-        view = self.dags['5'].nested_view
+        view = self.dags['5'].collapsed_view
         self.assertIsInstance(view, DiGraph)
         self.assertEqual(len(view), 6)
         for node in exp_nodes:

@@ -256,9 +256,12 @@ class ProvDAG():
         self._parsed_artifact_uuids |= \
             {other._parsed_artifact_uuids for other in others}
         self._terminal_uuids = None
+        self._provenance_is_valid = min(
+            [self.provenance_is_valid] +
+            [other.provenance_is_valid for other in others]
+        )
 
         # TODO:
-        # - provenance_is_valid - capture the least-good code
         # - checksum_diff - Can we union the checksum_diff fields?
 
     def get_nested_provenance_nodes(self, _node_id: UUID = None) -> Set[UUID]:

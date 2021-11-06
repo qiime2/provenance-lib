@@ -1,5 +1,5 @@
 import collections
-from enum import Enum
+from enum import IntEnum
 import hashlib
 import io
 import pathlib
@@ -15,7 +15,7 @@ ChecksumDiff = collections.namedtuple(
     'ChecksumDiff', ['added', 'removed', 'changed'])
 
 
-class ValidationCode(Enum):
+class ValidationCode(IntEnum):
     """
     Codes indicating the level of validation a ProvDAG has passed.
 

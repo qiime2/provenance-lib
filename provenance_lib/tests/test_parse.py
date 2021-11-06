@@ -570,6 +570,13 @@ class ProvDAGUnionTests(unittest.TestCase):
     def test_terminal_uuids_prop_after_union(self):
         pass
 
+    def test_min_provenance_is_valid_code_selected(self):
+        """
+        The unioned ProvDAG should keep the least good provenance_is_valid
+        value from all archives passed into it.
+        """
+        pass
+
 
 class ProvDAGTestsNoChecksumValidation(unittest.TestCase):
     @classmethod

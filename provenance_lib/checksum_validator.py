@@ -1,4 +1,4 @@
-import collections
+from dataclasses import dataclass
 from enum import IntEnum
 import hashlib
 import io
@@ -11,8 +11,23 @@ from .util import get_root_uuid
 from .version_parser import parse_version
 
 
-ChecksumDiff = collections.namedtuple(
-    'ChecksumDiff', ['added', 'removed', 'changed'])
+@dataclass
+class ChecksumDiff:
+    """
+    All files added to, removed from, or modified in a .qza/.qzv, since the
+    checksums.md5 file was created during provenance capture.
+
+    added, removed, and changed are all dictionaries _keyed on filenames_.
+    added and removed values are the added or removed file's md5sum.
+    E.g. added = {'tamper.txt': '296583001b00d2b811b5871b19e0ad28'}
+
+    The changed value is a two-tuple containing expected then observed md5sums
+    E.g. changed = {'data/index.html': ('065031e17943cd0780f197874c4f011e',
+                                        'f47bc36040d5c7db08e4b3a457dcfbb2')
+    """
+    added: dict
+    removed: dict
+    changed: dict
 
 
 class ValidationCode(IntEnum):
@@ -67,11 +82,11 @@ def validate_checksums(zf: zipfile.ZipFile) -> Tuple[ValidationCode,
                 f"Checksums are invalid for Archive {root_uuid}\n"
                 "Archive may be corrupt or provenance may be false"
                 ".\n"
-                f"Files added since archive creation: {checksum_diff[0]}\n"
-                f"Files removed since archive creation: {checksum_diff[1]}"
-                "\n"
-                f"Files changed since archive creation: {checksum_diff[2]}",
-                UserWarning)
+                f"Files added since archive creation: {checksum_diff.added}\n"
+                "Files removed since archive creation: "
+                f"{checksum_diff.removed}\n"
+                "Files changed since archive creation: "
+                f"{checksum_diff.changed}", UserWarning)
             provenance_is_valid = ValidationCode.INVALID
     # zipfiles KeyError if file not found. warn if checksums.md5 or any of the
     # filepaths it contains are missing

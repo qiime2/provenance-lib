@@ -230,6 +230,7 @@ class ProvDAG():
 
         self._parsed_artifact_uuids = {mapping[uuid] for
                                        uuid in self._parsed_artifact_uuids}
+        # Clear the _terminal_uuids cache so that property returns correctly
         self._terminal_uuids = None
 
     def union(self, others: Iterable[ProvDAG]) -> None:
@@ -255,12 +256,12 @@ class ProvDAG():
 
         self._parsed_artifact_uuids |= \
             {other._parsed_artifact_uuids for other in others}
+        # Clear the _terminal_uuids cache so that property returns correctly
         self._terminal_uuids = None
         self._provenance_is_valid = min(
             [self.provenance_is_valid] +
             [other.provenance_is_valid for other in others]
         )
-
         # TODO:
         # - checksum_diff - Can we union the checksum_diff fields?
 

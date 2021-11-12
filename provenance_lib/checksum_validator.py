@@ -68,15 +68,21 @@ def validate_checksums(zf: zipfile.ZipFile) -> Tuple[ValidationCode,
     """
     Uses diff_checksums to validate the archive's provenance, warning the user
     if checksums.md5 is missing, or if the archive is corrupt/has been modified
+
+    Returns a (ValidationCode, ChecksumDiff) tuple. For archive formats prior
+    to v5, the ChecksumDiff will be empty b/c checksums.md5 does not exist.
+
+    The returned ChecksumDiff will be None iff checksums.md5 should be present
+    (b/c v5+) but is missing.
     """
     provenance_is_valid = ValidationCode.VALID
     checksum_diff = None
 
-    # One broad try/except here saves us many down the call stack
+    # One broad try/except here saves us more down the call stack
     try:
         checksum_diff = diff_checksums(zf)
         if checksum_diff != ChecksumDiff({}, {}, {}):
-            # self._result_md may not have been parsed, so get uuid
+            # self._result_md may not have been parsed yet, so get uuid
             root_uuid = get_root_uuid(zf)
             warnings.warn(
                 f"Checksums are invalid for Archive {root_uuid}\n"
@@ -88,8 +94,8 @@ def validate_checksums(zf: zipfile.ZipFile) -> Tuple[ValidationCode,
                 "Files changed since archive creation: "
                 f"{checksum_diff.changed}", UserWarning)
             provenance_is_valid = ValidationCode.INVALID
-    # zipfiles KeyError if file not found. warn if checksums.md5 or any of the
-    # filepaths it contains are missing
+    # zipfiles KeyError if file not found. warn if checksums.md5 is missing
+    # and return ChecksumDiff=None
     except KeyError as err:
         warnings.warn(
             str(err).strip('"') +
@@ -106,8 +112,8 @@ def diff_checksums(zf: zipfile.ZipFile) -> ChecksumDiff:
     Compares these against the checksums stored in checksums.md5, returning
     a summary ChecksumDiff
 
-    For archive formats prior to v5, returns an empty diff b/c checksums.md5
-    does not exist
+    For archive formats prior to v5, returns an empty ChecksumDiff b/c
+    checksums.md5 does not exist
 
     Code adapted from qiime2/core/archive/archiver.py
     """
@@ -135,11 +141,11 @@ def diff_checksums(zf: zipfile.ZipFile) -> ChecksumDiff:
 
 def md5sum_directory(zf: zipfile.ZipFile) -> dict:
     """
-    returns a mapping of fp/checksum pairs from which the root uuid dir
-    has been removed.
+    Returns a mapping of fp/checksum pairs for all files in zf.
 
-    This mimics the output in checksums.md5 (without sorted descent), but is
-    not generalizable beyond QIIME 2 archives
+    The root dir has been removed from these filepaths. This mimics the output
+    in checksums.md5 (without sorted descent), but is not generalizable beyond
+    QIIME 2 archives.
 
     Code adapted from qiime2/core/util.py
     """

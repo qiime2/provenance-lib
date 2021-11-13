@@ -1,3 +1,4 @@
+import networkx as nx
 import os
 import pandas as pd
 import pathlib
@@ -515,67 +516,244 @@ class ProvDAGTests(unittest.TestCase):
 class ProvDAGUnionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        # TODO: We'll need different test data now that this is Union
-        # filename = pathlib.Path('minimal_v4_artifact_as_md.zip')
-        # artifact_as_md_fp = os.path.join(DATA_DIR, filename)
-        # TODO: This blows up because not an artifact
-        # cls.dag = ProvDAG(artifact_as_md_fp)
-        pass
-
-    # This should only trigger if something fails in setup or above
-    # e.g. if a ProvDag fails to initialize
-    def test_smoke(self):
-        self.assertTrue(True)
-
-    def test_basic_union(self):
-        pass
-
-    def test_union_all_with_multiple_inputs(self):
-        pass
-
-    def test_one_artifact_supersets_another(self):
-        pass
-
-    def test_graphs_disjoint_same_analysis(self):
         """
-        E.g. there are just qzvs missing from the set of unioned archives
+        Use this when we have a copy-based union, for all tests which copy.
+        In-place union will modify any dags we build here, so this is invalid.
         """
         pass
 
-    def test_graphs_disjoint_different_analyses(self):
+    def test_inplace_union_one(self):
         """
-        E.g. a stray archive got mixed in from an unrelated analysis
+        Tests union of dag with zero other dags.
         """
-        pass
+        dag = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        v5_uuid = TEST_DATA['5']['uuid']
 
-    def test_dag_with_no_provenance(self):
-        """
-        "All" v0 archives
-        """
-        pass
+        # In-place union
+        dag.union([])
+        unioned_dag = dag
 
-    def test_dag_with_mixed_archives(self):
-        """
-        e.g. v0 and v3 archives in the same analysis
-        """
-        pass
+        self.assertIn(v5_uuid, unioned_dag._parsed_artifact_uuids)
+        self.assertEqual(len(unioned_dag._parsed_artifact_uuids), 1)
 
-    def test_dag_with_artifacts_passed_as_metadata(self):
-        pass
+        self.assertEqual(dag.provenance_is_valid, ValidationCode.VALID)
 
-    def test_state_vars_after_union(self):
-        # Including dag._parsed_artifact_uuids and dag._terminal_uuids
-        pass
+        self.assertRegex(repr(unioned_dag),
+                         f'ProvDAG representing these Artifacts.*{v5_uuid}')
 
-    def test_terminal_uuids_prop_after_union(self):
-        pass
+        # There should be one fully-connected tree
+        self.assertEqual(
+            nx.number_weakly_connected_components(unioned_dag.dag), 1)
 
-    def test_min_provenance_is_valid_code_selected(self):
+    def test_inplace_union_identity(self):
         """
-        The unioned ProvDAG should keep the least good provenance_is_valid
-        value from all archives passed into it.
+        Tests union of dag with itself.
         """
-        pass
+        dag = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        v5_uuid = TEST_DATA['5']['uuid']
+
+        # In-place union
+        dag.union([dag])
+        unioned_dag = dag
+
+        self.assertIn(v5_uuid, unioned_dag._parsed_artifact_uuids)
+        self.assertEqual(len(unioned_dag._parsed_artifact_uuids), 1)
+
+        self.assertEqual(unioned_dag.provenance_is_valid, ValidationCode.VALID)
+
+        self.assertRegex(repr(unioned_dag),
+                         f'ProvDAG representing these Artifacts.*{v5_uuid}')
+
+        # There should be one fully-connected tree
+        self.assertEqual(
+            nx.number_weakly_connected_components(unioned_dag.dag), 1)
+
+    def test_inplace_union_two(self):
+        """
+        Tests union of dag with another dag.
+        Also checks that provenance_is_valid retains the lesser of the
+        ValidationCodes from the v4- and v5+ dags.
+        """
+        v4_dag = ProvDAG(archive_fp=str(TEST_DATA['4']['qzv_fp']))
+        v5_dag = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        v4_uuid = TEST_DATA['4']['uuid']
+        v5_uuid = TEST_DATA['5']['uuid']
+
+        # In-place union
+        v5_dag.union([v4_dag])
+        unioned_dag = v5_dag
+
+        self.assertIn(v4_uuid, unioned_dag._parsed_artifact_uuids)
+        self.assertIn(v5_uuid, unioned_dag._parsed_artifact_uuids)
+        self.assertEqual(len(unioned_dag._parsed_artifact_uuids), 2)
+
+        self.assertEqual(unioned_dag.provenance_is_valid,
+                         ValidationCode.PREDATES_CHECKSUMS)
+
+        rep = repr(unioned_dag)
+        self.assertRegex(rep, 'ProvDAG representing these Artifacts {')
+        self.assertRegex(rep, f'{v4_uuid}')
+        self.assertRegex(rep, f'{v5_uuid}')
+
+        # There should be two disconnected trees
+        self.assertEqual(
+            nx.number_weakly_connected_components(unioned_dag.dag), 2)
+
+    def test_inplace_union_many(self):
+        """
+        Tests union of dag with multiple other dags.
+        Also checks that we have the correct number of disconnected trees
+        (these three dags come from unrelated analyses, so should be disjoint)
+        """
+        v3_dag = ProvDAG(archive_fp=str(TEST_DATA['3']['qzv_fp']))
+        v4_dag = ProvDAG(archive_fp=str(TEST_DATA['4']['qzv_fp']))
+        v5_dag = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        v3_uuid = TEST_DATA['3']['uuid']
+        v4_uuid = TEST_DATA['4']['uuid']
+        v5_uuid = TEST_DATA['5']['uuid']
+
+        # In-place union
+        v5_dag.union([v4_dag, v3_dag])
+        unioned_dag = v5_dag
+
+        self.assertIn(v3_uuid, unioned_dag._parsed_artifact_uuids)
+        self.assertIn(v4_uuid, unioned_dag._parsed_artifact_uuids)
+        self.assertIn(v5_uuid, unioned_dag._parsed_artifact_uuids)
+        self.assertEqual(len(unioned_dag._parsed_artifact_uuids), 3)
+
+        self.assertEqual(unioned_dag.provenance_is_valid,
+                         ValidationCode.PREDATES_CHECKSUMS)
+
+        rep = repr(unioned_dag)
+        self.assertRegex(rep, 'ProvDAG representing these Artifacts {')
+        self.assertRegex(rep, f'{v3_uuid}')
+        self.assertRegex(rep, f'{v4_uuid}')
+        self.assertRegex(rep, f'{v5_uuid}')
+
+        # There should be three disconnected trees
+        self.assertEqual(
+            nx.number_weakly_connected_components(unioned_dag.dag), 3)
+
+    def test_union_missing_checksums_md5(self):
+        """
+        Tests union of a v5 dag (with Checksums) with a v5 dag missing
+        its checksums.md5 (where Checksums==None)
+        """
+        drop_file = pathlib.Path('checksums.md5')
+        with generate_archive_with_file_removed(
+            qzv_fp=TEST_DATA['5']['qzv_fp'],
+            root_uuid=TEST_DATA['5']['uuid'],
+                file_to_drop=drop_file) as chopped_archive:
+            with self.assertWarnsRegex(UserWarning, 'no item.*checksums'):
+                bad_dag = ProvDAG(archive_fp=chopped_archive)
+
+        good_dag = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        v5_uuid = TEST_DATA['5']['uuid']
+
+        # In-place union
+        good_dag.union([bad_dag])
+        unioned_dag = good_dag
+
+        self.assertRegex(repr(unioned_dag),
+                         f'ProvDAG representing these Artifacts.*{v5_uuid}')
+
+        # The ChecksumDiff==None from the tinkered dag gets ignored...
+        self.assertEqual(unioned_dag.checksum_diff, ChecksumDiff({}, {}, {}))
+
+        # ...but this should make clear that the provenance is bad
+        # (or that the user opted out of validation).
+        self.assertEqual(unioned_dag.provenance_is_valid,
+                         ValidationCode.INVALID)
+
+        # There should be one fully-connected tree
+        self.assertEqual(
+            nx.number_weakly_connected_components(unioned_dag.dag), 1)
+
+    def test_one_dag_is_true_superset(self):
+        """
+        Tests union of three dags, where one dag is a true superset of the
+        others. We expect three _parsed_artifact_uuids, one terminal uuid,
+        and one weakly_connected_component.
+        """
+        v5_qzv = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        v5_table = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
+        v5_tree = ProvDAG(os.path.join(DATA_DIR, 'v5_rooted_tree.qza'))
+        qzv_uuid = TEST_DATA['5']['uuid']
+        table_uuid = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
+        tree_uuid = 'bce3d09b-e296-4f2b-9af4-834db6412429'
+
+        # In-place union
+        v5_qzv.union([v5_table, v5_tree])
+        unioned_dag = v5_qzv
+
+        self.assertIn(qzv_uuid, unioned_dag._parsed_artifact_uuids)
+        self.assertIn(table_uuid, unioned_dag._parsed_artifact_uuids)
+        self.assertIn(tree_uuid, unioned_dag._parsed_artifact_uuids)
+        self.assertEqual(len(unioned_dag._parsed_artifact_uuids), 3)
+
+        self.assertEqual(len(unioned_dag.terminal_uuids), 1)
+        self.assertEqual(unioned_dag.terminal_uuids, {qzv_uuid})
+
+        self.assertEqual(
+            nx.number_weakly_connected_components(unioned_dag.dag), 1)
+
+    def test_three_artifacts_two_terminal_uuids(self):
+        """
+        Tests union of three dags, where the v5_qzv is downstream of the table,
+        but not downstream of the unrooted tree. We expect three
+        _parsed_artifact_uuids, two terminal uuids, and one
+        weakly_connected_component.
+        """
+        v5_qzv = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        v5_table = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
+        v5_unr_tree = ProvDAG(os.path.join(DATA_DIR, 'v5_unrooted_tree.qza'))
+        qzv_uuid = TEST_DATA['5']['uuid']
+        table_uuid = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
+        tree_uuid = '12e012d5-b01c-40b7-b825-a17f0478a02f'
+
+        # In-place union
+        v5_qzv.union([v5_table, v5_unr_tree])
+        unioned_dag = v5_qzv
+
+        self.assertIn(qzv_uuid, unioned_dag._parsed_artifact_uuids)
+        self.assertIn(table_uuid, unioned_dag._parsed_artifact_uuids)
+        self.assertIn(tree_uuid, unioned_dag._parsed_artifact_uuids)
+        self.assertEqual(len(unioned_dag._parsed_artifact_uuids), 3)
+
+        self.assertEqual(len(unioned_dag.terminal_uuids), 2)
+        self.assertEqual(unioned_dag.terminal_uuids,
+                         set([qzv_uuid, tree_uuid]))
+
+        self.assertEqual(
+            nx.number_weakly_connected_components(unioned_dag.dag), 1)
+
+    def test_graphs_same_analysis_missing_artifacts(self):
+        """
+        In this set of test archives, both .qzvs are derived from the same
+        feature table, so should produce one connected DAG even though we are
+        missing the rarefied_table.qza used to create the rarefied_table.qzv
+        """
+        v5_qzv = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        v5_table = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
+        rar_qzv = ProvDAG(os.path.join(DATA_DIR, 'v5_rarefied_table.qzv'))
+        qzv_uuid = TEST_DATA['5']['uuid']
+        table_uuid = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
+        rar_uuid = '79a0d2ea-ea01-40c0-a4a4-0beab7c1f244'
+
+        # In-place union
+        v5_qzv.union([v5_table, rar_qzv])
+        unioned_dag = v5_qzv
+
+        self.assertIn(qzv_uuid, unioned_dag._parsed_artifact_uuids)
+        self.assertIn(table_uuid, unioned_dag._parsed_artifact_uuids)
+        self.assertIn(rar_uuid, unioned_dag._parsed_artifact_uuids)
+        self.assertEqual(len(unioned_dag._parsed_artifact_uuids), 3)
+
+        self.assertEqual(len(unioned_dag.terminal_uuids), 2)
+        self.assertEqual(unioned_dag.terminal_uuids, {qzv_uuid, rar_uuid})
+
+        self.assertEqual(
+            nx.number_weakly_connected_components(unioned_dag.dag), 1)
 
 
 class ProvDAGTestsNoChecksumValidation(unittest.TestCase):

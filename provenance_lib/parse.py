@@ -230,6 +230,7 @@ class ProvDAG():
 
         self._parsed_artifact_uuids = {mapping[uuid] for
                                        uuid in self._parsed_artifact_uuids}
+
         # Clear the _terminal_uuids cache so that property returns correctly
         self._terminal_uuids = None
 
@@ -251,19 +252,20 @@ class ProvDAG():
         and functions that allow us to get terminal outputs from arbitrary
         DiGraphs etc.
         """
-        dags = [self.dag] + [dag.dag for dag in others]
+        dags = [self.dag]
+        for other in others:
+            dags.append(other.dag)
+            self._parsed_artifact_uuids |= other._parsed_artifact_uuids
+            self._provenance_is_valid = min(self.provenance_is_valid,
+                                            other.provenance_is_valid)
+            if other.checksum_diff is not None:
+                self.checksum_diff.added.update(other.checksum_diff.added)
+                self.checksum_diff.removed.update(other.checksum_diff.removed)
+                self.checksum_diff.changed.update(other.checksum_diff.changed)
         self.dag = nx.compose_all(dags)
 
-        self._parsed_artifact_uuids |= \
-            {other._parsed_artifact_uuids for other in others}
         # Clear the _terminal_uuids cache so that property returns correctly
         self._terminal_uuids = None
-        self._provenance_is_valid = min(
-            [self.provenance_is_valid] +
-            [other.provenance_is_valid for other in others]
-        )
-        # TODO:
-        # - checksum_diff - Can we union the checksum_diff fields?
 
     def get_outer_provenance_nodes(self, _node_id: UUID = None) -> Set[UUID]:
         """

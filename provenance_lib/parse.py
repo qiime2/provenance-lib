@@ -251,9 +251,9 @@ class ProvDAG():
                 self._checksum_diff = other.checksum_diff
             else:
                 # Neither ChecksumDiff is None
-                self._checksum_diff.added.update(other.checksum_diff.added)
-                self._checksum_diff.removed.update(other.checksum_diff.removed)
-                self._checksum_diff.changed.update(other.checksum_diff.changed)
+                self.checksum_diff.added.update(other.checksum_diff.added)
+                self.checksum_diff.removed.update(other.checksum_diff.removed)
+                self.checksum_diff.changed.update(other.checksum_diff.changed)
 
         self.dag = nx.compose_all(dags)
 

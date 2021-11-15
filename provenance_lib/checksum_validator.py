@@ -75,8 +75,8 @@ def validate_checksums(zf: zipfile.ZipFile) -> Tuple[ValidationCode,
     The returned ChecksumDiff will be None iff checksums.md5 should be present
     (b/c v5+) but is missing.
     """
+    checksum_diff: Optional[ChecksumDiff]
     provenance_is_valid = ValidationCode.VALID
-    checksum_diff = None
 
     # One broad try/except here saves us more down the call stack
     try:
@@ -102,6 +102,7 @@ def validate_checksums(zf: zipfile.ZipFile) -> Tuple[ValidationCode,
             ". Archive may be corrupt or provenance may be false",
             UserWarning)
         provenance_is_valid = ValidationCode.INVALID
+        checksum_diff = None
 
     return (provenance_is_valid, checksum_diff)
 

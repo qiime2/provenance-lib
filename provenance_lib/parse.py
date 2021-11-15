@@ -53,8 +53,16 @@ class ProvDAG():
         DAG, not including inner pipeline nodes.
     terminal_nodes: Set[ProvNode] - the terminal ProvNodes present in the DAG,
         not including inner pipeline nodes.
-    provenance_is_valid: checksum_validator.ValidationCode
-    checksum_diff: checksum_validator.ChecksumDiff
+    provenance_is_valid: checksum_validator.ValidationCode - the canonical
+        indicator of provenance validity, this contain the _poorest_
+        ValidationCode from all parsed Artifacts unioned into a given ProvDAG.
+    checksum_diff: checksum_validator.ChecksumDiff - a ChecksumDiff
+        representing all added, removed, and changed filepaths from all parsed
+        Artifacts. If an artifact's checksums.md5 file is missing, this may
+        be None. When multiple artifacts are unioned, this field prefers
+        ChecksumDiffs over Nonetypes, which will be dropped. For this reason,
+        provenance_is_valid is a more reliable indicator of provenance validity
+        thank checksum_diff.
     nodes: networkx.classes.reportview.NodeView
     dag = nx.DiGraph
 
@@ -254,10 +262,23 @@ class ProvDAG():
             self._parsed_artifact_uuids |= other._parsed_artifact_uuids
             self._provenance_is_valid = min(self.provenance_is_valid,
                                             other.provenance_is_valid)
-            if other.checksum_diff is not None:
-                self.checksum_diff.added.update(other.checksum_diff.added)
-                self.checksum_diff.removed.update(other.checksum_diff.removed)
-                self.checksum_diff.changed.update(other.checksum_diff.changed)
+            # Here we retain as much data as possible, preferencing
+            # ChecksumDiffs over None. This might mean we keep a clean/empty
+            # ChecksumDiff and drop None, used to indicate a missing
+            # checksums.md5 file in a v5+ archive. _provenance_is_valid will
+            # still be INVALID in this case.
+            if other.checksum_diff is None:
+                # Keep self.checksum_diff as it is
+                continue
+
+            if self.checksum_diff is None:
+                self._checksum_diff = other.checksum_diff
+            else:
+                # Neither ChecksumDiff is None
+                self._checksum_diff.added.update(other.checksum_diff.added)
+                self._checksum_diff.removed.update(other.checksum_diff.removed)
+                self._checksum_diff.changed.update(other.checksum_diff.changed)
+
         self.dag = nx.compose_all(dags)
 
         # Clear the _terminal_uuids cache so that property returns correctly

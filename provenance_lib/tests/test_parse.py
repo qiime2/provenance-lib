@@ -643,10 +643,47 @@ class ProvDAGUnionTests(unittest.TestCase):
         self.assertEqual(
             nx.number_weakly_connected_components(unioned_dag.dag), 3)
 
-    def test_union_missing_checksums_md5(self):
+    def test_union_self_missing_checksums_md5(self):
         """
-        Tests union of a v5 dag (with Checksums) with a v5 dag missing
-        its checksums.md5 (where Checksums==None)
+        Tests unions of v5 dags where the calling ProvDAG is missing its
+        checksums.md5 but the other is not
+
+        TODO: Consolidate the following tests once we can copy-union.
+        """
+        drop_file = pathlib.Path('checksums.md5')
+        with generate_archive_with_file_removed(
+            qzv_fp=TEST_DATA['5']['qzv_fp'],
+            root_uuid=TEST_DATA['5']['uuid'],
+                file_to_drop=drop_file) as chopped_archive:
+            with self.assertWarnsRegex(UserWarning, 'no item.*checksums'):
+                bad_dag = ProvDAG(archive_fp=chopped_archive)
+
+        good_dag = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        v5_uuid = TEST_DATA['5']['uuid']
+
+        # In-place union
+        bad_dag.union([good_dag])
+        unioned_dag = bad_dag
+
+        self.assertRegex(repr(unioned_dag),
+                         f'ProvDAG representing these Artifacts.*{v5_uuid}')
+
+        # The ChecksumDiff==None from the tinkered dag gets ignored...
+        self.assertEqual(unioned_dag.checksum_diff, ChecksumDiff({}, {}, {}))
+
+        # ...but this should make clear that the provenance is bad
+        # (or that the user opted out of validation).
+        self.assertEqual(unioned_dag.provenance_is_valid,
+                         ValidationCode.INVALID)
+
+        # There should be one fully-connected tree
+        self.assertEqual(
+            nx.number_weakly_connected_components(unioned_dag.dag), 1)
+
+    def test_union_other_missing_checksums_md5(self):
+        """
+        Tests unions of v5 dags where the other ProvDAG is missing its
+        checksums.md5 but the calling ProvDAG is not
         """
         drop_file = pathlib.Path('checksums.md5')
         with generate_archive_with_file_removed(
@@ -671,6 +708,37 @@ class ProvDAGUnionTests(unittest.TestCase):
 
         # ...but this should make clear that the provenance is bad
         # (or that the user opted out of validation).
+        self.assertEqual(unioned_dag.provenance_is_valid,
+                         ValidationCode.INVALID)
+
+        # There should be one fully-connected tree
+        self.assertEqual(
+            nx.number_weakly_connected_components(unioned_dag.dag), 1)
+
+    def test_union_both_missing_checksums_md5(self):
+        """
+        Tests unions of v5 dags where both artifacts are missing their
+        checksums.md5 files.
+        """
+        drop_file = pathlib.Path('checksums.md5')
+        with generate_archive_with_file_removed(
+            qzv_fp=TEST_DATA['5']['qzv_fp'],
+            root_uuid=TEST_DATA['5']['uuid'],
+                file_to_drop=drop_file) as chopped_archive:
+            with self.assertWarnsRegex(UserWarning, 'no item.*checksums'):
+                bad_dag = ProvDAG(archive_fp=chopped_archive)
+
+        v5_uuid = TEST_DATA['5']['uuid']
+
+        # In-place union
+        bad_dag.union([bad_dag])
+        unioned_dag = bad_dag
+
+        self.assertRegex(repr(unioned_dag),
+                         f'ProvDAG representing these Artifacts.*{v5_uuid}')
+
+        # Both DAGs have NoneType checksum_diffs, so the ChecksumDiff==None
+        self.assertEqual(unioned_dag.checksum_diff, None)
         self.assertEqual(unioned_dag.provenance_is_valid,
                          ValidationCode.INVALID)
 

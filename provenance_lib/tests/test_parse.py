@@ -1,3 +1,4 @@
+import copy
 import networkx as nx
 import os
 import pandas as pd
@@ -528,6 +529,7 @@ class ProvDAGUnionTests(unittest.TestCase):
         """
         dag = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
         v5_uuid = TEST_DATA['5']['uuid']
+        og_dag = copy.copy(dag.dag)
 
         # In-place union
         dag.union([])
@@ -545,11 +547,15 @@ class ProvDAGUnionTests(unittest.TestCase):
         self.assertEqual(
             nx.number_weakly_connected_components(unioned_dag.dag), 1)
 
+        # G == H tests identity of objects in memory, so we need is_isomorphic
+        self.assertTrue(nx.is_isomorphic(og_dag, unioned_dag.dag))
+
     def test_inplace_union_identity(self):
         """
         Tests union of dag with itself.
         """
         dag = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        og_dag = copy.copy(dag.dag)
         v5_uuid = TEST_DATA['5']['uuid']
 
         # In-place union
@@ -567,6 +573,9 @@ class ProvDAGUnionTests(unittest.TestCase):
         # There should be one fully-connected tree
         self.assertEqual(
             nx.number_weakly_connected_components(unioned_dag.dag), 1)
+
+        # G == H tests identity of objects in memory, so we need is_isomorphic
+        self.assertTrue(nx.is_isomorphic(og_dag, unioned_dag.dag))
 
     def test_inplace_union_two(self):
         """
@@ -676,6 +685,7 @@ class ProvDAGUnionTests(unittest.TestCase):
         and one weakly_connected_component.
         """
         v5_qzv = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        qzv_dag = copy.copy(v5_qzv.dag)
         v5_table = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
         v5_tree = ProvDAG(os.path.join(DATA_DIR, 'v5_rooted_tree.qza'))
         qzv_uuid = TEST_DATA['5']['uuid']
@@ -696,6 +706,9 @@ class ProvDAGUnionTests(unittest.TestCase):
 
         self.assertEqual(
             nx.number_weakly_connected_components(unioned_dag.dag), 1)
+
+        # G == H tests identity of objects in memory, so we need is_isomorphic
+        self.assertTrue(nx.is_isomorphic(qzv_dag, unioned_dag.dag))
 
     def test_three_artifacts_two_terminal_uuids(self):
         """

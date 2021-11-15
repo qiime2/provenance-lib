@@ -1,8 +1,7 @@
 from typing import Any, List, NamedTuple, Set, Union
 import warnings
 
-# Alias string as UUID so we can specify types more clearly
-UUID = str
+from .util import UUID
 
 
 def citation_key_constructor(loader, node) -> str:

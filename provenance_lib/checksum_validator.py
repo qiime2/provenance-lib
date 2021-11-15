@@ -1,5 +1,5 @@
-import collections
-from enum import Enum
+from dataclasses import dataclass
+from enum import IntEnum
 import hashlib
 import io
 import pathlib
@@ -7,14 +7,30 @@ import warnings
 import zipfile
 from typing import Optional, Tuple
 
+from .util import get_root_uuid
 from .version_parser import parse_version
 
 
-ChecksumDiff = collections.namedtuple(
-    'ChecksumDiff', ['added', 'removed', 'changed'])
+@dataclass
+class ChecksumDiff:
+    """
+    All files added to, removed from, or modified in a .qza/.qzv, since the
+    checksums.md5 file was created during provenance capture.
+
+    added, removed, and changed are all dictionaries _keyed on filenames_.
+    added and removed values are the added or removed file's md5sum.
+    E.g. added = {'tamper.txt': '296583001b00d2b811b5871b19e0ad28'}
+
+    The changed value is a two-tuple containing expected then observed md5sums
+    E.g. changed = {'data/index.html': ('065031e17943cd0780f197874c4f011e',
+                                        'f47bc36040d5c7db08e4b3a457dcfbb2')
+    """
+    added: dict
+    removed: dict
+    changed: dict
 
 
-class ValidationCodes(Enum):
+class ValidationCode(IntEnum):
     """
     Codes indicating the level of validation a ProvDAG has passed.
 
@@ -47,39 +63,46 @@ class ValidationCodes(Enum):
     VALID = 3                   # Archive known to be valid
 
 
-def validate_checksums(zf: zipfile.ZipFile) -> Tuple[ValidationCodes,
+def validate_checksums(zf: zipfile.ZipFile) -> Tuple[ValidationCode,
                                                      Optional[ChecksumDiff]]:
     """
     Uses diff_checksums to validate the archive's provenance, warning the user
     if checksums.md5 is missing, or if the archive is corrupt/has been modified
-    """
-    provenance_is_valid = ValidationCodes.VALID
-    checksum_diff = None
 
-    # One broad try/except here saves us many down the call stack
+    Returns a (ValidationCode, ChecksumDiff) tuple. For archive formats prior
+    to v5, the ChecksumDiff will be empty b/c checksums.md5 does not exist.
+
+    The returned ChecksumDiff will be None iff checksums.md5 should be present
+    (b/c v5+) but is missing.
+    """
+    checksum_diff: Optional[ChecksumDiff]
+    provenance_is_valid = ValidationCode.VALID
+
+    # One broad try/except here saves us more down the call stack
     try:
         checksum_diff = diff_checksums(zf)
         if checksum_diff != ChecksumDiff({}, {}, {}):
-            # self._result_md may not have been parsed, so get uuid
-            root_uuid = pathlib.Path(zf.namelist()[0]).parts[0]
+            # self._result_md may not have been parsed yet, so get uuid
+            root_uuid = get_root_uuid(zf)
             warnings.warn(
                 f"Checksums are invalid for Archive {root_uuid}\n"
                 "Archive may be corrupt or provenance may be false"
                 ".\n"
-                f"Files added since archive creation: {checksum_diff[0]}\n"
-                f"Files removed since archive creation: {checksum_diff[1]}"
-                "\n"
-                f"Files changed since archive creation: {checksum_diff[2]}",
-                UserWarning)
-            provenance_is_valid = ValidationCodes.INVALID
-    # zipfiles KeyError if file not found. warn if checksums.md5 or any of the
-    # filepaths it contains are missing
+                f"Files added since archive creation: {checksum_diff.added}\n"
+                "Files removed since archive creation: "
+                f"{checksum_diff.removed}\n"
+                "Files changed since archive creation: "
+                f"{checksum_diff.changed}", UserWarning)
+            provenance_is_valid = ValidationCode.INVALID
+    # zipfiles KeyError if file not found. warn if checksums.md5 is missing
+    # and return ChecksumDiff=None
     except KeyError as err:
         warnings.warn(
             str(err).strip('"') +
             ". Archive may be corrupt or provenance may be false",
             UserWarning)
-        provenance_is_valid = ValidationCodes.INVALID
+        provenance_is_valid = ValidationCode.INVALID
+        checksum_diff = None
 
     return (provenance_is_valid, checksum_diff)
 
@@ -90,8 +113,8 @@ def diff_checksums(zf: zipfile.ZipFile) -> ChecksumDiff:
     Compares these against the checksums stored in checksums.md5, returning
     a summary ChecksumDiff
 
-    For archive formats prior to v5, returns an empty diff b/c checksums.md5
-    does not exist
+    For archive formats prior to v5, returns an empty ChecksumDiff b/c
+    checksums.md5 does not exist
 
     Code adapted from qiime2/core/archive/archiver.py
     """
@@ -99,7 +122,7 @@ def diff_checksums(zf: zipfile.ZipFile) -> ChecksumDiff:
     if int(archive_version) < 5:
         return ChecksumDiff({}, {}, {})
 
-    root_dir = pathlib.Path(pathlib.Path(zf.namelist()[0]).parts[0])
+    root_dir = pathlib.Path(get_root_uuid(zf))
     checksum_filename = root_dir / 'checksums.md5'
     obs = dict(x for x in md5sum_directory(zf).items()
                if x[0] != checksum_filename)
@@ -119,11 +142,11 @@ def diff_checksums(zf: zipfile.ZipFile) -> ChecksumDiff:
 
 def md5sum_directory(zf: zipfile.ZipFile) -> dict:
     """
-    returns a mapping of fp/checksum pairs from which the root uuid dir
-    has been removed.
+    Returns a mapping of fp/checksum pairs for all files in zf.
 
-    This mimics the output in checksums.md5 (without sorted descent), but is
-    not generalizable beyond QIIME 2 archives
+    The root dir has been removed from these filepaths. This mimics the output
+    in checksums.md5 (without sorted descent), but is not generalizable beyond
+    QIIME 2 archives.
 
     Code adapted from qiime2/core/util.py
     """

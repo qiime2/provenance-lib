@@ -4,7 +4,7 @@ from io import BytesIO
 import pathlib
 import pandas as pd
 from datetime import timedelta
-from typing import List, Dict, Mapping, Set, Tuple, Optional
+from typing import List, Dict, Iterable, Mapping, Set, Tuple, Optional
 import warnings
 import zipfile
 
@@ -15,10 +15,8 @@ import yaml
 
 from . import checksum_validator
 from . import version_parser
+from .util import UUID, get_root_uuid
 from .yaml_constructors import CONSTRUCTOR_REGISTRY, MetadataInfo
-
-# Alias string as UUID so we can specify types more clearly
-UUID = str
 
 for key in CONSTRUCTOR_REGISTRY:
     yaml.SafeLoader.add_constructor(key, CONSTRUCTOR_REGISTRY[key])
@@ -37,7 +35,7 @@ class ParserResults():
     """
     root_md: _ResultMetadata
     archive_contents: Dict[UUID, ProvNode]
-    provenance_is_valid: checksum_validator.ValidationCodes
+    provenance_is_valid: checksum_validator.ValidationCode
     checksum_diff: Optional[checksum_validator.ChecksumDiff]
 
 
@@ -46,13 +44,46 @@ class ProvDAG():
     A single-rooted DAG of UUIDs representing a single QIIME 2 Archive.
 
 
-    DAG Attributes:
+    ## DAG Attributes
 
-    parser_results: ParserResults
-    provenance_is_valid: checksum_validator.ValidationCodes
-    checksum_diff = checksum_validator.ChecksumDiff
+    _parsed_artifact_uuids: Set[UUID] - the set of user-passed terminal node
+        uuids. Used to generate properties like `terminal_uuids`, this is a
+        superset of terminal_uuids.
+    terminal_uuids: Set[UUID] - the set of terminal node ids present in the
+        DAG, not including inner pipeline nodes.
+    terminal_nodes: Set[ProvNode] - the terminal ProvNodes present in the DAG,
+        not including inner pipeline nodes.
+    provenance_is_valid: checksum_validator.ValidationCode - the canonical
+        indicator of provenance validity, this contain the _poorest_
+        ValidationCode from all parsed Artifacts unioned into a given ProvDAG.
+    checksum_diff: checksum_validator.ChecksumDiff - a ChecksumDiff
+        representing all added, removed, and changed filepaths from all parsed
+        Artifacts. If an artifact's checksums.md5 file is missing, this may
+        be None. When multiple artifacts are unioned, this field prefers
+        ChecksumDiffs over Nonetypes, which will be dropped. For this reason,
+        provenance_is_valid is a more reliable indicator of provenance validity
+        thank checksum_diff.
+    nodes: networkx.classes.reportview.NodeView
+    dag = nx.DiGraph
 
-    Nodes are literally UUIDs (strings)
+    ## Methods/builtin suport
+    `len` - ProvDAG supports the builtin len just as nx.DiGraph does, returning
+            the number of nodes in `mydag.dag`
+
+    ## GraphViews
+    Graphviews are subgraphs of networkx graphs. They behave just like DiGraphs
+    unless you take many views of views, at which point they lag.
+
+    complete: `mydag.dag` is the DiGraph containing all recorded provenance
+               nodes for this ProvDAG
+    collapsed_view: `mydag.collapsed_view` returns a DiGraph (GraphView)
+    containing a node for each standalone Action or Visualizer and one single
+    node for each Pipeline (like q2view provenance trees)
+
+    ## Nodes
+
+    DiGraph nodes are literally UUIDs (strings)
+
     Every node has the following attributes:
     node_data: Optional[ProvNode]
     has_provenance: bool
@@ -64,47 +95,115 @@ class ProvDAG():
     (e.g. !no-provenance inputs) are discovered only as parents to the current
     inputs. They are added to the DAG when we add in-edges to "real" provenance
     nodes. These nodes are explicitly assigned the node attributes above,
-    allowing red-flagging of no-provenance nodes with a slightly cleaner API,
-    as all nodes should have a boolean value for that attribute.
+    allowing red-flagging of no-provenance nodes, as all nodes have a
+    has_provenance attribute
 
     Custom node objects:
     Though NetworkX supports the use of custom objects as nodes, querying the
     DAG for an individual graph node requires keying with object literals,
     which feels much less intuitive than with e.g. the UUID string of the
-    ProvNode you want to access, and might make testing a bit clunky.
+    ProvNode you want to access, and would make testing a bit clunky.
     """
-    @property
-    def root_uuid(self) -> UUID:
-        """The UUID of the terminal node of one QIIME 2 Archive"""
-        return self.parser_results.root_md.uuid
+    def __init__(self, archive_fp: str, cfg: Config = Config()):
+        """
+        Create a ProvDAG (digraph) by:
+            0. Create an empty nx.digraph
+            1. parse the raw data from the zip archive
+            2. gather nodes with their associated data into an n_bunch and add
+               to the DiGraph
+            3. Add edges to graph (including all !no-provenance nodes)
+            4. Create guaranteed node attributes for these no-provenance nodes
+        """
+        self.dag = nx.DiGraph()
+        with zipfile.ZipFile(archive_fp) as zf:
+            handler = FormatHandler(cfg, zf)
+            parser_results = handler.parse(zf)
+            self._parsed_artifact_uuids = {parser_results.root_md.uuid}
+            self._terminal_uuids = None  # type: Optional[Set[UUID]]
+            archive_contents = parser_results.archive_contents
+            self._provenance_is_valid = parser_results.provenance_is_valid
+            self._checksum_diff = parser_results.checksum_diff
+
+            nbunch = [
+                (n_id, dict(
+                    node_data=archive_contents[n_id],
+                    has_provenance=archive_contents[n_id].has_provenance,
+                    )) for n_id in archive_contents]
+            self.dag.add_nodes_from(nbunch)
+
+            ebunch = []
+            for node_id, attrs in self.dag.nodes(data=True):
+                if parents := attrs['node_data']._parents:
+                    for parent in parents:
+                        # parent is a single-item {type: uuid} dict
+                        parent_uuid = next(iter(parent.values()))
+                        ebunch.append((parent_uuid, node_id))
+            self.dag.add_edges_from(ebunch)
+
+            for node_id, attrs in self.dag.nodes(data=True):
+                if attrs.get('node_data') is None:
+                    attrs['has_provenance'] = False
+                    attrs['node_data'] = None
+
+    def __repr__(self) -> str:
+        return ('ProvDAG representing these Artifacts '
+                f'{self._parsed_artifact_uuids}')
+
+    __str__ = __repr__
+
+    def __len__(self) -> int:
+        return len(self.dag)
 
     @property
-    def root_node(self) -> ProvNode:
+    def terminal_uuids(self) -> Set[UUID]:
+        """
+        The UUID of the terminal node of one QIIME 2 Archive, generated by
+        selecting all nodes in a collapsed view of self.dag with an out-degree
+        of zero.
+
+        We memoize the set of terminal UUIDs to prevent unnecessary traversals,
+        so must set self._terminal_uuid back to None in any method that
+        modifies the structure of self.dag, or the nodes themselves (which are
+        literal UUIDs).
+
+        These methods include at least union and relabel_nodes.
+        """
+        if self._terminal_uuids is not None:
+            return self._terminal_uuids
+        cv = self.collapsed_view
+        self._terminal_uuids = {uuid for uuid, out_degree in cv.out_degree()
+                                if out_degree == 0}
+        return self._terminal_uuids
+
+    @property
+    def terminal_nodes(self) -> Set[ProvNode]:
         """The terminal ProvNode of one QIIME 2 Archive"""
-        return self.get_node_data(self.root_uuid)
+        return {self.get_node_data(uuid) for uuid in self.terminal_uuids}
 
     @property
-    def provenance_is_valid(self) -> checksum_validator.ValidationCodes:
-        return self.parser_results.provenance_is_valid
+    def provenance_is_valid(self) -> checksum_validator.ValidationCode:
+        return self._provenance_is_valid
 
     @property
     def checksum_diff(self) -> Optional[checksum_validator.ChecksumDiff]:
-        return self.parser_results.checksum_diff
+        return self._checksum_diff
 
     @property
     def nodes(self) -> NodeView:
         return self.dag.nodes
 
     @property
-    def nested_view(self) -> nx.DiGraph:
-        nested_nodes = self.get_nested_provenance_nodes(self.root_uuid)
+    def collapsed_view(self) -> nx.DiGraph:
+        outer_nodes = set()
+        for terminal_uuid in self._parsed_artifact_uuids:
+            outer_nodes |= self.get_outer_provenance_nodes(terminal_uuid)
 
         def n_filter(node):
-            return node in nested_nodes
+            return node in outer_nodes
 
         return nx.subgraph_view(self.dag, filter_node=n_filter)
 
-    def has_edge(self, start_node, end_node) -> bool:
+    def has_edge(self, start_node: UUID, end_node: UUID) -> bool:
         """
         Returns True if the edge u, v is in the graph
         Calls nx.DiGraph.has_edge
@@ -120,82 +219,88 @@ class ProvDAG():
 
     def relabel_nodes(self, mapping: Mapping) -> None:
         """
-        Helper method for safe use of nx.relabel.relabel_nodes.
-        Updates the DAG's root UUID to match the new label,
-        to head off KeyErrors downstream.
+        Helper method for safe use of nx.relabel.relabel_nodes, this updates
+        the labels of self.dag in place.
 
-        Updates the labels of self.dag in place.
+        Also updates the DAG's _parsed_artifact_uuids to match the new labels,
+        to head off KeyErrors downstream, and clears the _terminal_uuids cache.
+
         Users who need a copy of self.dag should use nx.relabel.relabel_nodes
         directly, and proceed at their own risk.
+
+        TODO: Allow copy=True by creating a new ProvDAG from the original
         """
         nx.relabel_nodes(self.dag, mapping, copy=False)
-        self.parser_results.root_md.uuid = \
-            mapping[self.parser_results.root_md.uuid]
 
-    def __init__(self, archive_fp: str, cfg: Config = Config()):
+        self._parsed_artifact_uuids = {mapping[uuid] for
+                                       uuid in self._parsed_artifact_uuids}
+
+        # Clear the _terminal_uuids cache so that property returns correctly
+        self._terminal_uuids = None
+
+    def union(self, others: Iterable[ProvDAG]) -> None:
         """
-        Create a ProvDAG (digraph) by:
-            0. Create an empty nx.digraph
-            1. parse the raw data from the zip archive
-            2. gather nodes with their associated data
-            3. Add edges to graph (adding all !no-provenance nodes and any
-               artifacts passed as metadata that aren't predecessors of the
-               root node)
-            4. Create guaranteed node attributes for these no-provenance nodes
+        Creates a new ProvDAG by unioning the graphs in an arbitrary number
+        of ProvDAGs.
+
+        Also updates the DAG's _parsed_artifact_uuids to include others' uuids,
+        and clears the _terminal_uuids cache so we get complete results from
+        that traversal.
+
+        TODO: Should this have a copy=bool parameter so we can return a copy
+        or mutate locally?
+
+        Alternately...
+
+        TODO: These params don't line up nicely with compose_all, which takes
+        a list of graphs and always returns a new graph. Maybe this
+        shouldn't be a method on ProvDAG?
         """
-        self.dag = nx.DiGraph()
-        with zipfile.ZipFile(archive_fp) as zf:
-            handler = FormatHandler(cfg, zf)
-            self.parser_results = handler.parse(zf)
+        dags = [self.dag]
+        for other in others:
+            dags.append(other.dag)
+            self._parsed_artifact_uuids |= other._parsed_artifact_uuids
+            self._provenance_is_valid = min(self.provenance_is_valid,
+                                            other.provenance_is_valid)
+            # Here we retain as much data as possible, preferencing
+            # ChecksumDiffs over None. This might mean we keep a clean/empty
+            # ChecksumDiff and drop None, used to indicate a missing
+            # checksums.md5 file in a v5+ archive. _provenance_is_valid will
+            # still be INVALID in this case.
+            if other.checksum_diff is None:
+                # Keep self.checksum_diff as it is
+                continue
 
-            arc_contents = self.parser_results.archive_contents
-            nbunch = [
-                (n_id, dict(
-                    node_data=arc_contents[n_id],
-                    has_provenance=arc_contents[n_id].has_provenance,
-                    )) for n_id in arc_contents]
-            self.dag.add_nodes_from(nbunch)
+            if self.checksum_diff is None:
+                self._checksum_diff = other.checksum_diff
+            else:
+                # Neither ChecksumDiff is None
+                self._checksum_diff.added.update(other.checksum_diff.added)
+                self._checksum_diff.removed.update(other.checksum_diff.removed)
+                self._checksum_diff.changed.update(other.checksum_diff.changed)
 
-            ebunch = []
-            for node_id, attrs in self.dag.nodes(data=True):
-                if parents := attrs['node_data']._parents:
-                    for parent in parents:
-                        parent_uuid = tuple(parent.values())[0]
-                        ebunch.append((parent_uuid, node_id))
-            self.dag.add_edges_from(ebunch)
+        self.dag = nx.compose_all(dags)
 
-            for node_id, attrs in self.dag.nodes(data=True):
-                if attrs.get('node_data') is None:
-                    attrs['has_provenance'] = False
-                    attrs['node_data'] = None
-                    # TODO for union: add node to a set of nodes owned by the
-                    # DAG object so that union is possible without re-traversal
+        # Clear the _terminal_uuids cache so that property returns correctly
+        self._terminal_uuids = None
 
-    def __repr__(self) -> str:
-        return repr(self.parser_results.root_md)
-
-    __str__ = __repr__
-
-    def __len__(self) -> int:
-        return len(self.dag)
-
-    def get_nested_provenance_nodes(self, _node_id: UUID = None) -> Set[UUID]:
+    def get_outer_provenance_nodes(self, _node_id: UUID = None) -> Set[UUID]:
         """
         Selective depth-first traversal of this node_id's ancestors.
-        Returns a graphview of the nodes that represent "nested" provenance,
+        Returns the set of "outer" nodes that represent "nested" provenance
         like that seen in q2view (i.e. all standalone Actions and Visualizers,
         and a single node for each Pipeline).
 
         Because the terminal/alias nodes created by pipelines show _pipeline_
-        inputs, this simple recursion skips over all inner nodes.
+        inputs, this recursion skips over all inner nodes.
 
-        NOTE: _node_id exists primarily to support recursive calls,
-        and may produce unexpected results if e.g. a nested node ID is passed.
+        NOTE: _node_id exists to support recursive calls and may produce
+        unexpected results if e.g. an "inner" node ID is passed.
         """
         nodes = set() if _node_id is None else {_node_id}
         parents = [edge_pair[0] for edge_pair in self.dag.in_edges(_node_id)]
         for uuid in parents:
-            nodes = nodes | self.get_nested_provenance_nodes(uuid)
+            nodes = nodes | self.get_outer_provenance_nodes(uuid)
         return nodes
 
 
@@ -267,8 +372,7 @@ class ProvNode:
         inputs = self.action._action_details.get('inputs')
         parents = [] if inputs is None else inputs
 
-        artifacts_as_metadata = self._artifacts_passed_as_md
-        return parents + artifacts_as_metadata
+        return parents + self._artifacts_passed_as_md
 
     def __init__(self, cfg: Config, zf: zipfile.ZipFile,
                  fps_for_this_result: List[pathlib.Path]) -> None:
@@ -356,9 +460,9 @@ class ProvNode:
         artifacts_as_metadata = []
         if (all_params := action_details.get('parameters')) is not None:
             for param in all_params:
-                param_val = list(param.values())[0]
+                param_val = next(iter(param.values()))
                 if isinstance(param_val, MetadataInfo):
-                    param_name = list(param)[0]
+                    param_name = next(iter(param))
                     md_fp = param_val.relative_fp
                     all_metadata.update({param_name: md_fp})
 
@@ -381,7 +485,7 @@ class ProvNode:
         original associated parameter, the type (MetadataColumn or Metadata),
         and the appropriate Series or Dataframe respectively.
         """
-        root_uuid = pathlib.Path(zf.namelist()[0]).parts[0]
+        root_uuid = get_root_uuid(zf)
         pfx = pathlib.Path(root_uuid) / 'provenance'
         if root_uuid == self.uuid:
             pfx = pfx / 'action'
@@ -398,10 +502,9 @@ class ProvNode:
         return all_md
 
     def __repr__(self) -> str:
-        return f'ProvNode({self.uuid}, {self.type}, fmt={self.format})'
+        return repr(self._result_md)
 
-    def __str__(self) -> UUID:
-        return f'{self.uuid}'
+    __str__ = __repr__
 
     def __hash__(self) -> int:
         return hash(self.uuid)
@@ -508,6 +611,12 @@ class _ResultMetadata:
 class ParserV0():
     """
     Parser for V0 archives. These have no provenance, so we only parse metadata
+
+    TODO: Change the way _parsed_artifact_uuids is populated. Our parser can
+    only handle one Artifact at a time, which is not an io-efficient way to
+    deal with a directory of Artifacts. We should refactor ParserVx.parse_prov
+    in line with #29 so that we can parse multiple Artifacts efficiently and in
+    one go.
     """
     version_string = 0
 
@@ -531,14 +640,14 @@ class ParserV0():
 
     @classmethod
     def _validate_checksums(cls, zf: zipfile.ZipFile) -> \
-            Tuple[checksum_validator.ValidationCodes,
+            Tuple[checksum_validator.ValidationCode,
                   Optional[checksum_validator.ChecksumDiff]]:
         """
         V0 archives predate provenance tracking, so
         - provenance_is_valid = False
         - checksum_diff = None
         """
-        return (checksum_validator.ValidationCodes.PREDATES_CHECKSUMS,
+        return (checksum_validator.ValidationCode.PREDATES_CHECKSUMS,
                 None)
 
     @classmethod
@@ -549,9 +658,9 @@ class ParserV0():
             provenance_is_valid, checksum_diff = cls._validate_checksums(zf)
         else:
             provenance_is_valid, checksum_diff = (
-                checksum_validator.ValidationCodes.VALIDATION_OPTOUT, None)
+                checksum_validator.ValidationCode.VALIDATION_OPTOUT, None)
 
-        uuid = pathlib.Path(zf.namelist()[0]).parts[0]
+        uuid = get_root_uuid(zf)
 
         warnings.warn(f"Artifact {uuid} was created prior to provenance" +
                       " tracking. Provenance data will be incomplete.",
@@ -580,7 +689,7 @@ class ParserV1(ParserV0):
 
     @classmethod
     def _validate_checksums(cls, zf: zipfile.ZipFile) -> \
-            Tuple[checksum_validator.ValidationCodes,
+            Tuple[checksum_validator.ValidationCode,
                   Optional[checksum_validator.ChecksumDiff]]:
         """
         Provenance is initially assumed valid because we have no checksums,
@@ -588,7 +697,7 @@ class ParserV1(ParserV0):
         - provenance_is_valid = False
         - checksum_diff = None
         """
-        return (checksum_validator.ValidationCodes.PREDATES_CHECKSUMS,
+        return (checksum_validator.ValidationCode.PREDATES_CHECKSUMS,
                 None)
 
     @classmethod
@@ -610,11 +719,11 @@ class ParserV1(ParserV0):
             provenance_is_valid, checksum_diff = cls._validate_checksums(zf)
         else:
             provenance_is_valid, checksum_diff = (
-                checksum_validator.ValidationCodes.VALIDATION_OPTOUT, None)
+                checksum_validator.ValidationCode.VALIDATION_OPTOUT, None)
 
         prov_data_fps = cls._get_prov_data_fps(
             zf, cls.expected_files_in_all_nodes + cls.expected_files_root_only)
-        root_uuid = pathlib.Path(zf.namelist()[0]).parts[0]
+        root_uuid = get_root_uuid(zf)
 
         root_md = cls._parse_root_md(zf, root_uuid)
 
@@ -644,7 +753,7 @@ class ParserV1(ParserV0):
                     if fp not in prov_data_fps:
                         files_are_missing = True
                         provenance_is_valid = \
-                            checksum_validator.ValidationCodes.INVALID
+                            checksum_validator.ValidationCode.INVALID
                         error_contents += (
                             f"{fp.name} file for node {node_uuid} misplaced "
                             "or nonexistent.\n")
@@ -733,7 +842,7 @@ class ParserV5(ParserV4):
 
     @classmethod
     def _validate_checksums(cls, zf: zipfile.ZipFile) -> \
-            Tuple[checksum_validator.ValidationCodes,
+            Tuple[checksum_validator.ValidationCode,
                   Optional[checksum_validator.ChecksumDiff]]:
         """
         With v5, we can actually validate checksums, so use checksum_validator

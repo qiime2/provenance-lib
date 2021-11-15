@@ -5,6 +5,8 @@ import warnings
 import zipfile
 from typing import Optional, Tuple
 
+from .util import get_root_uuid
+
 _VERSION_MATCHER = (
     r'QIIME 2\n'
     r'archive: [0-9]{1,2}$\n'
@@ -27,7 +29,7 @@ def parse_version_from_fp(fp: pathlib.Path) -> Tuple[str, str]:
 def parse_version(zf: zipfile.ZipFile,
                   fp: Optional[pathlib.Path] = None) -> Tuple[str, str]:
     """Parse a VERSION file - by default uses the VERSION at archive root"""
-    root_uuid = pathlib.Path(zf.namelist()[0]).parts[0]
+    root_uuid = get_root_uuid(zf)
     if fp is not None:
         version_fp = fp
     else:

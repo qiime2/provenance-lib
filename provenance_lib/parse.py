@@ -95,12 +95,6 @@ class ProvDAG():
     DAG for an individual graph node requires keying with object literals,
     which feels much less intuitive than with e.g. the UUID string of the
     ProvNode you want to access, and would make testing a bit clunky.
-
-    TODO: Change the way _parsed_artifact_uuids is populated. Our parser can
-    only handle one Artifact at a time, which is not an io-efficient way to
-    deal with a directory of Artifacts. We should refactor ParserVx.parse_prov
-    in line with #29 so that we can parse multiple Artifacts efficiently and in
-    one go.
     """
     def __init__(self, archive_fp: str, cfg: Config = Config()):
         """
@@ -225,6 +219,8 @@ class ProvDAG():
 
         Users who need a copy of self.dag should use nx.relabel.relabel_nodes
         directly, and proceed at their own risk.
+
+        TODO: Allow copy=True by creating a new ProvDAG from the original
         """
         nx.relabel_nodes(self.dag, mapping, copy=False)
 
@@ -246,11 +242,11 @@ class ProvDAG():
         TODO: Should this have a copy=bool parameter so we can return a copy
         or mutate locally?
 
-        TODO: These params don't line up nicely with compose_all. Maybe this
-        shouldn't be a method on ProvDAG? If we drop ProvDAG as it stands,
-        we'll need an API for Mounters/Loaders that can produce nx.DiGraphs,
-        and functions that allow us to get terminal outputs from arbitrary
-        DiGraphs etc.
+        Alternately...
+
+        TODO: These params don't line up nicely with compose_all, which takes
+        a list of graphs and always returns a new graph. Maybe this
+        shouldn't be a method on ProvDAG?
         """
         dags = [self.dag]
         for other in others:
@@ -468,7 +464,6 @@ class ProvNode:
         original associated parameter, the type (MetadataColumn or Metadata),
         and the appropriate Series or Dataframe respectively.
         """
-        # TODO: Can we factor this out into a util function?
         root_uuid = get_root_uuid(zf)
         pfx = pathlib.Path(root_uuid) / 'provenance'
         if root_uuid == self.uuid:
@@ -595,6 +590,12 @@ class _ResultMetadata:
 class ParserV0():
     """
     Parser for V0 archives. These have no provenance, so we only parse metadata
+
+    TODO: Change the way _parsed_artifact_uuids is populated. Our parser can
+    only handle one Artifact at a time, which is not an io-efficient way to
+    deal with a directory of Artifacts. We should refactor ParserVx.parse_prov
+    in line with #29 so that we can parse multiple Artifacts efficiently and in
+    one go.
     """
     version_string = 0
 

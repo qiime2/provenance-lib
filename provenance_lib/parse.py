@@ -34,12 +34,18 @@ class ProvDAG:
         ChecksumDiffs over Nonetypes, which will be dropped. For this reason,
         provenance_is_valid is a more reliable indicator of provenance validity
         thank checksum_diff.
-    nodes: networkx.classes.reportview.NodeView
-    dag = nx.DiGraph
+    dag: nx.DiGraph - a Directed Acyclic Graph (DAG) representing the complete
+        provenance of one or more QIIME 2 Artifacts. This DAG includes pipeline
+        "alias" nodes, as well as the inner nodes that compose each pipeline.
 
     ## Methods/builtin suport
-    `len` - ProvDAG supports the builtin len just as nx.DiGraph does, returning
-            the number of nodes in `mydag.dag`
+    `len`: int - ProvDAG supports the builtin len just as nx.DiGraph does,
+        returning the number of nodes in `mydag.dag`
+    nodes: networkx.classes.reportview.NodeView - A NodeView of self.dag
+    relabel_nodes: Optional[ProvDAG]: provided with a mapping, relabels the
+        nodes in self.dag. May be used inplace (returning None) or may return
+        a relabeled copy of self
+    union: ProvDAG - a class method that returns the union of many ProvDAGs
 
     ## GraphViews
     Graphviews are subgraphs of networkx graphs. They behave just like DiGraphs
@@ -51,7 +57,7 @@ class ProvDAG:
     containing a node for each standalone Action or Visualizer and one single
     node for each Pipeline (like q2view provenance trees)
 
-    ## Nodes
+    ## About the Nodes
 
     DiGraph nodes are literally UUIDs (strings)
 
@@ -63,15 +69,14 @@ class ProvDAG:
     should ProvDAG vet that every node has node_data and has_provenance?
     Alternately, maybe we can enforce this in the Parser ABC.
 
-    Notes:
-
     No-provenance nodes:
     When parsing v1+ archives, v0 ancestor nodes without tracked provenance
     (e.g. !no-provenance inputs) are discovered only as parents to the current
     inputs. They are added to the DAG when we add in-edges to "real" provenance
     nodes. These nodes are explicitly assigned the node attributes above,
     allowing red-flagging of no-provenance nodes, as all nodes have a
-    has_provenance attribute
+    has_provenance attribute. No-provenance nodes with no v1+ children will
+    always appear as disconnected members of the DiGraph.
 
     Custom node objects:
     Though NetworkX supports the use of custom objects as nodes, querying the
@@ -196,14 +201,9 @@ class ProvDAG:
         and clears the _terminal_uuids cache so we get complete results from
         that traversal.
 
-        TODO: Should this have a copy=bool parameter so we can return a copy
-        or mutate locally?
-
-        Alternately...
-
         TODO: These params don't line up nicely with compose_all, which takes
         a list of graphs and always returns a new graph. Maybe this
-        shouldn't be a method on ProvDAG?
+        shouldn't expose a mutator - ony return provdags
         """
         dags = [self.dag]
         for other in others:

@@ -343,6 +343,8 @@ class _ResultMetadata:
 
 
 class Parser(metaclass=abc.ABCMeta):
+    accepted_data_types: str
+
     # TODO: Can we require this be a classmethod?
     @classmethod
     @abc.abstractmethod
@@ -380,7 +382,7 @@ class ParserV0(Parser):
     """
     version_string = 0
     # TODO: Using strings here is kinda clumsy and limiting. Fix that.
-    accepted_data_type = "Pathlike reference to a Zip Archive"
+    accepted_data_types = "Pathlike reference to a Zip Archive"
 
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames (like Metadata, which may or may

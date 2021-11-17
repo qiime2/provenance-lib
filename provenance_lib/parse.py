@@ -259,7 +259,7 @@ class ProvDAGParser(Parser):
     its data into a new ProvDAG.
     """
     # TODO: Using strings here is kinda clumsy and limiting. Fix that.
-    accepted_data_type = "ProvDAG"
+    accepted_data_types = "ProvDAG"
 
     @classmethod
     def get_parser(cls, artifact_data: Any) -> Optional['Parser']:
@@ -286,13 +286,9 @@ class ParserDispatcher:
         zipfile_parser.ParserV0,
         ProvDAGParser
     ]
-    # accepted_data_types = [
-    #     parser.accepted_data_type for parser in _PARSER_TYPE_REGISTRY]
-    # TODO: Why does this work, but not the line above?
-    # We get this mypy error:
-    # "Type[Parser]" has no attribute "accepted_data_type"
-    accepted_data_types = [zipfile_parser.ParserV0.accepted_data_type]
-    accepted_data_types += [ProvDAGParser.accepted_data_type]
+
+    accepted_data_types = [
+        parser.accepted_data_types for parser in _PARSER_TYPE_REGISTRY]
 
     def __init__(self, cfg: Config, artifact_data: Any):
         self.cfg = cfg

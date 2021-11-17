@@ -1,5 +1,6 @@
 from datetime import timedelta
 import os
+import networkx as nx
 import pathlib
 from unittest.mock import MagicMock
 import pandas as pd
@@ -7,11 +8,12 @@ import unittest
 import warnings
 import zipfile
 
+from .. import checksum_validator
 from .testing_utilities import is_root_provnode_data
 from .test_parse import TEST_DATA, DATA_DIR
 from ..parse import FormatHandler
 from ..zipfile_parser import (
-    ProvNode, Config, _Action, _Citations, _ResultMetadata,
+    ProvNode, Config, _Action, _Citations, _ResultMetadata, ParserResults
 )
 
 from ..yaml_constructors import MetadataInfo
@@ -53,21 +55,32 @@ class ParserVxTests(unittest.TestCase):
                 else:
                     res = TEST_DATA[archive_version]['parser'].parse_prov(
                         Config(), zf)
-                # Did we capture result metadata correctly?
+
+                self.assertIsInstance(res, ParserResults)
                 root_md = res.root_md
-                self.assertEqual(type(root_md), _ResultMetadata)
+                self.assertIsInstance(root_md, _ResultMetadata)
+                self.assertIsInstance(res.archive_contents,
+                                      (type(None), nx.DiGraph))
+                self.assertIsInstance(res.provenance_is_valid,
+                                      checksum_validator.ValidationCode)
+                exp_diff_type = (type(None) if int(archive_version[0]) < 5
+                                 else checksum_validator.ChecksumDiff)
+                self.assertIsInstance(res.checksum_diff, exp_diff_type)
+
+                # Did we capture result metadata correctly?
                 self.assertEqual(root_md.uuid, root_uuid)
                 self.assertEqual(root_md.type,  'Visualization')
                 self.assertEqual(root_md.format, None)
-                # Does this archive have the right number of Results?
+                # Does this archive have the expected number of Results?
                 self.assertEqual(len(res.archive_contents),
                                  TEST_DATA[archive_version]['n_res'])
-                # Is contents a dict?
-                self.assertIs(type(res.archive_contents), dict)
-                # Is the root UUID a key in the contents dict?
+                # Is the root UUID a key a node in the DiGraph?
                 self.assertIn(root_uuid, res.archive_contents)
                 # Is contents keyed on uuids, containing ProvNodes?
-                self.assertIs(type(res.archive_contents[root_uuid]), ProvNode)
+                # print(res.archive_contents.nodes[root_uuid]['node_data'])
+                self.assertIsInstance(
+                    res.archive_contents.nodes[root_uuid]['node_data'],
+                    ProvNode)
 
     def test_get_nonroot_uuid(self):
         md_example = pathlib.Path(
@@ -159,15 +172,17 @@ class FormatHandlerTests(unittest.TestCase):
         with zipfile.ZipFile(TEST_DATA['5']['qzv_fp']) as zf:
             handler = FormatHandler(self.cfg, zf)
             parser_results = handler.parse(zf)
+            self.assertIsInstance(parser_results, ParserResults)
             md = parser_results.root_md
-            self.assertIs(type(md), _ResultMetadata)
+            self.assertIsInstance(md, _ResultMetadata)
             self.assertEqual(md.uuid, uuid)
             self.assertEqual(md.type, 'Visualization')
             self.assertEqual(md.format, None)
             self.assertEqual(len(parser_results.archive_contents), 15)
             self.assertIn(uuid, parser_results.archive_contents)
-            self.assertIs(
-                type(parser_results.archive_contents[uuid]), ProvNode)
+            self.assertIsInstance(
+                parser_results.archive_contents.nodes[uuid]['node_data'],
+                ProvNode)
 
 
 class ResultMetadataTests(unittest.TestCase):
@@ -214,7 +229,7 @@ class ActionTests(unittest.TestCase):
     def test_runtime(self):
         exp_t = timedelta
         exp = timedelta(seconds=2, microseconds=17110)
-        self.assertIs(type(self.act.runtime), exp_t)
+        self.assertIsInstance(self.act.runtime, exp_t)
         self.assertEqual(self.act.runtime, exp)
 
     def test_runtime_str(self):
@@ -347,7 +362,7 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
     def test_smoke(self):
         self.assertTrue(True)
         for node_vzn in self.nodes:
-            self.assertIs(type(self.nodes[node_vzn]), ProvNode)
+            self.assertIsInstance(self.nodes[node_vzn], ProvNode)
 
     def test_properties_with_viz(self):
         for node in self.nodes:

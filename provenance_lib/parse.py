@@ -61,6 +61,10 @@ class ProvDAG():
     node_data: Optional[ProvNode]
     has_provenance: bool
 
+    TODO: Now that we have outsourced the creation of ParserResults entirely,
+    should ProvDAG vet that every node has node_data and has_provenance?
+    Alternately, maybe we can enforce this in the Parser ABC.
+
     Notes:
 
     No-provenance nodes:
@@ -79,47 +83,22 @@ class ProvDAG():
     """
     def __init__(self, archive_fp: str, cfg: Config = Config()):
         """
-        Create a ProvDAG (digraph) by:
-            0. Create an empty nx.digraph
-            1. parse the raw data from the zip archive
-            2. gather nodes with their associated data into an n_bunch and add
-               to the DiGraph
-            3. Add edges to graph (including all !no-provenance nodes)
-            4. Create guaranteed node attributes for these no-provenance nodes
+        Create a ProvDAG (digraph) by getting a parser from the parser
+        dispatcher, using it to parse the incoming data into a ParserResults,
+        and then loading those Results into key fields.
         """
-        self.dag = nx.DiGraph()
         # handler = FormatHandler(cfg, zf)
         # handler.parse(self, zf)
 
         with zipfile.ZipFile(archive_fp) as zf:
             handler = FormatHandler(cfg, zf)
             parser_results = handler.parse(zf)
+
             self._parsed_artifact_uuids = {parser_results.root_md.uuid}
             self._terminal_uuids = None  # type: Optional[Set[UUID]]
-            archive_contents = parser_results.archive_contents
             self._provenance_is_valid = parser_results.provenance_is_valid
             self._checksum_diff = parser_results.checksum_diff
-
-            nbunch = [
-                (n_id, dict(
-                    node_data=archive_contents[n_id],
-                    has_provenance=archive_contents[n_id].has_provenance,
-                    )) for n_id in archive_contents]
-            self.dag.add_nodes_from(nbunch)
-
-            ebunch = []
-            for node_id, attrs in self.dag.nodes(data=True):
-                if parents := attrs['node_data']._parents:
-                    for parent in parents:
-                        # parent is a single-item {type: uuid} dict
-                        parent_uuid = next(iter(parent.values()))
-                        ebunch.append((parent_uuid, node_id))
-            self.dag.add_edges_from(ebunch)
-
-            for node_id, attrs in self.dag.nodes(data=True):
-                if attrs.get('node_data') is None:
-                    attrs['has_provenance'] = False
-                    attrs['node_data'] = None
+            self.dag = parser_results.archive_contents
 
     def __repr__(self) -> str:
         return ('ProvDAG representing these Artifacts '
@@ -278,6 +257,14 @@ class ProvDAG():
         for uuid in parents:
             nodes = nodes | self.get_outer_provenance_nodes(uuid)
         return nodes
+
+
+class ProvDAGParser():
+    """
+    Effectively a ProvDAG copy constructor, this "parses" a ProvDAG, loading
+    its data into a new ProvDAG.
+    """
+    pass
 
 
 class FormatHandler():

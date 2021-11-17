@@ -1,18 +1,16 @@
 from __future__ import annotations
-from typing import Iterable, Mapping, Set, Optional
-import zipfile
+from typing import Any, Iterable, Mapping, Optional, Set
 
 import networkx as nx
 from networkx.classes.reportviews import NodeView  # type: ignore
 
 from . import checksum_validator
-from . import version_parser
 from . import zipfile_parser
-from .zipfile_parser import Config, ParserResults, ProvNode
+from .zipfile_parser import Config, ParserResults, ProvNode, Parser
 from .util import UUID
 
 
-class ProvDAG():
+class ProvDAG:
     """
     A single-rooted DAG of UUIDs representing a single QIIME 2 Archive.
 
@@ -81,24 +79,20 @@ class ProvDAG():
     which feels much less intuitive than with e.g. the UUID string of the
     ProvNode you want to access, and would make testing a bit clunky.
     """
-    def __init__(self, archive_fp: str, cfg: Config = Config()):
+    def __init__(self, artifact_data: Any, cfg: Config = Config()):
         """
         Create a ProvDAG (digraph) by getting a parser from the parser
         dispatcher, using it to parse the incoming data into a ParserResults,
         and then loading those Results into key fields.
         """
-        # handler = FormatHandler(cfg, zf)
-        # handler.parse(self, zf)
+        dispatcher = ParserDispatcher(cfg, artifact_data)
+        parser_results = dispatcher.parse(artifact_data)
 
-        with zipfile.ZipFile(archive_fp) as zf:
-            handler = FormatHandler(cfg, zf)
-            parser_results = handler.parse(zf)
-
-            self._parsed_artifact_uuids = {parser_results.root_md.uuid}
-            self._terminal_uuids = None  # type: Optional[Set[UUID]]
-            self._provenance_is_valid = parser_results.provenance_is_valid
-            self._checksum_diff = parser_results.checksum_diff
-            self.dag = parser_results.archive_contents
+        self._terminal_uuids = None  # type: Optional[Set[UUID]]
+        self._parsed_artifact_uuids = parser_results.parsed_artifact_uuids
+        self.dag = parser_results.prov_digraph
+        self._provenance_is_valid = parser_results.provenance_is_valid
+        self._checksum_diff = parser_results.checksum_diff
 
     def __repr__(self) -> str:
         return ('ProvDAG representing these Artifacts '
@@ -259,42 +253,61 @@ class ProvDAG():
         return nodes
 
 
-class ProvDAGParser():
+class ProvDAGParser(Parser):
     """
     Effectively a ProvDAG copy constructor, this "parses" a ProvDAG, loading
     its data into a new ProvDAG.
     """
-    pass
+    # TODO: Using strings here is kinda clumsy and limiting. Fix that.
+    accepted_data_type = "ProvDAG"
+
+    @classmethod
+    def get_parser(cls, artifact_data: Any) -> Optional['Parser']:
+        if isinstance(artifact_data, ProvDAG):
+            return ProvDAGParser()
+        else:
+            return None
+
+    def parse_prov(self, cfg: Config, pdag: ProvDAG) -> ParserResults:
+        return ParserResults(
+            pdag._parsed_artifact_uuids,
+            pdag.dag,
+            pdag.provenance_is_valid,
+            pdag.checksum_diff,
+        )
 
 
-class FormatHandler():
+class ParserDispatcher:
     """
     Parses VERSION file data, has a version-specific parser which allows
     for version-safe archive parsing
     """
-    _FORMAT_REGISTRY = {
-        # NOTE: update for new format versions in qiime2.core.archive.Archiver
-        '0': zipfile_parser.ParserV0,
-        '1': zipfile_parser.ParserV1,
-        '2': zipfile_parser.ParserV2,
-        '3': zipfile_parser.ParserV3,
-        '4': zipfile_parser.ParserV4,
-        '5': zipfile_parser.ParserV5,
-    }
+    _PARSER_TYPE_REGISTRY = [
+        zipfile_parser.ParserV0,
+        ProvDAGParser
+    ]
+    # accepted_data_types = [
+    #     parser.accepted_data_type for parser in _PARSER_TYPE_REGISTRY]
+    # TODO: Why does this work, but not the line above?
+    # We get this mypy error:
+    # "Type[Parser]" has no attribute "accepted_data_type"
+    accepted_data_types = [zipfile_parser.ParserV0.accepted_data_type]
+    accepted_data_types += [ProvDAGParser.accepted_data_type]
 
-    @property
-    def archive_version(self):
-        return self._archive_version
-
-    @property
-    def framework_version(self):
-        return self._frmwk_vrsn
-
-    def __init__(self, cfg: Config, zf: zipfile.ZipFile):
+    def __init__(self, cfg: Config, artifact_data: Any):
         self.cfg = cfg
-        self._archive_version, self._frmwk_vrsn = \
-            version_parser.parse_version(zf)
-        self.parser = self._FORMAT_REGISTRY[self._archive_version]
+        self.payload = artifact_data
+        optional_parser = None
+        for parser in self._PARSER_TYPE_REGISTRY:
+            optional_parser = parser().get_parser(artifact_data)
+            if optional_parser is not None:
+                self.parser = optional_parser  # type: Parser
+                break
+        else:
+            raise TypeError(
+                f"Input data type {type(artifact_data)} not in "
+                f"{self.accepted_data_types}")
 
-    def parse(self, zf: zipfile.ZipFile) -> ParserResults:
-        return self.parser.parse_prov(self.cfg, zf)
+    # TODO: Can we use mypy generics to make this Any more specific?
+    def parse(self, artifact_data: Any) -> ParserResults:
+        return self.parser.parse_prov(self.cfg, artifact_data)

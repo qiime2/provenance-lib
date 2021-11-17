@@ -4,6 +4,10 @@ import zipfile
 # Alias string as UUID so we can specify types more clearly
 UUID = str
 
+# Alias string as FileName because that's what some strings mean
+# FileNames are not path objects - just strings that describe paths
+FileName = str
+
 
 def get_root_uuid(zf: zipfile.ZipFile) -> UUID:
     """

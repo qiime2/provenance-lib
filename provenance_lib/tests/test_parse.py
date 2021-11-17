@@ -30,6 +30,8 @@ TEST_DATA = {
           'qzv_fp': os.path.join(DATA_DIR, 'v0_uu_emperor.qzv'),
           'has_prov': False,
           'prov_is_valid': ValidationCode.PREDATES_CHECKSUMS,
+          # TODO: I think all of these checksum values are wrong but not
+          # failing (and therefore untested). Should be ChecksumDiff({}, ...)
           'checksum': None,
           },
     '1': {'parser': ParserV1,
@@ -114,7 +116,7 @@ class ProvDAGTests(unittest.TestCase):
             with warnings.catch_warnings():
                 warnings.filterwarnings('ignore',  f'Art.*{uuid}.*prior')
                 cls.dags[archive_version] = ProvDAG(
-                    archive_fp=str(TEST_DATA[archive_version]['qzv_fp']))
+                    str(TEST_DATA[archive_version]['qzv_fp']))
 
     # This should only trigger if something fails in setup or above
     # e.g. if a ProvDag fails to initialize
@@ -148,13 +150,13 @@ class ProvDAGTests(unittest.TestCase):
     def test_nonexistent_fp(self):
         fake_fp = os.path.join(DATA_DIR, 'not_a_filepath.qza')
         with self.assertRaisesRegex(FileNotFoundError, 'not_a_filepath.qza'):
-            ProvDAG(archive_fp=fake_fp)
+            ProvDAG(fake_fp)
 
     def test_not_a_zip_archive(self):
         not_a_zip = os.path.join(DATA_DIR, 'not_a_zip.txt')
         with self.assertRaisesRegex(zipfile.BadZipFile,
                                     'File is not a zip file'):
-            ProvDAG(archive_fp=not_a_zip)
+            ProvDAG(not_a_zip)
 
     def test_has_digraph(self):
         for dag_version in self.dags:
@@ -281,7 +283,7 @@ class ProvDAGTests(unittest.TestCase):
     def test_v5_relabel_nodes(self):
         # This function modifies labels in place, so create a local ProvDAG
         # to protect our test data
-        dag = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        dag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
         # Test new node names
         exp_nodes = ['ffb7cee3',
                      '0af08fa8',
@@ -372,7 +374,7 @@ class ProvDAGTests(unittest.TestCase):
                         'Files changed.*data.*index.*065031.*f47bc3.*'
                         )
             with self.assertWarnsRegex(UserWarning, expected):
-                a_dag = ProvDAG(archive_fp=chopped_archive)
+                a_dag = ProvDAG(chopped_archive)
 
             # Have we set provenance_is_valid correctly?
             self.assertEqual(a_dag.provenance_is_valid,
@@ -407,7 +409,7 @@ class ProvDAGTests(unittest.TestCase):
             uuid = TEST_DATA['5']['uuid']
             expected = (f'(?s)Checksums are invalid for Archive {uuid}.*')
             with self.assertWarnsRegex(UserWarning, expected):
-                a_dag = ProvDAG(archive_fp=chopped_archive)
+                a_dag = ProvDAG(chopped_archive)
 
             # Have we set provenance_is_valid correctly?
             self.assertEqual(a_dag.provenance_is_valid,
@@ -431,7 +433,7 @@ class ProvDAGTests(unittest.TestCase):
             uuid = TEST_DATA['5']['uuid']
             expected = (f'no item.*{uuid}.*Archive may be corrupt')
             with self.assertWarnsRegex(UserWarning, expected):
-                a_dag = ProvDAG(archive_fp=chopped_archive)
+                a_dag = ProvDAG(chopped_archive)
 
             # Have we set provenance_is_valid correctly?
             self.assertEqual(a_dag.provenance_is_valid,
@@ -472,7 +474,7 @@ class ProvDAGTests(unittest.TestCase):
                                 'ignore',
                                 f'Checksums.*invalid.*{root_uuid}',
                                 UserWarning)
-                            ProvDAG(archive_fp=chopped_archive)
+                            ProvDAG(chopped_archive)
 
     def test_mixed_v0_v1_archive(self):
         mixed_archive_fp = os.path.join(DATA_DIR, 'mixed_v0_v1_uu_emperor.qzv')
@@ -481,7 +483,7 @@ class ProvDAGTests(unittest.TestCase):
 
         with self.assertWarnsRegex(
                 UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
-            dag = ProvDAG(archive_fp=mixed_archive_fp)
+            dag = ProvDAG(mixed_archive_fp)
             self.assertEqual(dag.node_has_provenance(v1_uuid), True)
             self.assertEqual(dag.get_node_data(v1_uuid).uuid, v1_uuid)
 
@@ -501,7 +503,7 @@ class ProvDAGTests(unittest.TestCase):
         a_as_md_fp = os.path.join(DATA_DIR, 'artifact_as_md_v5.qzv')
         a_as_md_uuid = 'd1d36ada-29a5-436e-9136-304a8b25ff10'
 
-        dag = ProvDAG(archive_fp=a_as_md_fp)
+        dag = ProvDAG(a_as_md_fp)
         self.assertEqual(dag.node_has_provenance(a_as_md_uuid), True)
         self.assertEqual(dag.get_node_data(a_as_md_uuid).uuid, a_as_md_uuid)
         self.assertEqual(dag.get_node_data(a_as_md_uuid).type,
@@ -521,7 +523,7 @@ class ProvDAGUnionTests(unittest.TestCase):
         """
         Tests union of dag with zero other dags.
         """
-        dag = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        dag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
         v5_uuid = TEST_DATA['5']['uuid']
         og_dag = copy.copy(dag.dag)
 
@@ -548,7 +550,7 @@ class ProvDAGUnionTests(unittest.TestCase):
         """
         Tests union of dag with itself.
         """
-        dag = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        dag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
         og_dag = copy.copy(dag.dag)
         v5_uuid = TEST_DATA['5']['uuid']
 
@@ -577,8 +579,8 @@ class ProvDAGUnionTests(unittest.TestCase):
         Also checks that provenance_is_valid retains the lesser of the
         ValidationCodes from the v4- and v5+ dags.
         """
-        v4_dag = ProvDAG(archive_fp=str(TEST_DATA['4']['qzv_fp']))
-        v5_dag = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        v4_dag = ProvDAG(str(TEST_DATA['4']['qzv_fp']))
+        v5_dag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
         v4_uuid = TEST_DATA['4']['uuid']
         v5_uuid = TEST_DATA['5']['uuid']
 
@@ -608,9 +610,9 @@ class ProvDAGUnionTests(unittest.TestCase):
         Also checks that we have the correct number of disconnected trees
         (these three dags come from unrelated analyses, so should be disjoint)
         """
-        v3_dag = ProvDAG(archive_fp=str(TEST_DATA['3']['qzv_fp']))
-        v4_dag = ProvDAG(archive_fp=str(TEST_DATA['4']['qzv_fp']))
-        v5_dag = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        v3_dag = ProvDAG(str(TEST_DATA['3']['qzv_fp']))
+        v4_dag = ProvDAG(str(TEST_DATA['4']['qzv_fp']))
+        v5_dag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
         v3_uuid = TEST_DATA['3']['uuid']
         v4_uuid = TEST_DATA['4']['uuid']
         v5_uuid = TEST_DATA['5']['uuid']
@@ -650,9 +652,9 @@ class ProvDAGUnionTests(unittest.TestCase):
             root_uuid=TEST_DATA['5']['uuid'],
                 file_to_drop=drop_file) as chopped_archive:
             with self.assertWarnsRegex(UserWarning, 'no item.*checksums'):
-                bad_dag = ProvDAG(archive_fp=chopped_archive)
+                bad_dag = ProvDAG(chopped_archive)
 
-        good_dag = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        good_dag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
         v5_uuid = TEST_DATA['5']['uuid']
 
         # In-place union
@@ -685,9 +687,9 @@ class ProvDAGUnionTests(unittest.TestCase):
             root_uuid=TEST_DATA['5']['uuid'],
                 file_to_drop=drop_file) as chopped_archive:
             with self.assertWarnsRegex(UserWarning, 'no item.*checksums'):
-                bad_dag = ProvDAG(archive_fp=chopped_archive)
+                bad_dag = ProvDAG(chopped_archive)
 
-        good_dag = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        good_dag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
         v5_uuid = TEST_DATA['5']['uuid']
 
         # In-place union
@@ -720,7 +722,7 @@ class ProvDAGUnionTests(unittest.TestCase):
             root_uuid=TEST_DATA['5']['uuid'],
                 file_to_drop=drop_file) as chopped_archive:
             with self.assertWarnsRegex(UserWarning, 'no item.*checksums'):
-                bad_dag = ProvDAG(archive_fp=chopped_archive)
+                bad_dag = ProvDAG(chopped_archive)
 
         v5_uuid = TEST_DATA['5']['uuid']
 
@@ -746,7 +748,7 @@ class ProvDAGUnionTests(unittest.TestCase):
         others. We expect three _parsed_artifact_uuids, one terminal uuid,
         and one weakly_connected_component.
         """
-        v5_qzv = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        v5_qzv = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
         qzv_dag = copy.copy(v5_qzv.dag)
         v5_table = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
         v5_tree = ProvDAG(os.path.join(DATA_DIR, 'v5_rooted_tree.qza'))
@@ -779,7 +781,7 @@ class ProvDAGUnionTests(unittest.TestCase):
         _parsed_artifact_uuids, two terminal uuids, and one
         weakly_connected_component.
         """
-        v5_qzv = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        v5_qzv = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
         v5_table = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
         v5_unr_tree = ProvDAG(os.path.join(DATA_DIR, 'v5_unrooted_tree.qza'))
         qzv_uuid = TEST_DATA['5']['uuid']
@@ -808,7 +810,7 @@ class ProvDAGUnionTests(unittest.TestCase):
         feature table, so should produce one connected DAG even though we are
         missing the rarefied_table.qza used to create the rarefied_table.qzv
         """
-        v5_qzv = ProvDAG(archive_fp=str(TEST_DATA['5']['qzv_fp']))
+        v5_qzv = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
         v5_table = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
         rar_qzv = ProvDAG(os.path.join(DATA_DIR, 'v5_rarefied_table.qzv'))
         qzv_uuid = TEST_DATA['5']['uuid']
@@ -841,7 +843,7 @@ class ProvDAGTestsNoChecksumValidation(unittest.TestCase):
             with warnings.catch_warnings():
                 warnings.filterwarnings('ignore',  f'Art.*{uuid}.*prior')
                 cls.no_checksum_dags[archive_version] = ProvDAG(
-                    archive_fp=str(TEST_DATA[archive_version]['qzv_fp']),
+                    str(TEST_DATA[archive_version]['qzv_fp']),
                     cfg=Config(perform_checksum_validation=False))
 
     # This should only trigger if something fails in setup or above
@@ -871,7 +873,7 @@ class ProvDAGTestsNoChecksumValidation(unittest.TestCase):
             root_uuid=TEST_DATA['5']['uuid'],
                 file_to_drop=drop_file) as chopped_archive:
 
-            a_dag = ProvDAG(archive_fp=chopped_archive,
+            a_dag = ProvDAG(chopped_archive,
                             cfg=Config(perform_checksum_validation=False))
 
             # Have we set provenance_is_valid correctly?
@@ -907,5 +909,5 @@ class ProvDAGTestsNoChecksumValidation(unittest.TestCase):
                         f"{root_uuid}.*corrupt"
                     )
                     with self.assertRaisesRegex(ValueError, expected):
-                        ProvDAG(archive_fp=chopped_archive,
+                        ProvDAG(chopped_archive,
                                 cfg=Config(perform_checksum_validation=False))

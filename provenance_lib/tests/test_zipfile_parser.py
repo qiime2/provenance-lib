@@ -11,7 +11,8 @@ import zipfile
 from .. import checksum_validator
 from .testing_utilities import is_root_provnode_data
 from .test_parse import TEST_DATA, DATA_DIR
-from ..parse import FormatHandler
+from ..parse import ParserDispatcher
+from ..util import UUID
 from ..zipfile_parser import (
     ProvNode, Config, _Action, _Citations, _ResultMetadata, ParserResults
 )
@@ -43,43 +44,41 @@ class ParserVxTests(unittest.TestCase):
 
     def test_populate_archive(self):
         for archive_version in TEST_DATA:
-            fp = TEST_DATA[archive_version]['qzv_fp']
+            qzv_fp = TEST_DATA[archive_version]['qzv_fp']
             root_uuid = TEST_DATA[archive_version]['uuid']
-            with zipfile.ZipFile(fp) as zf:
-                if archive_version == '0':
-                    with self.assertWarnsRegex(
-                        UserWarning,
-                            'Artifact 0b8b47.*prior to provenance'):
-                        res = TEST_DATA[archive_version]['parser'].parse_prov(
-                            Config(), zf)
-                else:
+            if archive_version == '0':
+                with self.assertWarnsRegex(
+                    UserWarning,
+                        'Artifact 0b8b47.*prior to provenance'):
                     res = TEST_DATA[archive_version]['parser'].parse_prov(
-                        Config(), zf)
+                        Config(), qzv_fp)
+            else:
+                res = TEST_DATA[archive_version]['parser'].parse_prov(
+                    Config(), qzv_fp)
 
                 self.assertIsInstance(res, ParserResults)
-                root_md = res.root_md
-                self.assertIsInstance(root_md, _ResultMetadata)
-                self.assertIsInstance(res.archive_contents,
+                pa_uuids = res.parsed_artifact_uuids
+                self.assertIsInstance(pa_uuids, set)
+                self.assertIsInstance(next(iter(pa_uuids)), UUID)
+                self.assertIsInstance(res.prov_digraph,
                                       (type(None), nx.DiGraph))
                 self.assertIsInstance(res.provenance_is_valid,
                                       checksum_validator.ValidationCode)
+                # TODO: Do we actually expect None here? or ChecksumDiff({}...)
+                # If the former, some internal documentation probably needs
+                # cleaning up
                 exp_diff_type = (type(None) if int(archive_version[0]) < 5
                                  else checksum_validator.ChecksumDiff)
                 self.assertIsInstance(res.checksum_diff, exp_diff_type)
 
-                # Did we capture result metadata correctly?
-                self.assertEqual(root_md.uuid, root_uuid)
-                self.assertEqual(root_md.type,  'Visualization')
-                self.assertEqual(root_md.format, None)
                 # Does this archive have the expected number of Results?
-                self.assertEqual(len(res.archive_contents),
+                self.assertEqual(len(res.prov_digraph),
                                  TEST_DATA[archive_version]['n_res'])
                 # Is the root UUID a key a node in the DiGraph?
-                self.assertIn(root_uuid, res.archive_contents)
+                self.assertIn(root_uuid, res.prov_digraph)
                 # Is contents keyed on uuids, containing ProvNodes?
-                # print(res.archive_contents.nodes[root_uuid]['node_data'])
                 self.assertIsInstance(
-                    res.archive_contents.nodes[root_uuid]['node_data'],
+                    res.prov_digraph.nodes[root_uuid]['node_data'],
                     ProvNode)
 
     def test_get_nonroot_uuid(self):
@@ -116,73 +115,57 @@ class ParserVxTests(unittest.TestCase):
                 # return values only here to facilitate normal execution
                 return_value=(TEST_DATA[archive_version]['prov_is_valid'],
                               TEST_DATA[archive_version]['checksum']))
-            with zipfile.ZipFile(TEST_DATA[archive_version]['qzv_fp']) as zf:
-                if archive_version == '0':
-                    # supress warning from parsing provenance for a v0 ProvDAG
-                    uuid = TEST_DATA['0']['uuid']
-                    with warnings.catch_warnings():
-                        warnings.filterwarnings(
-                            'ignore',  f'Art.*{uuid}.*prior')
-                        parser.parse_prov(Config(), zf)
-                        parser._validate_checksums.assert_called_once()
-                else:
-                    parser.parse_prov(Config(), zf)
+            qzv_fp = TEST_DATA[archive_version]['qzv_fp']
+            if archive_version == '0':
+                # supress warning from parsing provenance for a v0 ProvDAG
+                uuid = TEST_DATA['0']['uuid']
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(
+                        'ignore',  f'Art.*{uuid}.*prior')
+                    parser.parse_prov(Config(), qzv_fp)
                     parser._validate_checksums.assert_called_once()
+            else:
+                parser.parse_prov(Config(), qzv_fp)
+                parser._validate_checksums.assert_called_once()
 
 
-class FormatHandlerTests(unittest.TestCase):
+class ParserDispatcherTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.cfg = Config()
 
-    # Can we make a FormatHandler without anything blowing up?
+    # Can we make a ParserDispatcher without anything blowing up?
     def test_smoke(self):
         for arch_ver in TEST_DATA:
-            qzv = TEST_DATA[arch_ver]['qzv_fp']
-            with zipfile.ZipFile(qzv) as zf:
-                FormatHandler(self.cfg, zf)
+            qzv_fp = TEST_DATA[arch_ver]['qzv_fp']
+            ParserDispatcher(self.cfg, qzv_fp)
         self.assertTrue(True)
-
-    def test_archive_version(self):
-        for arch_ver in TEST_DATA:
-            qzv = TEST_DATA[arch_ver]['qzv_fp']
-            with zipfile.ZipFile(qzv) as zf:
-                handler = FormatHandler(self.cfg, zf)
-                self.assertEqual(handler.archive_version,
-                                 TEST_DATA[arch_ver]['av'])
-
-    def test_framework_version(self):
-        for arch_ver in TEST_DATA:
-            qzv = TEST_DATA[arch_ver]['qzv_fp']
-            with zipfile.ZipFile(qzv) as zf:
-                handler = FormatHandler(self.cfg, zf)
-                self.assertEqual(handler.framework_version,
-                                 TEST_DATA[arch_ver]['fwv'])
 
     def test_correct_parser(self):
         for arch_ver in TEST_DATA:
-            qzv = TEST_DATA[arch_ver]['qzv_fp']
-            with zipfile.ZipFile(qzv) as zf:
-                handler = FormatHandler(self.cfg, zf)
-                self.assertEqual(handler.parser,
-                                 TEST_DATA[arch_ver]['parser'])
+            qzv_fp = TEST_DATA[arch_ver]['qzv_fp']
+            handler = ParserDispatcher(self.cfg, qzv_fp)
+            self.assertIsInstance(handler.parser,
+                                  TEST_DATA[arch_ver]['parser'])
 
     def test_parse(self):
         uuid = TEST_DATA['5']['uuid']
-        with zipfile.ZipFile(TEST_DATA['5']['qzv_fp']) as zf:
-            handler = FormatHandler(self.cfg, zf)
-            parser_results = handler.parse(zf)
-            self.assertIsInstance(parser_results, ParserResults)
-            md = parser_results.root_md
-            self.assertIsInstance(md, _ResultMetadata)
-            self.assertEqual(md.uuid, uuid)
-            self.assertEqual(md.type, 'Visualization')
-            self.assertEqual(md.format, None)
-            self.assertEqual(len(parser_results.archive_contents), 15)
-            self.assertIn(uuid, parser_results.archive_contents)
-            self.assertIsInstance(
-                parser_results.archive_contents.nodes[uuid]['node_data'],
-                ProvNode)
+        qzv_fp = TEST_DATA['5']['qzv_fp']
+        handler = ParserDispatcher(self.cfg, qzv_fp)
+        parser_results = handler.parse(qzv_fp)
+        self.assertIsInstance(parser_results, ParserResults)
+        p_a_uuids = parser_results.parsed_artifact_uuids
+        self.assertIsInstance(p_a_uuids, set)
+        self.assertIsInstance(next(iter(p_a_uuids)), UUID)
+        self.assertEqual(len(parser_results.prov_digraph), 15)
+        self.assertIn(uuid, parser_results.prov_digraph)
+        self.assertIsInstance(
+            parser_results.prov_digraph.nodes[uuid]['node_data'],
+            ProvNode)
+        self.assertEqual(parser_results.provenance_is_valid,
+                         TEST_DATA['5']['prov_is_valid'])
+        self.assertEqual(parser_results.checksum_diff,
+                         TEST_DATA['5']['checksum'])
 
 
 class ResultMetadataTests(unittest.TestCase):

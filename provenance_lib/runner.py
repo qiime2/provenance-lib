@@ -32,7 +32,7 @@ if __name__ == '__main__':
     print(f'- was made by q2-{plurg} {ackshun}')
     print(f'- contains prov. data from {len(dummy_DAG)}'
           ' QIIME 2 Results, mostly ancestors')
-    # print(dummy_DAG._archive_contents)
+    # print(dummy_DAG._prov_digraph)
 
     print(f'\nIts prov DAG looks like\n{dummy_DAG}')
 

@@ -26,9 +26,9 @@ class ParserVxTests(unittest.TestCase):
         for archive_version in TEST_DATA:
             fp = TEST_DATA[archive_version]['qzv_fp']
             root_uuid = TEST_DATA[archive_version]['uuid']
+            parser = TEST_DATA[archive_version]['parser']()
             with zipfile.ZipFile(fp) as zf:
-                root_md = TEST_DATA[archive_version]['parser']._parse_root_md(
-                    zf, root_uuid)
+                root_md = parser._parse_root_md(zf, root_uuid)
                 self.assertEqual(root_md.uuid, root_uuid)
                 self.assertEqual(root_md.type,  'Visualization')
                 self.assertEqual(root_md.format, None)
@@ -37,24 +37,23 @@ class ParserVxTests(unittest.TestCase):
         qzv_no_root_md = os.path.join(DATA_DIR, 'no_root_md_yaml.qzv')
         for archive_version in TEST_DATA:
             root_uuid = TEST_DATA[archive_version]['uuid']
+            parser = TEST_DATA[archive_version]['parser']()
             with zipfile.ZipFile(qzv_no_root_md) as zf:
                 with self.assertRaisesRegex(ValueError, 'Malformed.*metadata'):
-                    TEST_DATA[archive_version]['parser']._parse_root_md(
-                        zf, root_uuid)
+                    parser._parse_root_md(zf, root_uuid)
 
     def test_populate_archive(self):
         for archive_version in TEST_DATA:
             qzv_fp = TEST_DATA[archive_version]['qzv_fp']
             root_uuid = TEST_DATA[archive_version]['uuid']
+            parser = TEST_DATA[archive_version]['parser']()
             if archive_version == '0':
                 with self.assertWarnsRegex(
                     UserWarning,
                         'Artifact 0b8b47.*prior to provenance'):
-                    res = TEST_DATA[archive_version]['parser'].parse_prov(
-                        Config(), qzv_fp)
+                    res = parser.parse_prov(Config(), qzv_fp)
             else:
-                res = TEST_DATA[archive_version]['parser'].parse_prov(
-                    Config(), qzv_fp)
+                res = parser.parse_prov(Config(), qzv_fp)
 
                 self.assertIsInstance(res, ParserResults)
                 pa_uuids = res.parsed_artifact_uuids
@@ -89,7 +88,7 @@ class ParserVxTests(unittest.TestCase):
         exp = 'uuid123'
 
         # Only parsers from v1 forward have this method
-        parsers = [TEST_DATA[vrsn]['parser'] for vrsn in TEST_DATA
+        parsers = [TEST_DATA[vrsn]['parser']() for vrsn in TEST_DATA
                    if vrsn != '0']
 
         for parser in parsers:
@@ -99,7 +98,7 @@ class ParserVxTests(unittest.TestCase):
     def test_validate_checksums(self):
         for archive_version in TEST_DATA:
             with zipfile.ZipFile(TEST_DATA[archive_version]['qzv_fp']) as zf:
-                parser = TEST_DATA[archive_version]['parser']
+                parser = TEST_DATA[archive_version]['parser']()
                 is_valid, diff = parser._validate_checksums(zf)
                 self.assertEqual(is_valid,
                                  TEST_DATA[archive_version]['prov_is_valid'])
@@ -110,7 +109,7 @@ class ParserVxTests(unittest.TestCase):
         # We want to confirm that parse_prov uses the local _validate_checksums
         # even when it calls super().parse_prov() internally
         for archive_version in TEST_DATA:
-            parser = TEST_DATA[archive_version]['parser']
+            parser = TEST_DATA[archive_version]['parser']()
             parser._validate_checksums = MagicMock(
                 # return values only here to facilitate normal execution
                 return_value=(TEST_DATA[archive_version]['prov_is_valid'],

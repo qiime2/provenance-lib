@@ -366,13 +366,9 @@ class Parser(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
 
-# TODO: This can become concrete if it gives us actual value from abc.ABCMeta
 class ParserV0(Parser):
     """
     Parser for V0 archives. These have no provenance, so we only parse metadata
-
-    TODO: Is this module-global registry approach to dispatch grooosssss????
-    How should this go?
 
     TODO: Change the way _parsed_artifact_uuids is populated. Our parser can
     only handle one Artifact at a time, which is not an io-efficient way to
@@ -403,38 +399,13 @@ class ParserV0(Parser):
         except TypeError:
             return None
 
-    @classmethod
-    def _parse_root_md(cls, zf: zipfile.ZipFile, root_uuid: UUID) \
-            -> _ResultMetadata:
-        """ Get archive metadata including root uuid """
-        # All files in zf start with root uuid, so we'll grab it from the first
-        root_md_fp = root_uuid + '/metadata.yaml'
-        if root_md_fp not in zf.namelist():
-            raise ValueError("Malformed Archive: root metadata.yaml file "
-                             "misplaced or nonexistent")
-        return _ResultMetadata(zf, root_md_fp)
-
-    @classmethod
-    def _validate_checksums(cls, zf: zipfile.ZipFile) -> \
-            Tuple[checksum_validator.ValidationCode,
-                  Optional[checksum_validator.ChecksumDiff]]:
-        """
-        V0 archives predate provenance tracking, so
-        - provenance_is_valid = False
-        - checksum_diff = None
-        """
-        return (checksum_validator.ValidationCode.PREDATES_CHECKSUMS,
-                None)
-
-    @classmethod
-    # TODO: Can we drop the classmethod designation now?
-    def parse_prov(cls, cfg: Config, archive_data: FileName) -> ParserResults:
+    def parse_prov(self, cfg: Config, archive_data: FileName) -> ParserResults:
         archv_contents = {}
 
         with zipfile.ZipFile(archive_data) as zf:
             if cfg.perform_checksum_validation:
                 provenance_is_valid, checksum_diff = \
-                    cls._validate_checksums(zf)
+                    self._validate_checksums(zf)
             else:
                 provenance_is_valid, checksum_diff = (
                     checksum_validator.ValidationCode.VALIDATION_OPTOUT, None)
@@ -446,12 +417,13 @@ class ParserV0(Parser):
                           UserWarning)
 
             # TODO: Drop this line and make p_a_uuids accept many
-            root_md = cls._parse_root_md(zf, uuid)
+            root_md = self._parse_root_md(zf, uuid)
             parsed_artifact_uuids = {root_md.uuid}
-            expected_files = cls.expected_files_in_all_nodes
+            expected_files = self.expected_files_in_all_nodes
             prov_data_fps = [pathlib.Path(uuid) / fp for fp in expected_files]
             archv_contents[uuid] = ProvNode(cfg, zf, prov_data_fps)
-            archv_contents = cls._digraph_from_archive_contents(archv_contents)
+            archv_contents = self._digraph_from_archive_contents(
+                archv_contents)
 
         return ParserResults(
             parsed_artifact_uuids,
@@ -460,9 +432,29 @@ class ParserV0(Parser):
             checksum_diff,
             )
 
-    @classmethod
+    def _parse_root_md(self, zf: zipfile.ZipFile, root_uuid: UUID) \
+            -> _ResultMetadata:
+        """ Get archive metadata including root uuid """
+        # All files in zf start with root uuid, so we'll grab it from the first
+        root_md_fp = root_uuid + '/metadata.yaml'
+        if root_md_fp not in zf.namelist():
+            raise ValueError("Malformed Archive: root metadata.yaml file "
+                             "misplaced or nonexistent")
+        return _ResultMetadata(zf, root_md_fp)
+
+    def _validate_checksums(self, zf: zipfile.ZipFile) -> \
+            Tuple[checksum_validator.ValidationCode,
+                  Optional[checksum_validator.ChecksumDiff]]:
+        """
+        V0 archives predate provenance tracking, so
+        - provenance_is_valid = False
+        - checksum_diff = None
+        """
+        return (checksum_validator.ValidationCode.PREDATES_CHECKSUMS,
+                None)
+
     def _digraph_from_archive_contents(
-            cls, archive_contents: Dict[UUID, 'ProvNode']) -> nx.DiGraph:
+            self, archive_contents: Dict[UUID, 'ProvNode']) -> nx.DiGraph:
         """
         Builds a networkx.DiGraph from a {UUID: ProvNode} dictionary, like the
         one created in parse_prov().
@@ -510,22 +502,7 @@ class ParserV1(ParserV0):
     expected_files_in_all_nodes = ParserV0.expected_files_in_all_nodes + \
         ('action/action.yaml', )
 
-    @classmethod
-    def _validate_checksums(cls, zf: zipfile.ZipFile) -> \
-            Tuple[checksum_validator.ValidationCode,
-                  Optional[checksum_validator.ChecksumDiff]]:
-        """
-        Provenance is initially assumed valid because we have no checksums,
-        so:
-        - provenance_is_valid = False
-        - checksum_diff = None
-        """
-        return (checksum_validator.ValidationCode.PREDATES_CHECKSUMS,
-                None)
-
-    @classmethod
-    # TODO: Can we drop the classmethod designation now?
-    def parse_prov(cls, cfg: Config, archive_data: FileName) -> ParserResults:
+    def parse_prov(self, cfg: Config, archive_data: FileName) -> ParserResults:
         """
         Parses provenance data for one Archive.
 
@@ -542,18 +519,18 @@ class ParserV1(ParserV0):
         with zipfile.ZipFile(archive_data) as zf:
             if cfg.perform_checksum_validation:
                 provenance_is_valid, checksum_diff = \
-                    cls._validate_checksums(zf)
+                    self._validate_checksums(zf)
             else:
                 provenance_is_valid, checksum_diff = (
                     checksum_validator.ValidationCode.VALIDATION_OPTOUT, None)
 
-            prov_data_fps = cls._get_prov_data_fps(
-                zf, cls.expected_files_in_all_nodes +
-                cls.expected_files_root_only)
+            prov_data_fps = self._get_prov_data_fps(
+                zf, self.expected_files_in_all_nodes +
+                self.expected_files_root_only)
             root_uuid = get_root_uuid(zf)
 
             # Can we drop this? I don't think we're keepin type/format data now
-            root_md = cls._parse_root_md(zf, root_uuid)
+            root_md = self._parse_root_md(zf, root_uuid)
 
             # make a provnode for each UUID
             for fp in prov_data_fps:
@@ -564,16 +541,16 @@ class ParserV1(ParserV0):
                     prefix = pathlib.Path(node_uuid) / 'provenance'
                     root_only_expected_fps = [
                         pathlib.Path(node_uuid) / filename for filename in
-                        cls.expected_files_root_only]
+                        self.expected_files_root_only]
                     fps_for_this_result += root_only_expected_fps
                 else:
-                    node_uuid = cls._get_nonroot_uuid(fp)
+                    node_uuid = self._get_nonroot_uuid(fp)
                     prefix = pathlib.Path(*fp.parts[0:4])
 
                 if node_uuid not in archv_contents:
                     fps_for_this_result = [
                         prefix / name for name
-                        in cls.expected_files_in_all_nodes]
+                        in self.expected_files_in_all_nodes]
 
                     # Warn and reset provenance_is_valid if expected files are
                     # missing
@@ -597,7 +574,7 @@ class ParserV1(ParserV0):
                     archv_contents[node_uuid] = ProvNode(cfg, zf,
                                                          fps_for_this_result)
 
-        archv_contents = cls._digraph_from_archive_contents(archv_contents)
+        archv_contents = self._digraph_from_archive_contents(archv_contents)
 
         # TODO: make p_a_uuids accept many
         parsed_artifact_uuids = {root_md.uuid}
@@ -608,9 +585,20 @@ class ParserV1(ParserV0):
             checksum_diff
         )
 
-    @classmethod
+    def _validate_checksums(self, zf: zipfile.ZipFile) -> \
+            Tuple[checksum_validator.ValidationCode,
+                  Optional[checksum_validator.ChecksumDiff]]:
+        """
+        Provenance is initially assumed valid because we have no checksums,
+        so:
+        - provenance_is_valid = False
+        - checksum_diff = None
+        """
+        return (checksum_validator.ValidationCode.PREDATES_CHECKSUMS,
+                None)
+
     def _get_prov_data_fps(
-        cls, zf: zipfile.ZipFile, expected_files: Tuple['str', ...]) -> \
+        self, zf: zipfile.ZipFile, expected_files: Tuple['str', ...]) -> \
             List[pathlib.Path]:
         return [pathlib.Path(fp) for fp in zf.namelist()
                 if 'provenance' in fp
@@ -618,8 +606,7 @@ class ParserV1(ParserV0):
                 and any(map(lambda x: x in fp, expected_files))
                 ]
 
-    @classmethod
-    def _get_nonroot_uuid(cls, fp: pathlib.Path) -> UUID:
+    def _get_nonroot_uuid(self, fp: pathlib.Path) -> UUID:
         """
         For non-root provenance files, get the Result's uuid from the path
         (avoiding the root Result's UUID which is in all paths)
@@ -678,8 +665,14 @@ class ParserV5(ParserV4):
     expected_files_in_all_nodes = ParserV4.expected_files_in_all_nodes
     expected_files_root_only = ('checksums.md5', )
 
-    @classmethod
-    def _validate_checksums(cls, zf: zipfile.ZipFile) -> \
+    def parse_prov(self, cfg: Config, archive_data: FileName) -> ParserResults:
+        """
+        Parses provenance data for one Archive, applying the local
+        _validate_checksums() method to the v1 parser
+        """
+        return super().parse_prov(cfg, archive_data)
+
+    def _validate_checksums(self, zf: zipfile.ZipFile) -> \
             Tuple[checksum_validator.ValidationCode,
                   Optional[checksum_validator.ChecksumDiff]]:
         """
@@ -690,15 +683,6 @@ class ParserV5(ParserV4):
             checksums.md5 is missing
         """
         return checksum_validator.validate_checksums(zf)
-
-    @classmethod
-    # TODO: Can we drop the classmethod designation now?
-    def parse_prov(cls, cfg: Config, archive_data: FileName) -> ParserResults:
-        """
-        Parses provenance data for one Archive, applying the local
-        _validate_checksums() method to the v1 parser
-        """
-        return super().parse_prov(cfg, archive_data)
 
 
 FORMAT_REGISTRY = {

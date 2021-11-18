@@ -161,7 +161,7 @@ class ProvDAGTests(unittest.TestCase):
     def test_insufficient_permissions(self):
         fn = 'not_a_zip.txt'
         fp = os.path.join(DATA_DIR, fn)
-        # Hack this, because it's impossible to commit a file with 0 read perms
+        # HACK: git can't commit a file with 0 read perms, so...
         os.chmod(fp, 0o000)
         with self.assertRaisesRegex(
             UnparseableDataError,

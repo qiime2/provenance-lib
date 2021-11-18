@@ -185,7 +185,8 @@ class ProvDAG:
         """Returns a ProvNode from this ProvDAG selected by UUID"""
         return self.dag.nodes[uuid]['node_data']
 
-    def relabel_nodes(self, mapping: Mapping) -> None:
+    def relabel_nodes(self, mapping: Mapping, copy: bool = False) -> \
+            Optional[ProvDAG]:
         """
         Helper method for safe use of nx.relabel.relabel_nodes, this updates
         the labels of self.dag in place.
@@ -196,17 +197,25 @@ class ProvDAG:
         Users who need a copy of self.dag should use nx.relabel.relabel_nodes
         directly, and proceed at their own risk.
 
-        TODO: 4th NEXT implement copy=True
+        TODO: 4th NEXT test copy=True
         """
-        nx.relabel_nodes(self.dag, mapping, copy=False)
+        dag = self
+        if copy:
+            dag = ProvDAG(self)
+        nx.relabel_nodes(dag.dag, mapping, copy=False)
 
-        self._parsed_artifact_uuids = {mapping[uuid] for
-                                       uuid in self._parsed_artifact_uuids}
+        dag._parsed_artifact_uuids = {mapping[uuid] for
+                                      uuid in self._parsed_artifact_uuids}
 
         # Clear the _terminal_uuids cache so that property returns correctly
-        self._terminal_uuids = None
+        dag._terminal_uuids = None
 
-    def union(self, others: Iterable[ProvDAG]) -> None:
+        if copy:
+            return dag
+
+    # TODO: This can be a classmethod
+    # @classmethod
+    def union(self, others: Iterable[ProvDAG]) -> ProvDAG:
         """
         Creates a new ProvDAG by unioning the graphs in an arbitrary number
         of ProvDAGs.
@@ -220,6 +229,7 @@ class ProvDAG:
         a list of graphs and always returns a new graph. Maybe this
         shouldn't expose a mutator - ony return provdags
         """
+        # TODO: Don't forget that self should be cls
         dags = [self.dag]
         for other in others:
             dags.append(other.dag)

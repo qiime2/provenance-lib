@@ -147,6 +147,9 @@ class ProvDAGTests(unittest.TestCase):
             self.assertEqual(len(self.dags[dag_version]),
                              TEST_DATA[dag_version]['n_res'])
 
+    # TODO: NEXT these tests raise better errors than our getter does,
+    # and should be honored. Can we propagate these errors up or something?
+    # Or not use is_zipfile() at all, just open the thing and get better errors
     def test_nonexistent_fp(self):
         fake_fp = os.path.join(DATA_DIR, 'not_a_filepath.qza')
         with self.assertRaisesRegex(FileNotFoundError, 'not_a_filepath.qza'):

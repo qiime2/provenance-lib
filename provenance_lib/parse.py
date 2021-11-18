@@ -283,7 +283,7 @@ class ParserDispatcher:
     for version-safe archive parsing
     """
     _PARSER_TYPE_REGISTRY = [
-        zipfile_parser.ParserV0,
+        zipfile_parser.ArtifactParser,
         ProvDAGParser
     ]
 

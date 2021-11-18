@@ -345,7 +345,6 @@ class _ResultMetadata:
 class Parser(metaclass=abc.ABCMeta):
     accepted_data_types: str
 
-    # TODO: Can we require this be a classmethod?
     @classmethod
     @abc.abstractmethod
     def get_parser(cls, artifact_data: Any) -> Optional['Parser']:
@@ -360,13 +359,47 @@ class Parser(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def parse_prov(cls, cfg: Config, data: Any) -> ParserResults:
         """
-        Parse provenance
-        .... returning  a ParserResults?
+        Parse provenance returning a ParserResults
         """
         raise NotImplementedError
 
 
-class ParserV0(Parser):
+class ArtifactParser(Parser):
+    # TODO: Using strings here is kinda clumsy and limiting. Fix that.
+    accepted_data_types = "Pathlike reference to a Zip Archive"
+
+    @classmethod
+    def get_parser(cls, artifact_data: Any) -> Optional['Parser']:
+        """
+        Returns the correct archive format parser for a zip archive.
+
+        TODO: This can also decide whether it is dealing with a zip archive
+        or an Artifact in memory, and can get the appropriate interface the
+        Vx parsers should use when they interact with that artifact's data
+        representation. If we want, we could probably pass the interface
+        in when we return the instantiated parser object. This will slightly
+        complicate tests that currently assume a parser is always dealing
+        with a zip archive
+
+        TODO: As such, this module should be renamed artifact_parser.py
+        """
+        try:
+            is_zf = zipfile.is_zipfile(artifact_data)
+            if not is_zf:
+                return None
+            archive_version, _ = \
+                version_parser.parse_version_from_fp(artifact_data)
+            return FORMAT_REGISTRY[archive_version]()
+        except TypeError:
+            return None
+
+    def parse_prov(cls, cfg: Config, data: Any) -> ParserResults:
+        raise NotImplementedError(
+            "Use a subclass that usefully defines parse_prov for some format."
+        )
+
+
+class ParserV0(ArtifactParser):
     """
     Parser for V0 archives. These have no provenance, so we only parse metadata
 
@@ -377,8 +410,6 @@ class ParserV0(Parser):
     one go.
     """
     version_string = 0
-    # TODO: Using strings here is kinda clumsy and limiting. Fix that.
-    accepted_data_types = "Pathlike reference to a Zip Archive"
 
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames (like Metadata, which may or may
@@ -386,18 +417,6 @@ class ParserV0(Parser):
     expected_files_root_only = tuple()  # type: Tuple[str, ...]
     expected_files_in_all_nodes = (
         'metadata.yaml', 'VERSION')  # type: Tuple[str, ...]
-
-    @classmethod
-    def get_parser(cls, artifact_data: Any) -> Optional['Parser']:
-        try:
-            is_zf = zipfile.is_zipfile(artifact_data)
-            if not is_zf:
-                return None
-            archive_version, _ = \
-                version_parser.parse_version_from_fp(artifact_data)
-            return FORMAT_REGISTRY[archive_version]()
-        except TypeError:
-            return None
 
     def parse_prov(self, cfg: Config, archive_data: FileName) -> ParserResults:
         archv_contents = {}
@@ -687,8 +706,6 @@ class ParserV5(ParserV4):
 
 FORMAT_REGISTRY = {
     # NOTE: update for new format versions in qiime2.core.archive.Archiver
-    # TODO: NEXT Handle this circular dependency. Parent class knows about
-    # child classes which inherit from it. EWWW
     '0': ParserV0,
     '1': ParserV1,
     '2': ParserV2,

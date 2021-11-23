@@ -366,7 +366,10 @@ class Parser(metaclass=abc.ABCMeta):
 
 class ArtifactParser(Parser):
     # TODO: Using strings here is kinda clumsy and limiting. Fix that.
-    accepted_data_types = "Pathlike reference to a Zip Archive"
+    # description from (and more details available at)
+    # https://docs.python.org/3/library/zipfile.html#zipfile-objects
+    accepted_data_types = ("a path to a file (a string), "
+                           "a file-like object or a path-like object")
 
     @classmethod
     def get_parser(cls, artifact_data: Any) -> Optional['Parser']:

@@ -182,7 +182,7 @@ class ProvDAG:
         Users who need a copy of self.dag should use nx.relabel.relabel_nodes
         directly, and proceed at their own risk.
 
-        TODO: Allow copy=True by creating a new ProvDAG from the original
+        TODO: 4th NEXT implement copy=True
         """
         nx.relabel_nodes(self.dag, mapping, copy=False)
 
@@ -201,7 +201,8 @@ class ProvDAG:
         and clears the _terminal_uuids cache so we get complete results from
         that traversal.
 
-        TODO: These params don't line up nicely with compose_all, which takes
+        TODO: 5th NEXT rebuild this as a copy-only union, and update tests
+        These params don't line up nicely with compose_all, which takes
         a list of graphs and always returns a new graph. Maybe this
         shouldn't expose a mutator - ony return provdags
         """
@@ -258,9 +259,10 @@ class ProvDAGParser(Parser):
     Effectively a ProvDAG copy constructor, this "parses" a ProvDAG, loading
     its data into a new ProvDAG.
     """
-    # TODO: Using strings here is kinda clumsy and limiting. Fix that.
-    accepted_data_types = "ProvDAG"
+    # TODO: 2nd NEXT Using strings here is kinda clumsy and limiting. Fix that
+    accepted_data_types = ProvDAG
 
+    # TODO: 3rd NEXT Tests that we can create a ProvDAG from a ProvDAG
     @classmethod
     def get_parser(cls, artifact_data: Any) -> Optional['Parser']:
         if isinstance(artifact_data, ProvDAG):

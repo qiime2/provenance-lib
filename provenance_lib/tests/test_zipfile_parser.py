@@ -14,7 +14,8 @@ from .test_parse import TEST_DATA, DATA_DIR
 from ..parse import ParserDispatcher
 from ..util import UUID
 from ..zipfile_parser import (
-    ProvNode, Config, _Action, _Citations, _ResultMetadata, ParserResults
+    ProvNode, Config, _Action, _Citations, _ResultMetadata, ParserResults,
+    ArtifactParser,
 )
 
 from ..yaml_constructors import MetadataInfo
@@ -165,6 +166,42 @@ class ParserDispatcherTests(unittest.TestCase):
                          TEST_DATA['5']['prov_is_valid'])
         self.assertEqual(parser_results.checksum_diff,
                          TEST_DATA['5']['checksum'])
+
+
+class ArtifactParserTests(unittest.TestCase):
+    def test_get_parser(self):
+        for version in TEST_DATA:
+            fp = os.path.join(DATA_DIR, TEST_DATA[version]['qzv_fp'])
+            parser = ArtifactParser.get_parser(fp)
+            self.assertIsInstance(parser, TEST_DATA[version]['parser'])
+
+    def test_nonexistent_fp(self):
+        fn = 'not_a_filepath.qza'
+        fp = os.path.join(DATA_DIR, fn)
+        with self.assertRaisesRegex(
+                FileNotFoundError, f'ArtifactParser.*{fp}'):
+            ArtifactParser.get_parser(fp)
+
+    def test_get_parser_insufficient_permissions(self):
+        fn = 'not_a_zip.txt'
+        fp = os.path.join(DATA_DIR, fn)
+        # Hack this, because it's impossible to commit a file with 0 read perms
+        os.chmod(fp, 0o000)
+        with self.assertRaisesRegex(
+                PermissionError, f"ArtifactParser.*denied.*{fn}"):
+            ArtifactParser.get_parser(fp)
+        os.chmod(fp, 0o644)
+
+    def test_get_parser_not_a_zip_archive(self):
+        fn = 'not_a_zip.txt'
+        fp = os.path.join(DATA_DIR, fn)
+        with self.assertRaisesRegex(
+                zipfile.BadZipFile, "ArtifactParser.*File is not a zip file"):
+            ArtifactParser.get_parser(fp)
+
+    def test_artifact_parser_parse_prov(self):
+        with self.assertRaisesRegex(NotImplementedError, "Use a subclass"):
+            ArtifactParser().parse_prov(Config(), 'doesnotmatter.txt')
 
 
 class ResultMetadataTests(unittest.TestCase):

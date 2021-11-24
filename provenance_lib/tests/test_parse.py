@@ -148,15 +148,30 @@ class ProvDAGTests(unittest.TestCase):
                              TEST_DATA[dag_version]['n_res'])
 
     def test_nonexistent_fp(self):
-        fake_fp = os.path.join(DATA_DIR, 'not_a_filepath.qza')
-        with self.assertRaisesRegex(FileNotFoundError, 'not_a_filepath.qza'):
-            ProvDAG(fake_fp)
+        fn = 'not_a_filepath.qza'
+        fp = os.path.join(DATA_DIR, fn)
+        with self.assertRaisesRegex(
+            UnparseableDataError,
+                f'FileNotFoundError.*ArtifactParser.*{fn}'):
+            ProvDAG(fp)
+
+    def test_insufficient_permissions(self):
+        fn = 'not_a_zip.txt'
+        fp = os.path.join(DATA_DIR, fn)
+        # Hack this, because it's impossible to commit a file with 0 read perms
+        os.chmod(fp, 0o000)
+        with self.assertRaisesRegex(
+            UnparseableDataError,
+                f"PermissionError.*ArtifactParser.*denied.*{fn}"):
+            ProvDAG(fp)
+        os.chmod(fp, 0o644)
 
     def test_not_a_zip_archive(self):
-        not_a_zip = os.path.join(DATA_DIR, 'not_a_zip.txt')
-        with self.assertRaisesRegex(zipfile.BadZipFile,
-                                    'File is not a zip file'):
-            ProvDAG(not_a_zip)
+        fp = os.path.join(DATA_DIR, 'not_a_zip.txt')
+        with self.assertRaisesRegex(
+            UnparseableDataError,
+                "zipfile.BadZipFile.*ArtifactParser.*File is not a zip file"):
+            ProvDAG(fp)
 
     def test_has_digraph(self):
         for dag_version in self.dags:

@@ -354,14 +354,12 @@ class Parser(metaclass=abc.ABCMeta):
 
         Returns None if this Parser cannot handle the data.
         """
-        raise NotImplementedError
 
     @abc.abstractmethod
     def parse_prov(cls, cfg: Config, data: Any) -> ParserResults:
         """
         Parse provenance returning a ParserResults
         """
-        raise NotImplementedError
 
 
 class ArtifactParser(Parser):
@@ -387,14 +385,16 @@ class ArtifactParser(Parser):
         TODO: As such, this module should be renamed artifact_parser.py
         """
         try:
-            is_zf = zipfile.is_zipfile(artifact_data)
-            if not is_zf:
-                return None
-            archive_version, _ = \
-                version_parser.parse_version_from_fp(artifact_data)
+            # By attempting to open artifact_data directly, we get more
+            # informative errors than with zipfile.is_zipfile()
+            with zipfile.ZipFile(artifact_data, 'r') as zf:
+                archive_version, _ = \
+                    version_parser.parse_version(zf)
             return FORMAT_REGISTRY[archive_version]()
-        except TypeError:
-            return None
+        except Exception as e:
+            # Re-raise after appending the name of this parser to the error
+            # message, so we can figure out which parser it's coming from
+            raise type(e)(f" in ArtifactParser: {str(e)}")
 
     def parse_prov(cls, cfg: Config, data: Any) -> ParserResults:
         raise NotImplementedError(

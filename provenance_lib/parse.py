@@ -259,8 +259,8 @@ class ProvDAGParser(Parser):
     Effectively a ProvDAG copy constructor, this "parses" a ProvDAG, loading
     its data into a new ProvDAG.
     """
-    # TODO: 2nd NEXT Using strings here is kinda clumsy and limiting. Fix that
-    accepted_data_types = ProvDAG
+    # Using strings here is kinda clumsy. Maybe fix that someday?
+    accepted_data_types = 'ProvDAG'
 
     # TODO: 3rd NEXT Tests that we can create a ProvDAG from a ProvDAG
     @classmethod
@@ -296,16 +296,50 @@ class ParserDispatcher:
         self.cfg = cfg
         self.payload = artifact_data
         optional_parser = None
+        errors = []
         for parser in self._PARSER_TYPE_REGISTRY:
-            optional_parser = parser().get_parser(artifact_data)
-            if optional_parser is not None:
-                self.parser = optional_parser  # type: Parser
-                break
+            try:
+                optional_parser = parser().get_parser(artifact_data)
+                if optional_parser is not None:
+                    self.parser = optional_parser  # type: Parser
+                    break
+            except Exception as e:
+                errors.append(e)
+        # If we finish the loop without a parser that can_handle, raise errors
         else:
-            raise TypeError(
-                f"Input data type {type(artifact_data)} not in "
-                f"{self.accepted_data_types}")
+            # Errors are only raised if no working parser is found,
+            # so we can always raise unparseable_err if we raise errors.
+            unparseable_err_msg = (
+                        f"Input data {artifact_data} is not supported.\n"
+                        "Parsers are available for the following data types: "
+                        f"{self.accepted_data_types}")
+            raise UnparseableDataError(unparseable_err_msg, errors)
 
     # TODO: Can we use mypy generics to make this Any more specific?
     def parse(self, artifact_data: Any) -> ParserResults:
         return self.parser.parse_prov(self.cfg, artifact_data)
+
+
+class UnparseableDataError(Exception):
+    """
+    A specialized exception designed to deal more neatly with the fact that we
+    may aggregate many different errors while attempting to identify a parser
+    than can_handle our data.
+    """
+
+    def __init__(self, msg, aggregated_exceptions=None):
+        self.message = msg
+        self.exceptions = aggregated_exceptions
+
+    def __repr__(self):
+        msg = self.message + "\n"
+
+        if self.exceptions is not None:
+            msg += ("\nThe following errors were caught while trying to "
+                    "identify a parser that can_handle this input data:")
+        for e in self.exceptions:
+            msg += ("\n- " + str(type(e))[7:-2] + str(e))
+
+        return (msg)
+
+    __str__ = __repr__

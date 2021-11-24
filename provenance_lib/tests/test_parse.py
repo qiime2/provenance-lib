@@ -10,7 +10,7 @@ from networkx import DiGraph
 from networkx.classes.reportviews import NodeView  # type: ignore
 
 from ..checksum_validator import ChecksumDiff, ValidationCode
-from ..parse import ProvDAG
+from ..parse import ProvDAG, UnparseableDataError
 from ..zipfile_parser import (
     ParserV0, ParserV1, ParserV2, ParserV3, ParserV4, ParserV5,
     Config, ProvNode,

@@ -347,12 +347,13 @@ class Parser(metaclass=abc.ABCMeta):
 
     @classmethod
     @abc.abstractmethod
-    def get_parser(cls, artifact_data: Any) -> Optional['Parser']:
+    def get_parser(cls, artifact_data: Any) -> 'Parser':
         """
         Return the appropriate Parser if this Parser type can handle the data
         passed in.
 
-        Returns None if this Parser cannot handle the data.
+        Should raise an appropriate exception if this Parser cannot handle the
+        data.
         """
 
     @abc.abstractmethod
@@ -370,7 +371,7 @@ class ArtifactParser(Parser):
                            "a file-like object or a path-like object")
 
     @classmethod
-    def get_parser(cls, artifact_data: Any) -> Optional['Parser']:
+    def get_parser(cls, artifact_data: Any) -> Parser:
         """
         Returns the correct archive format parser for a zip archive.
 

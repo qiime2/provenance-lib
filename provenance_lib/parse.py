@@ -264,11 +264,12 @@ class ProvDAGParser(Parser):
 
     # TODO: 3rd NEXT Tests that we can create a ProvDAG from a ProvDAG
     @classmethod
-    def get_parser(cls, artifact_data: Any) -> Optional['Parser']:
+    def get_parser(cls, artifact_data: Any) -> Parser:
         if isinstance(artifact_data, ProvDAG):
             return ProvDAGParser()
         else:
-            return None
+            raise TypeError(
+                f" in ProvDAGParser: {artifact_data} is not a ProvDAG")
 
     def parse_prov(self, cfg: Config, pdag: ProvDAG) -> ParserResults:
         return ParserResults(

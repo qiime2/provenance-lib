@@ -316,6 +316,9 @@ class ParserDispatcher:
                         f"{self.accepted_data_types}")
             raise UnparseableDataError(unparseable_err_msg, errors)
 
+    # TODO: Test that this appropriately handles different errors from one or
+    # multiple Parser
+
     # TODO: Can we use mypy generics to make this Any more specific?
     def parse(self, artifact_data: Any) -> ParserResults:
         return self.parser.parse_prov(self.cfg, artifact_data)
@@ -323,9 +326,9 @@ class ParserDispatcher:
 
 class UnparseableDataError(Exception):
     """
-    A specialized exception designed to deal more neatly with the fact that we
-    may aggregate many different errors while attempting to identify a parser
-    than can_handle our data.
+    A specialized exception aggregator designed to deal more neatly with the
+    fact that we may raise many different errors while attempting to identify
+    a parser than can_handle our data.
     """
 
     def __init__(self, msg, aggregated_exceptions=None):

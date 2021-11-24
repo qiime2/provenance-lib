@@ -10,10 +10,10 @@ from networkx import DiGraph
 from networkx.classes.reportviews import NodeView  # type: ignore
 
 from ..checksum_validator import ChecksumDiff, ValidationCode
-from ..parse import ProvDAG, UnparseableDataError
+from ..parse import ProvDAG, UnparseableDataError, ProvDAGParser
 from ..zipfile_parser import (
     ParserV0, ParserV1, ParserV2, ParserV3, ParserV4, ParserV5,
-    Config, ProvNode,
+    Config, ProvNode, ParserResults,
 )
 
 from .testing_utilities import (
@@ -110,7 +110,7 @@ class ProvDAGTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.dags = dict()
-        for archive_version in list(TEST_DATA):
+        for archive_version in TEST_DATA:
             # supress warning from parsing provenance for a v0 provDag
             uuid = TEST_DATA['0']['uuid']
             with warnings.catch_warnings():
@@ -852,7 +852,7 @@ class ProvDAGTestsNoChecksumValidation(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.no_checksum_dags = dict()
-        for archive_version in list(TEST_DATA):
+        for archive_version in TEST_DATA:
             # supress warning from parsing provenance for a v0 provDag
             uuid = TEST_DATA['0']['uuid']
             with warnings.catch_warnings():
@@ -926,3 +926,42 @@ class ProvDAGTestsNoChecksumValidation(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, expected):
                         ProvDAG(chopped_archive,
                                 cfg=Config(perform_checksum_validation=False))
+
+
+class ProvDAGParserTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # TODO: If we make a module-global set of dags, we can replace this
+        # with test_get_parser
+        cls.dags = dict()
+        for archive_version in TEST_DATA:
+            # supress warning from parsing provenance for a v0 provDag
+            uuid = TEST_DATA['0']['uuid']
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore',  f'Art.*{uuid}.*prior')
+                cls.dags[archive_version] = ProvDAG(
+                    str(TEST_DATA[archive_version]['qzv_fp']))
+
+    def test_get_parser(self):
+        for version in TEST_DATA:
+            parser = ProvDAGParser.get_parser(self.dags[version])
+            self.assertIsInstance(parser, ProvDAGParser)
+
+    def test_get_parser_input_data_not_a_provdag(self):
+        fn = 'not_a_zip.txt'
+        fp = os.path.join(DATA_DIR, fn)
+        with self.assertRaisesRegex(
+                TypeError, f"ProvDAGParser.*{fn} is not a ProvDAG"):
+            ProvDAGParser.get_parser(fp)
+
+    def test_parse_a_provdag(self):
+        parser = ProvDAGParser()
+        for dag in self.dags.values():
+            parsed = parser.parse_prov(Config(), dag)
+            self.assertIsInstance(parsed, ParserResults)
+            self.assertEqual(parsed.parsed_artifact_uuids,
+                             dag._parsed_artifact_uuids)
+            self.assertEqual(parsed.prov_digraph, dag.dag)
+            self.assertEqual(parsed.provenance_is_valid,
+                             dag.provenance_is_valid)
+            self.assertEqual(parsed.checksum_diff, dag.checksum_diff)

@@ -175,7 +175,7 @@ class ArtifactParserTests(unittest.TestCase):
             parser = ArtifactParser.get_parser(fp)
             self.assertIsInstance(parser, TEST_DATA[version]['parser'])
 
-    def test_nonexistent_fp(self):
+    def test_get_parser_nonexistent_fp(self):
         fn = 'not_a_filepath.qza'
         fp = os.path.join(DATA_DIR, fn)
         with self.assertRaisesRegex(

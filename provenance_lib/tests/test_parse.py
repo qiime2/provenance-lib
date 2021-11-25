@@ -527,6 +527,12 @@ class ProvDAGTests(unittest.TestCase):
         self.assertEqual(dag.get_node_data(a_as_md_uuid).type,
                          'FeatureData[Taxonomy]')
 
+    def test_provdag_initialized_from_a_provdag(self):
+        for dag in self.dags.values():
+            copied = ProvDAG(dag)
+            self.assertEqual(dag, copied)
+            self.assertIsNot(dag, copied)
+
 
 class ProvDAGUnionTests(unittest.TestCase):
     @classmethod

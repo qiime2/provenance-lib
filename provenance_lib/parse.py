@@ -93,11 +93,13 @@ class ProvDAG:
         dispatcher = ParserDispatcher(cfg, artifact_data)
         parser_results = dispatcher.parse(artifact_data)
 
-        self._terminal_uuids = None  # type: Optional[Set[UUID]]
         self._parsed_artifact_uuids = parser_results.parsed_artifact_uuids
         self.dag = parser_results.prov_digraph
         self._provenance_is_valid = parser_results.provenance_is_valid
         self._checksum_diff = parser_results.checksum_diff
+
+        # clear cache whenever we create a new ProvDAG
+        self._terminal_uuids = None  # type: Optional[Set[UUID]]
 
     def __repr__(self) -> str:
         return ('ProvDAG representing these Artifacts '
@@ -107,6 +109,17 @@ class ProvDAG:
 
     def __len__(self) -> int:
         return len(self.dag)
+
+    # TODO: Is this a reasonable way to define dag equality?
+    # We could also consider edges, but I think that may be overkill given the
+    # use of UUIDs.
+    def __eq__(self, other) -> bool:
+        if (self.__class__ != other.__class__ or
+            len(self.nodes) != len(other.nodes) or
+                set(self.nodes) != set(other.nodes)):
+            return False
+        else:
+            return True
 
     @property
     def terminal_uuids(self) -> Set[UUID]:
@@ -262,7 +275,6 @@ class ProvDAGParser(Parser):
     # Using strings here is kinda clumsy. Maybe fix that someday?
     accepted_data_types = 'ProvDAG'
 
-    # TODO: 3rd NEXT Tests that we can create a ProvDAG from a ProvDAG
     @classmethod
     def get_parser(cls, artifact_data: Any) -> Parser:
         if isinstance(artifact_data, ProvDAG):

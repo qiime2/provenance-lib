@@ -970,7 +970,10 @@ class ProvDAGParserTests(unittest.TestCase):
             self.assertIsInstance(parsed, ParserResults)
             self.assertEqual(parsed.parsed_artifact_uuids,
                              dag._parsed_artifact_uuids)
-            self.assertEqual(parsed.prov_digraph, dag.dag)
+            # NOTE: networkx thinks about graph equality in terms of object
+            # identity. Because this parser creates a deep copy of pdag,
+            # we must use nx.is_isomorphic to confirm "equality"
+            self.assertTrue(nx.is_isomorphic(parsed.prov_digraph, dag.dag))
             self.assertEqual(parsed.provenance_is_valid,
                              dag.provenance_is_valid)
             self.assertEqual(parsed.checksum_diff, dag.checksum_diff)

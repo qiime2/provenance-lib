@@ -1,4 +1,5 @@
 from __future__ import annotations
+import copy
 from typing import Any, Iterable, Mapping, Optional, Set
 
 import networkx as nx
@@ -285,10 +286,10 @@ class ProvDAGParser(Parser):
 
     def parse_prov(self, cfg: Config, pdag: ProvDAG) -> ParserResults:
         return ParserResults(
-            pdag._parsed_artifact_uuids,
-            pdag.dag,
-            pdag.provenance_is_valid,
-            pdag.checksum_diff,
+            copy.deepcopy(pdag._parsed_artifact_uuids),
+            copy.deepcopy(pdag.dag),
+            copy.deepcopy(pdag.provenance_is_valid),
+            copy.deepcopy(pdag.checksum_diff),
         )
 
 

@@ -239,6 +239,29 @@ class ProvDAGTests(unittest.TestCase):
             self.assertRegex(repr(self.dags[dag_vzn]),
                              (f'ProvDAG.*Artifacts.*{uuid}'))
 
+    def test_eq_identity(self):
+        self.assertEqual(self.dags['5'], self.dags['5'])
+
+    def test_eq_same_origin_data_but_not_identity(self):
+        dag_5_rebuilt = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
+        self.assertEqual(self.dags['5'], dag_5_rebuilt)
+
+    def test_not_eq(self):
+        dag_5_copied = ProvDAG(self.dags['5'])
+        self.assertIsNot(dag_5_copied, self.dags['5'])
+
+        # Test same nodes, different types are not equal
+        self.assertNotEqual(dag_5_copied, dag_5_copied.dag)
+
+        # Test with different lengths
+        dag_5_copied.dag.remove_node(TEST_DATA['5']['uuid'])
+        self.assertNotEqual(self.dags['5'], dag_5_copied)
+
+        # Test with same lengths but mismatched nodes
+        dag_5_copied.dag.add_node(
+            'this_node_is_not_in_the_original_but_satisfies_len_requirement')
+        self.assertNotEqual(self.dags['5'], dag_5_copied)
+
     def test_v5_captures_full_history(self):
         nodes = self.dags['5'].nodes
         self.assertEqual(len(nodes), 15)
@@ -992,7 +1015,7 @@ class ParserDispatcherTests(unittest.TestCase):
         self.assertTrue(True)
 
     # TODO NEXT These tests
-    # TODO: Rename to format version?
+    # TODO: Rename to test_correct_format_version?
     def test_correct_parser(self):
         for arch_ver in TEST_DATA:
             qzv_fp = TEST_DATA[arch_ver]['qzv_fp']

@@ -322,8 +322,8 @@ class ProvDAGTests(unittest.TestCase):
         self.assertEqual(actual, exp)
 
     def test_v5_relabel_nodes(self):
-        # This function modifies labels in place, so create a local ProvDAG
-        # to protect our test data
+        # This function modifies labels in place by default,
+        # so create a local ProvDAG to protect our test data
         dag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
         # Test new node names
         exp_nodes = ['ffb7cee3',
@@ -346,14 +346,44 @@ class ProvDAGTests(unittest.TestCase):
         dag.relabel_nodes(new_labels)
         for node in exp_nodes:
             self.assertIn(node, dag.nodes)
+        self.assertEqual(dag._terminal_uuids, None)
 
         # Confirm terminal_uuids state is consistent with the relabeled node
         # names
-        print(dag._parsed_artifact_uuids)
-        print(dag.terminal_uuids)
         self.assertEqual(len(dag.terminal_uuids), 1)
         # This is deterministic because there is one uuid in the set:
         terminal_uuid, *_ = dag.terminal_uuids
+        self.assertEqual(terminal_uuid, exp_nodes[0])
+
+    def test_v5_relabel_nodes_with_copy(self):
+        exp_nodes = ['ffb7cee3',
+                     '0af08fa8',
+                     '3b7d36ff',
+                     '7ecf8954',
+                     '9cc3281a',
+                     '025e723d',
+                     '83a80bfd',
+                     '89af91c0',
+                     '99fa3670',
+                     '430a6575',
+                     'a35830e1',
+                     'aea3994b',
+                     'bce3d09b',
+                     'd32a5ea6',
+                     'f20cecd6',
+                     ]
+        new_labels = {node: node[:8] for node in self.dags['5'].nodes}
+        new_dag = self.dags['5'].relabel_nodes(new_labels, copy=True)
+        for node in exp_nodes:
+            self.assertIn(node, new_dag.nodes)
+        self.assertEqual(set(exp_nodes), set(new_dag.nodes))
+        self.assertEqual(new_dag._terminal_uuids, None)
+
+        # Confirm terminal_uuids state is consistent with the relabeled node
+        # names
+        self.assertEqual(len(new_dag.terminal_uuids), 1)
+        # This is deterministic because there is one uuid in the set:
+        terminal_uuid, *_ = new_dag.terminal_uuids
         self.assertEqual(terminal_uuid, exp_nodes[0])
 
     def test_v5_collapsed_view(self):

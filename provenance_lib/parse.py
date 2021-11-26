@@ -207,11 +207,14 @@ class ProvDAG:
         dag._parsed_artifact_uuids = {mapping[uuid] for
                                       uuid in self._parsed_artifact_uuids}
 
-        # Clear the _terminal_uuids cache so that property returns correctly
+        # Clear the _terminal_uuids cache of the dag whose nodes we're changing
+        # so that property returns correctly
         dag._terminal_uuids = None
 
         if copy:
             return dag
+        else:
+            return None
 
     # TODO: This can be a classmethod
     # @classmethod

@@ -6,8 +6,9 @@ import networkx as nx
 from networkx.classes.reportviews import NodeView  # type: ignore
 
 from . import checksum_validator
-from . import zipfile_parser
-from .zipfile_parser import Config, ParserResults, ProvNode, Parser
+from .archive_parser import (
+    Config, ParserResults, ProvNode, Parser, ArtifactParser,
+)
 from .util import UUID
 
 
@@ -353,7 +354,7 @@ class ParserDispatcher:
     for version-safe archive parsing
     """
     _PARSER_TYPE_REGISTRY = [
-        zipfile_parser.ArtifactParser,
+        ArtifactParser,
         ProvDAGParser,
         EmptyParser,
     ]

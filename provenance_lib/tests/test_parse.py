@@ -15,7 +15,7 @@ from ..parse import (
     EmptyParser,
 )
 from ..util import UUID
-from ..zipfile_parser import (
+from ..archive_parser import (
     ParserV0, ParserV1, ParserV2, ParserV3, ParserV4, ParserV5,
     Config, ProvNode, ParserResults,
 )

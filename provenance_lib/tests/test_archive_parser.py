@@ -12,7 +12,7 @@ from .. import checksum_validator
 from .testing_utilities import is_root_provnode_data
 from .test_parse import TEST_DATA, DATA_DIR
 from ..util import UUID
-from ..zipfile_parser import (
+from ..archive_parser import (
     ProvNode, Config, _Action, _Citations, _ResultMetadata, ParserResults,
     ArtifactParser,
 )

@@ -111,13 +111,16 @@ class ProvDAG:
     def __len__(self) -> int:
         return len(self.dag)
 
-    # TODO: Is this a reasonable way to define dag equality?
-    # We could also consider edges, but I think that may be overkill given the
-    # use of UUIDs.
+    # TODO: Is this a reasonable way to define ProvDAG equality?
+    # It doesn't take into account the equality of some ProvDAG attributes, but
+    # leans on DiGraph isomorphism. Are two isomorphic ProvDAGs unequal if one
+    # was created without checksum validation? Or if one has a checksum diff
+    # because it's been tinkered with? If in the future we have a method that
+    # produces non-identical results from two identical DiGraphs based on
+    # _parsed_artifact_uuids, are those ProvDAGs still equal?
     def __eq__(self, other) -> bool:
         if (self.__class__ != other.__class__ or
-            len(self.nodes) != len(other.nodes) or
-                set(self.nodes) != set(other.nodes)):
+                not nx.is_isomorphic(self.dag, other.dag)):
             return False
         else:
             return True
@@ -132,9 +135,7 @@ class ProvDAG:
         We memoize the set of terminal UUIDs to prevent unnecessary traversals,
         so must set self._terminal_uuid back to None in any method that
         modifies the structure of self.dag, or the nodes themselves (which are
-        literal UUIDs).
-
-        These methods include at least union and relabel_nodes.
+        literal UUIDs). These methods include at least union and relabel_nodes.
         """
         if self._terminal_uuids is not None:
             return self._terminal_uuids
@@ -161,6 +162,7 @@ class ProvDAG:
         return self.dag.nodes
 
     @property
+    # TODO: This actually returns a graphview, which is a read-only DiGraph
     def collapsed_view(self) -> nx.DiGraph:
         outer_nodes = set()
         for terminal_uuid in self._parsed_artifact_uuids:
@@ -196,8 +198,6 @@ class ProvDAG:
 
         Users who need a copy of self.dag should use nx.relabel.relabel_nodes
         directly, and proceed at their own risk.
-
-        TODO: 4th NEXT test copy=True
         """
         dag = self
         if copy:
@@ -216,50 +216,49 @@ class ProvDAG:
         else:
             return None
 
-    # TODO: This can be a classmethod
-    # @classmethod
-    def union(self, others: Iterable[ProvDAG]) -> ProvDAG:
+    @classmethod
+    def union(cls, dags: Iterable[ProvDAG]) -> ProvDAG:
         """
-        Creates a new ProvDAG by unioning the graphs in an arbitrary number
-        of ProvDAGs.
+        Class method that creates a new ProvDAG by unioning the graphs in an
+        arbitrary number of ProvDAGs.
 
-        Also updates the DAG's _parsed_artifact_uuids to include others' uuids,
-        and clears the _terminal_uuids cache so we get complete results from
-        that traversal.
-
-        TODO: 5th NEXT rebuild this as a copy-only union, and update tests
-        These params don't line up nicely with compose_all, which takes
-        a list of graphs and always returns a new graph. Maybe this
-        shouldn't expose a mutator - ony return provdags
+        The returned DAG's _parsed_artifact_uuids will include uuids from all
+        dags, and other DAG attributes are reduced conservatively.
         """
-        # TODO: Don't forget that self should be cls
-        dags = [self.dag]
-        for other in others:
-            dags.append(other.dag)
-            self._parsed_artifact_uuids |= other._parsed_artifact_uuids
-            self._provenance_is_valid = min(self.provenance_is_valid,
-                                            other.provenance_is_valid)
-            # Here we retain as much data as possible, preferencing
-            # ChecksumDiffs over None. This might mean we keep a clean/empty
+        if len(dags) < 2:
+            raise ValueError("Please pass at least two ProvDAGs")
+
+        new_dag = ProvDAG()
+        new_dag.dag = nx.compose_all((dag.dag for dag in dags))
+
+        # Capture starter values we can accrete/compare to
+        new_dag._parsed_artifact_uuids = dags[0]._parsed_artifact_uuids
+        new_dag._provenance_is_valid = dags[0]._provenance_is_valid
+        new_dag._checksum_diff = dags[0].checksum_diff
+
+        for dag in dags[1:]:
+            new_dag._parsed_artifact_uuids |= dag._parsed_artifact_uuids
+            new_dag._provenance_is_valid = min(new_dag.provenance_is_valid,
+                                               dag.provenance_is_valid)
+            # Here we retain as much data as possible, preferencing any
+            # ChecksumDiff over None. This might mean we keep a clean/empty
             # ChecksumDiff and drop None, used to indicate a missing
             # checksums.md5 file in a v5+ archive. _provenance_is_valid will
             # still be INVALID in this case.
-            if other.checksum_diff is None:
-                # Keep self.checksum_diff as it is
+            if dag.checksum_diff is None:
                 continue
 
-            if self.checksum_diff is None:
-                self._checksum_diff = other.checksum_diff
+            if new_dag.checksum_diff is None:
+                new_dag._checksum_diff = dag.checksum_diff
             else:
                 # Neither ChecksumDiff is None
-                self.checksum_diff.added.update(other.checksum_diff.added)
-                self.checksum_diff.removed.update(other.checksum_diff.removed)
-                self.checksum_diff.changed.update(other.checksum_diff.changed)
-
-        self.dag = nx.compose_all(dags)
+                new_dag.checksum_diff.added.update(dag.checksum_diff.added)
+                new_dag.checksum_diff.removed.update(dag.checksum_diff.removed)
+                new_dag.checksum_diff.changed.update(dag.checksum_diff.changed)
 
         # Clear the _terminal_uuids cache so that property returns correctly
-        self._terminal_uuids = None
+        new_dag._terminal_uuids = None
+        return new_dag
 
     def get_outer_provenance_nodes(self, _node_id: UUID = None) -> Set[UUID]:
         """
@@ -284,6 +283,8 @@ class ProvDAG:
 class EmptyParser(Parser):
     """
     Creates empty ProvDAGs.
+
+    Disregards Config, because it's not meaningful in this context.
 
     TODO: Empty ProvDAGs aren't very useful. Maybe we should refac this as a
     ParserResults parser. This would mean tools like Union that are
@@ -323,6 +324,8 @@ class ProvDAGParser(Parser):
     """
     Effectively a ProvDAG copy constructor, this "parses" a ProvDAG, loading
     its data into a new ProvDAG.
+
+    Disregards Config, because it's not meaningful in this context.
     """
     # Using strings here is kinda clumsy. Maybe fix that someday?
     accepted_data_types = 'ProvDAG'

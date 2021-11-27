@@ -597,61 +597,34 @@ class ProvDAGUnionTests(unittest.TestCase):
         """
         pass
 
-    def test_inplace_union_one(self):
+    def test_union_zero_or_one_dags(self):
         """
-        Tests union of dag with zero other dags.
+        Tests union of zero or one ProvDAGs.
+        """
+        dag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
+
+        with self.assertRaisesRegex(ValueError, "pass.*two ProvDAGs"):
+            ProvDAG.union([])
+
+        with self.assertRaisesRegex(ValueError, "pass.*two ProvDAGs"):
+            ProvDAG.union([dag])
+
+    def test_union_identity(self):
+        """
+        Tests union of a ProvDAG with itself.
         """
         dag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
         v5_uuid = TEST_DATA['5']['uuid']
-        og_dag = copy.copy(dag.dag)
 
-        # In-place union
-        dag.union([])
-        unioned_dag = dag
+        unioned_dag = ProvDAG.union([dag, dag])
 
-        self.assertIn(v5_uuid, unioned_dag._parsed_artifact_uuids)
-        self.assertEqual(len(unioned_dag._parsed_artifact_uuids), 1)
-
-        self.assertEqual(dag.provenance_is_valid, ValidationCode.VALID)
-
-        self.assertRegex(repr(unioned_dag),
-                         f'ProvDAG representing these Artifacts.*{v5_uuid}')
-
-        # There should be one fully-connected tree
-        self.assertEqual(
-            nx.number_weakly_connected_components(unioned_dag.dag), 1)
-
-        # G == H tests identity of objects in memory, so we need is_isomorphic
-        self.assertTrue(nx.is_isomorphic(og_dag, unioned_dag.dag))
-
-    def test_inplace_union_identity(self):
-        """
-        Tests union of dag with itself.
-        """
-        dag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
-        og_dag = copy.copy(dag.dag)
-        v5_uuid = TEST_DATA['5']['uuid']
-
-        # In-place union
-        dag.union([dag])
-        unioned_dag = dag
-
-        self.assertIn(v5_uuid, unioned_dag._parsed_artifact_uuids)
-        self.assertEqual(len(unioned_dag._parsed_artifact_uuids), 1)
-
+        self.assertEqual(dag, unioned_dag)
+        self.assertSetEqual({v5_uuid}, unioned_dag._parsed_artifact_uuids)
         self.assertEqual(unioned_dag.provenance_is_valid, ValidationCode.VALID)
-
         self.assertRegex(repr(unioned_dag),
                          f'ProvDAG representing these Artifacts.*{v5_uuid}')
 
-        # There should be one fully-connected tree
-        self.assertEqual(
-            nx.number_weakly_connected_components(unioned_dag.dag), 1)
-
-        # G == H tests identity of objects in memory, so we need is_isomorphic
-        self.assertTrue(nx.is_isomorphic(og_dag, unioned_dag.dag))
-
-    def test_inplace_union_two(self):
+    def test_union_two(self):
         """
         Tests union of dag with another dag.
         Also checks that provenance_is_valid retains the lesser of the
@@ -662,17 +635,12 @@ class ProvDAGUnionTests(unittest.TestCase):
         v4_uuid = TEST_DATA['4']['uuid']
         v5_uuid = TEST_DATA['5']['uuid']
 
-        # In-place union
-        v5_dag.union([v4_dag])
-        unioned_dag = v5_dag
+        unioned_dag = ProvDAG.union([v4_dag, v5_dag])
 
-        self.assertIn(v4_uuid, unioned_dag._parsed_artifact_uuids)
-        self.assertIn(v5_uuid, unioned_dag._parsed_artifact_uuids)
-        self.assertEqual(len(unioned_dag._parsed_artifact_uuids), 2)
-
+        self.assertSetEqual({v4_uuid, v5_uuid},
+                            unioned_dag._parsed_artifact_uuids)
         self.assertEqual(unioned_dag.provenance_is_valid,
                          ValidationCode.PREDATES_CHECKSUMS)
-
         rep = repr(unioned_dag)
         self.assertRegex(rep, 'ProvDAG representing these Artifacts {')
         self.assertRegex(rep, f'{v4_uuid}')
@@ -682,11 +650,12 @@ class ProvDAGUnionTests(unittest.TestCase):
         self.assertEqual(
             nx.number_weakly_connected_components(unioned_dag.dag), 2)
 
-    def test_inplace_union_many(self):
+    def test_union_many(self):
         """
         Tests union of dag with multiple other dags.
         Also checks that we have the correct number of disconnected trees
-        (these three dags come from unrelated analyses, so should be disjoint)
+        (these three dags come from unrelated analyses, so should be
+     disjoint)
         """
         v3_dag = ProvDAG(str(TEST_DATA['3']['qzv_fp']))
         v4_dag = ProvDAG(str(TEST_DATA['4']['qzv_fp']))
@@ -695,18 +664,12 @@ class ProvDAGUnionTests(unittest.TestCase):
         v4_uuid = TEST_DATA['4']['uuid']
         v5_uuid = TEST_DATA['5']['uuid']
 
-        # In-place union
-        v5_dag.union([v4_dag, v3_dag])
-        unioned_dag = v5_dag
+        unioned_dag = ProvDAG.union([v5_dag, v4_dag, v3_dag])
 
-        self.assertIn(v3_uuid, unioned_dag._parsed_artifact_uuids)
-        self.assertIn(v4_uuid, unioned_dag._parsed_artifact_uuids)
-        self.assertIn(v5_uuid, unioned_dag._parsed_artifact_uuids)
-        self.assertEqual(len(unioned_dag._parsed_artifact_uuids), 3)
-
+        self.assertSetEqual({v3_uuid, v4_uuid, v5_uuid},
+                            unioned_dag._parsed_artifact_uuids)
         self.assertEqual(unioned_dag.provenance_is_valid,
                          ValidationCode.PREDATES_CHECKSUMS)
-
         rep = repr(unioned_dag)
         self.assertRegex(rep, 'ProvDAG representing these Artifacts {')
         self.assertRegex(rep, f'{v3_uuid}')
@@ -736,8 +699,7 @@ class ProvDAGUnionTests(unittest.TestCase):
         v5_uuid = TEST_DATA['5']['uuid']
 
         # In-place union
-        bad_dag.union([good_dag])
-        unioned_dag = bad_dag
+        unioned_dag = ProvDAG.union([bad_dag, good_dag])
 
         self.assertRegex(repr(unioned_dag),
                          f'ProvDAG representing these Artifacts.*{v5_uuid}')
@@ -770,9 +732,7 @@ class ProvDAGUnionTests(unittest.TestCase):
         good_dag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
         v5_uuid = TEST_DATA['5']['uuid']
 
-        # In-place union
-        good_dag.union([bad_dag])
-        unioned_dag = good_dag
+        unioned_dag = ProvDAG.union([good_dag, bad_dag])
 
         self.assertRegex(repr(unioned_dag),
                          f'ProvDAG representing these Artifacts.*{v5_uuid}')
@@ -804,9 +764,7 @@ class ProvDAGUnionTests(unittest.TestCase):
 
         v5_uuid = TEST_DATA['5']['uuid']
 
-        # In-place union
-        bad_dag.union([bad_dag])
-        unioned_dag = bad_dag
+        unioned_dag = ProvDAG.union([bad_dag, bad_dag])
 
         self.assertRegex(repr(unioned_dag),
                          f'ProvDAG representing these Artifacts.*{v5_uuid}')
@@ -827,16 +785,14 @@ class ProvDAGUnionTests(unittest.TestCase):
         and one weakly_connected_component.
         """
         v5_qzv = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
-        qzv_dag = copy.copy(v5_qzv.dag)
+        unmodified_dag = copy.copy(v5_qzv.dag)
         v5_table = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
         v5_tree = ProvDAG(os.path.join(DATA_DIR, 'v5_rooted_tree.qza'))
         qzv_uuid = TEST_DATA['5']['uuid']
         table_uuid = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
         tree_uuid = 'bce3d09b-e296-4f2b-9af4-834db6412429'
 
-        # In-place union
-        v5_qzv.union([v5_table, v5_tree])
-        unioned_dag = v5_qzv
+        unioned_dag = ProvDAG.union([v5_qzv, v5_table, v5_tree])
 
         self.assertIn(qzv_uuid, unioned_dag._parsed_artifact_uuids)
         self.assertIn(table_uuid, unioned_dag._parsed_artifact_uuids)
@@ -849,8 +805,10 @@ class ProvDAGUnionTests(unittest.TestCase):
         self.assertEqual(
             nx.number_weakly_connected_components(unioned_dag.dag), 1)
 
-        # G == H tests identity of objects in memory, so we need is_isomorphic
-        self.assertTrue(nx.is_isomorphic(qzv_dag, unioned_dag.dag))
+        # G == H tests identity of objects in memory, so we need
+        # is_isomorphic
+        self.assertTrue(nx.is_isomorphic(unmodified_dag, unioned_dag.dag))
+        self.assertEqual(v5_qzv, unioned_dag)
 
     def test_three_artifacts_two_terminal_uuids(self):
         """
@@ -866,9 +824,7 @@ class ProvDAGUnionTests(unittest.TestCase):
         table_uuid = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
         tree_uuid = '12e012d5-b01c-40b7-b825-a17f0478a02f'
 
-        # In-place union
-        v5_qzv.union([v5_table, v5_unr_tree])
-        unioned_dag = v5_qzv
+        unioned_dag = ProvDAG.union([v5_qzv, v5_table, v5_unr_tree])
 
         self.assertIn(qzv_uuid, unioned_dag._parsed_artifact_uuids)
         self.assertIn(table_uuid, unioned_dag._parsed_artifact_uuids)
@@ -895,9 +851,7 @@ class ProvDAGUnionTests(unittest.TestCase):
         table_uuid = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
         rar_uuid = '79a0d2ea-ea01-40c0-a4a4-0beab7c1f244'
 
-        # In-place union
-        v5_qzv.union([v5_table, rar_qzv])
-        unioned_dag = v5_qzv
+        unioned_dag = ProvDAG.union([v5_qzv, v5_table, rar_qzv])
 
         self.assertIn(qzv_uuid, unioned_dag._parsed_artifact_uuids)
         self.assertIn(table_uuid, unioned_dag._parsed_artifact_uuids)

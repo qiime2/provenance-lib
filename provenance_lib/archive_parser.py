@@ -382,8 +382,6 @@ class ArtifactParser(Parser):
         in when we return the instantiated parser object. This will slightly
         complicate tests that currently assume a parser is always dealing
         with a zip archive
-
-        TODO: As such, this module should be renamed artifact_parser.py
         """
         try:
             # By attempting to open artifact_data directly, we get more
@@ -439,8 +437,8 @@ class ParserV0(ArtifactParser):
                           " tracking. Provenance data will be incomplete.",
                           UserWarning)
 
-            # TODO: Drop this line and make p_a_uuids accept many
             root_md = self._parse_root_md(zf, uuid)
+            # TODO: Drop this line and make p_a_uuids accept many
             parsed_artifact_uuids = {root_md.uuid}
             expected_files = self.expected_files_in_all_nodes
             prov_data_fps = [pathlib.Path(uuid) / fp for fp in expected_files]

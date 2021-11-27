@@ -34,8 +34,9 @@ TEST_DATA = {
           'qzv_fp': os.path.join(DATA_DIR, 'v0_uu_emperor.qzv'),
           'has_prov': False,
           'prov_is_valid': ValidationCode.PREDATES_CHECKSUMS,
-          # TODO: I think all of these checksum values are wrong but not
-          # failing (and therefore untested). Should be ChecksumDiff({}, ...)
+          # TODO 2nd NEXT: I think all of these checksum values are wrong but 
+          # not failing (and therefore untested).
+          # Should be ChecksumDiff({}, ...)
           'checksum': None,
           },
     '1': {'parser': ParserV1,
@@ -685,7 +686,7 @@ class ProvDAGUnionTests(unittest.TestCase):
         Tests unions of v5 dags where the calling ProvDAG is missing its
         checksums.md5 but the other is not
 
-        TODO: Consolidate the following tests once we can copy-union.
+        TODO: NEXT Consolidate the following tests once we can copy-union.
         """
         drop_file = pathlib.Path('checksums.md5')
         with generate_archive_with_file_removed(

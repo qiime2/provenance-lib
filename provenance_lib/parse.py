@@ -69,7 +69,11 @@ class ProvDAG:
 
     TODO: Now that we have outsourced the creation of ParserResults entirely,
     should ProvDAG vet that every node has node_data and has_provenance?
-    Alternately, maybe we can enforce this in the Parser ABC.
+    Alternately, maybe we can enforce this in the Parser ABC. The only
+    machinery currently making ProvNodes is in archive_parser, so there's no
+    real risk right now, but because we can now write and plug in arbitrary
+    parsers here, the door is no longer closed to introduced breaches of that
+    guarantee.
 
     No-provenance nodes:
     When parsing v1+ archives, v0 ancestor nodes without tracked provenance
@@ -385,10 +389,9 @@ class ParserDispatcher:
                         f"{self.accepted_data_types}")
             raise UnparseableDataError(unparseable_err_msg, errors)
 
-    # TODO: Test that this appropriately handles different errors from one or
-    # multiple Parser
+    # TODO NEXT: Test that this appropriately handles different errors from one
+    # or multiple Parser
 
-    # TODO: Can we use mypy generics to make this Any more specific?
     def parse(self, artifact_data: Any) -> ParserResults:
         return self.parser.parse_prov(self.cfg, artifact_data)
 

@@ -85,7 +85,7 @@ class ProvDAG:
     which feels much less intuitive than with e.g. the UUID string of the
     ProvNode you want to access, and would make testing a bit clunky.
     """
-    def __init__(self, artifact_data: Any, cfg: Config = Config()):
+    def __init__(self, artifact_data: Any = None, cfg: Config = Config()):
         """
         Create a ProvDAG (digraph) by getting a parser from the parser
         dispatcher, using it to parse the incoming data into a ParserResults,
@@ -281,6 +281,44 @@ class ProvDAG:
         return nodes
 
 
+class EmptyParser(Parser):
+    """
+    Creates empty ProvDAGs.
+
+    TODO: Empty ProvDAGs aren't very useful. Maybe we should refac this as a
+    ParserResults parser. This would mean tools like Union that are
+    constructing ParserResults "manually" don't need to create an empty ProvDAG
+    and then overwrite its fields. Instead, they create a ParserResults and
+    throw it at ProvDAG() once the data's there.
+
+    In favor: By requiring tools to actually write ParserResults, we ensure
+    they create all required data, and mypy can check it's correctly typed.
+    This approach may be slightly more efficient, too.
+
+    I also don't love that creating passing no args to ProvDAG is possible,
+    because it seems to encourage this somewhat useless behavior.
+
+    Against: The "create an empty object and populate it" idiom is common and
+    familiar.
+    """
+    accepted_data_types = "None"
+
+    @classmethod
+    def get_parser(cls, artifact_data: Any) -> Parser:
+        if artifact_data is None:
+            return EmptyParser()
+        else:
+            raise TypeError(f" in EmptyParser: {artifact_data} is not None")
+
+    def parse_prov(self, cfg: Config, nonetype: None):
+        return ParserResults(
+            parsed_artifact_uuids=set(),
+            prov_digraph=nx.DiGraph(),
+            provenance_is_valid=checksum_validator.ValidationCode.VALID,
+            checksum_diff=None,
+        )
+
+
 class ProvDAGParser(Parser):
     """
     Effectively a ProvDAG copy constructor, this "parses" a ProvDAG, loading
@@ -313,7 +351,8 @@ class ParserDispatcher:
     """
     _PARSER_TYPE_REGISTRY = [
         zipfile_parser.ArtifactParser,
-        ProvDAGParser
+        ProvDAGParser,
+        EmptyParser,
     ]
 
     accepted_data_types = [

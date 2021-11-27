@@ -12,6 +12,7 @@ from networkx.classes.reportviews import NodeView  # type: ignore
 from ..checksum_validator import ChecksumDiff, ValidationCode
 from ..parse import (
     ProvDAG, UnparseableDataError, ProvDAGParser, ParserDispatcher,
+    EmptyParser,
 )
 from ..util import UUID
 from ..zipfile_parser import (
@@ -988,6 +989,31 @@ class ProvDAGTestsNoChecksumValidation(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, expected):
                         ProvDAG(chopped_archive,
                                 cfg=Config(perform_checksum_validation=False))
+
+
+class EmptyParserTests(unittest.TestCase):
+    def test_get_parser(self):
+        parser = EmptyParser.get_parser(None)
+        self.assertIsInstance(parser, EmptyParser)
+
+    def test_get_parser_input_data_not_none(self):
+        fn = 'not_a_zip.txt'
+        fp = os.path.join(DATA_DIR, fn)
+        with self.assertRaisesRegex(
+                TypeError, f"EmptyParser.*{fn} is not None"):
+            EmptyParser.get_parser(fp)
+
+    def test_parse_a_nonetype(self):
+        """
+        tests that we can actually create empty ProvDAGs
+        """
+        parser = EmptyParser()
+        parsed = parser.parse_prov(Config(), None)
+        self.assertIsInstance(parsed, ParserResults)
+        self.assertEqual(parsed.parsed_artifact_uuids, set())
+        self.assertTrue(nx.is_isomorphic(parsed.prov_digraph, nx.DiGraph()))
+        self.assertEqual(parsed.provenance_is_valid, ValidationCode.VALID)
+        self.assertEqual(parsed.checksum_diff, None)
 
 
 class ProvDAGParserTests(unittest.TestCase):

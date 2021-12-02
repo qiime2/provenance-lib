@@ -17,7 +17,7 @@ from ..parse import (
 from ..util import UUID
 from ..archive_parser import (
     ParserV0, ParserV1, ParserV2, ParserV3, ParserV4, ParserV5,
-    Config, ProvNode, ParserResults,
+    Config, ProvNode, ParserResults, ArtifactParser,
 )
 
 from .testing_utilities import (
@@ -34,7 +34,7 @@ TEST_DATA = {
           'qzv_fp': os.path.join(DATA_DIR, 'v0_uu_emperor.qzv'),
           'has_prov': False,
           'prov_is_valid': ValidationCode.PREDATES_CHECKSUMS,
-          # TODO 2nd NEXT: I think all of these checksum values are wrong but 
+          # TODO 2nd NEXT: I think all of these checksum values are wrong but
           # not failing (and therefore untested).
           # Should be ChecksumDiff({}, ...)
           'checksum': None,
@@ -1025,28 +1025,30 @@ class ParserDispatcherTests(unittest.TestCase):
             ParserDispatcher(self.cfg, qzv_fp)
         self.assertTrue(True)
 
-    # TODO NEXT These tests
-    # TODO: Rename to test_correct_format_version?
-    def test_correct_parser(self):
+    def test_correct_parser_type(self):
+        empty = ParserDispatcher(self.cfg, None)
+        self.assertIsInstance(empty.parser, EmptyParser)
+
+        test_arch_fp = TEST_DATA['5']['qzv_fp']
+        archive = ParserDispatcher(self.cfg, test_arch_fp)
+        self.assertIsInstance(archive.parser, ArtifactParser)
+
+        dag = ProvDAG()
+        pdag = ParserDispatcher(self.cfg, dag)
+        self.assertIsInstance(pdag.parser, ProvDAGParser)
+
+    def test_correct_parser_archive_parser_versions(self):
         for arch_ver in TEST_DATA:
             qzv_fp = TEST_DATA[arch_ver]['qzv_fp']
             handler = ParserDispatcher(self.cfg, qzv_fp)
             self.assertIsInstance(handler.parser,
                                   TEST_DATA[arch_ver]['parser'])
 
-    def test_correct_parser_type(self):
-        # Confirm we're getting ProvDAGParser v ArtifactParser
-        # Import the types first
-        pass
-
-    def test_parse_with_provdag_parser(self):
-        pass
-
     def test_parse_with_artifact_parser(self):
         uuid = TEST_DATA['5']['uuid']
         qzv_fp = TEST_DATA['5']['qzv_fp']
         handler = ParserDispatcher(self.cfg, qzv_fp)
-        parser_results = handler.parse(qzv_fp)
+        parser_results = handler.parse()
         self.assertIsInstance(parser_results, ParserResults)
         p_a_uuids = parser_results.parsed_artifact_uuids
         self.assertIsInstance(p_a_uuids, set)
@@ -1061,14 +1063,47 @@ class ParserDispatcherTests(unittest.TestCase):
         self.assertEqual(parser_results.checksum_diff,
                          TEST_DATA['5']['checksum'])
 
+    def test_parse_with_provdag_parser(self):
+        uuid = TEST_DATA['5']['uuid']
+        qzv_fp = TEST_DATA['5']['qzv_fp']
+        starter = ProvDAG(qzv_fp)
+        handler = ParserDispatcher(self.cfg, starter)
+        parser_results = handler.parse()
+        self.assertIsInstance(parser_results, ParserResults)
+        p_a_uuids = parser_results.parsed_artifact_uuids
+        self.assertIsInstance(p_a_uuids, set)
+        self.assertIsInstance(next(iter(p_a_uuids)), UUID)
+        self.assertEqual(len(parser_results.prov_digraph), 15)
+        self.assertIn(uuid, parser_results.prov_digraph)
+        self.assertIsInstance(
+            parser_results.prov_digraph.nodes[uuid]['node_data'],
+            ProvNode)
+        self.assertEqual(parser_results.provenance_is_valid,
+                         TEST_DATA['5']['prov_is_valid'])
+        self.assertEqual(parser_results.checksum_diff,
+                         TEST_DATA['5']['checksum'])
+
+    def test_parse_with_empty_parser(self):
+        handler = ParserDispatcher(self.cfg, None)
+        res = handler.parse()
+        self.assertIsInstance(res, ParserResults)
+        self.assertEqual(res.parsed_artifact_uuids, set())
+        self.assertTrue(
+            nx.is_isomorphic(res.prov_digraph, nx.DiGraph()))
+        self.assertEqual(res.provenance_is_valid, ValidationCode.VALID)
+        self.assertEqual(res.checksum_diff, None)
+
     def test_no_correct_parser_found_error(self):
         """
         Nothing blows up here, it's just not the right kind of filepath
         e.g. not a zipfile?
         """
-
-    def test_error_from_one_parser(self):
-        pass
-
-    def test_error_from_two_parsers(self):
-        pass
+        input_data = {'this': 'is not parseable'}
+        with self.assertRaisesRegex(
+            UnparseableDataError,
+            f"(?s)Input data {input_data}.*not supported.*"
+            "AttributeError.*ArtifactParser.*dict.*no attribute.*seek.*"
+            "ProvDAGParser.*is not a ProvDAG.*"
+            "EmptyParser.*is not None"
+                ):
+            ParserDispatcher(self.cfg, input_data)

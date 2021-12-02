@@ -390,6 +390,9 @@ class ArtifactParser(Parser):
                 archive_version, _ = \
                     version_parser.parse_version(zf)
             return FORMAT_REGISTRY[archive_version]()
+        # TODO: when non-file-like objects are passed, this raises an Attribute
+        # Error that's not super informative. (has no attribute 'seek')
+        # Maybe catch and raise a more informative error?
         except Exception as e:
             # Re-raise after appending the name of this parser to the error
             # message, so we can figure out which parser it's coming from

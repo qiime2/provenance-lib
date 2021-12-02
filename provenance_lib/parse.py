@@ -97,7 +97,7 @@ class ProvDAG:
         and then loading those Results into key fields.
         """
         dispatcher = ParserDispatcher(cfg, artifact_data)
-        parser_results = dispatcher.parse(artifact_data)
+        parser_results = dispatcher.parse()
 
         self._parsed_artifact_uuids = parser_results.parsed_artifact_uuids
         self.dag = parser_results.prov_digraph
@@ -389,11 +389,8 @@ class ParserDispatcher:
                         f"{self.accepted_data_types}")
             raise UnparseableDataError(unparseable_err_msg, errors)
 
-    # TODO NEXT: Test that this appropriately handles different errors from one
-    # or multiple Parser
-
-    def parse(self, artifact_data: Any) -> ParserResults:
-        return self.parser.parse_prov(self.cfg, artifact_data)
+    def parse(self) -> ParserResults:
+        return self.parser.parse_prov(self.cfg, self.payload)
 
 
 class UnparseableDataError(Exception):

@@ -34,9 +34,6 @@ TEST_DATA = {
           'qzv_fp': os.path.join(DATA_DIR, 'v0_uu_emperor.qzv'),
           'has_prov': False,
           'prov_is_valid': ValidationCode.PREDATES_CHECKSUMS,
-          # TODO 2nd NEXT: I think all of these checksum values are wrong but
-          # not failing (and therefore untested).
-          # Should be ChecksumDiff({}, ...)
           'checksum': None,
           },
     '1': {'parser': ParserV1,

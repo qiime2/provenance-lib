@@ -105,6 +105,9 @@ class ProvNode:
 
         inputs = self.action._action_details.get('inputs')
         parents = [] if inputs is None else inputs
+        # Remove Nonetype optional inputs
+        parents = [parent for parent in parents
+                   if next(iter(parent.values())) is not None]
 
         return parents + self._artifacts_passed_as_md
 

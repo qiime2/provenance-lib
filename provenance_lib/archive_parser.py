@@ -378,9 +378,9 @@ class ArtifactParser(Parser):
         """
         Returns the correct archive format parser for a zip archive.
 
-        TODO: This can also decide whether it is dealing with a zip archive
-        or an Artifact in memory, and can get the appropriate interface the
-        Vx parsers should use when they interact with that artifact's data
+        TODO: In future, this can decide whether it is dealing with a zip
+        archive or an Artifact in memory, and can get the appropriate interface
+        the Vx parsers should use when they interact with that artifact's data
         representation. If we want, we could probably pass the interface
         in when we return the instantiated parser object. This will slightly
         complicate tests that currently assume a parser is always dealing

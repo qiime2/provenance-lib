@@ -96,8 +96,7 @@ class ProvDAG:
         dispatcher, using it to parse the incoming data into a ParserResults,
         and then loading those Results into key fields.
         """
-        dispatcher = ParserDispatcher(cfg, artifact_data)
-        parser_results = dispatcher.parse()
+        parser_results = parse_provenance(cfg, artifact_data)
 
         self._parsed_artifact_uuids = parser_results.parsed_artifact_uuids
         self.dag = parser_results.prov_digraph
@@ -167,7 +166,7 @@ class ProvDAG:
         return self.dag.nodes
 
     @property
-    # TODO: This actually returns a graphview, which is a read-only DiGraph
+    # NOTE: This actually returns a graphview, which is a read-only DiGraph
     def collapsed_view(self) -> nx.DiGraph:
         outer_nodes = set()
         for terminal_uuid in self._parsed_artifact_uuids:
@@ -301,7 +300,7 @@ class EmptyParser(Parser):
     they create all required data, and mypy can check it's correctly typed.
     This approach may be slightly more efficient, too.
 
-    I also don't love that creating passing no args to ProvDAG is possible,
+    I also don't love that passing no args to ProvDAG is possible,
     because it seems to encourage this somewhat useless behavior.
 
     Against: The "create an empty object and populate it" idiom is common and
@@ -352,10 +351,17 @@ class ProvDAGParser(Parser):
         )
 
 
-class ParserDispatcher:
+def parse_provenance(cfg: Config, payload: Any) -> ParserResults:
     """
-    Parses VERSION file data, has a version-specific parser which allows
-    for version-safe archive parsing
+    Parses some data payload into a ParserResults object ingestible by ProvDAG.
+    """
+    parser = select_parser(payload)
+    return parser.parse_prov(cfg, payload)
+
+
+def select_parser(payload: Any) -> Parser:
+    """
+    Selects a parser that can_handle some given payload.
     """
     _PARSER_TYPE_REGISTRY = [
         ArtifactParser,
@@ -366,31 +372,25 @@ class ParserDispatcher:
     accepted_data_types = [
         parser.accepted_data_types for parser in _PARSER_TYPE_REGISTRY]
 
-    def __init__(self, cfg: Config, artifact_data: Any):
-        self.cfg = cfg
-        self.payload = artifact_data
-        optional_parser = None
-        errors = []
-        for parser in self._PARSER_TYPE_REGISTRY:
-            try:
-                optional_parser = parser().get_parser(artifact_data)
-                if optional_parser is not None:
-                    self.parser = optional_parser  # type: Parser
-                    break
-            except Exception as e:
-                errors.append(e)
-        # If we finish the loop without a parser that can_handle, raise errors
-        else:
-            # Errors are only raised if no working parser is found,
-            # so we can always raise unparseable_err if we raise errors.
-            unparseable_err_msg = (
-                        f"Input data {artifact_data} is not supported.\n"
-                        "Parsers are available for the following data types: "
-                        f"{self.accepted_data_types}")
-            raise UnparseableDataError(unparseable_err_msg, errors)
-
-    def parse(self) -> ParserResults:
-        return self.parser.parse_prov(self.cfg, self.payload)
+    optional_parser = None
+    errors = []
+    for parser in _PARSER_TYPE_REGISTRY:
+        try:
+            optional_parser = parser().get_parser(payload)
+            if optional_parser is not None:
+                parser = optional_parser  # type: Parser
+                return parser
+        except Exception as e:
+            errors.append(e)
+    # If we finish the loop without a parser that can_handle, raise errors
+    else:
+        # Errors are only raised if no working parser is found,
+        # so we can always raise unparseable_err if we raise errors.
+        unparseable_err_msg = (
+                    f"Input data {payload} is not supported.\n"
+                    "Parsers are available for the following data types: "
+                    f"{accepted_data_types}")
+        raise UnparseableDataError(unparseable_err_msg, errors)
 
 
 class UnparseableDataError(Exception):

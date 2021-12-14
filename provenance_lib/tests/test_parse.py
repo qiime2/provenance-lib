@@ -11,8 +11,8 @@ from networkx.classes.reportviews import NodeView  # type: ignore
 
 from ..checksum_validator import ChecksumDiff, ValidationCode
 from ..parse import (
-    ProvDAG, UnparseableDataError, ProvDAGParser, ParserDispatcher,
-    EmptyParser,
+    ProvDAG, UnparseableDataError, ProvDAGParser, EmptyParser,
+    select_parser, parse_provenance,
 )
 from ..util import UUID
 from ..archive_parser import (
@@ -566,9 +566,7 @@ class ProvDAGTests(unittest.TestCase):
         - smoke
         - does the parser find the captured provenance?
         - is the UUID parsed correctly?
-        - is the node's type correct? (critical, because we use a dummy type
-          when capturing parentage for artifacts passed as metadata. This
-          dummy type should never appear in the finished DAG.)
+        - is the node's type correct?
         """
         a_as_md_fp = os.path.join(DATA_DIR, 'artifact_as_md_v5.qzv')
         a_as_md_uuid = 'd1d36ada-29a5-436e-9136-304a8b25ff10'
@@ -1010,42 +1008,35 @@ class ProvDAGParserTests(unittest.TestCase):
             self.assertEqual(parsed.checksum_diff, dag.checksum_diff)
 
 
-class ParserDispatcherTests(unittest.TestCase):
+class SelectParserTests(unittest.TestCase):
+    def test_correct_parser_type(self):
+        empty = select_parser(None)
+        self.assertIsInstance(empty, EmptyParser)
+
+        test_arch_fp = TEST_DATA['5']['qzv_fp']
+        archive = select_parser(test_arch_fp)
+        self.assertIsInstance(archive, ArtifactParser)
+
+        dag = ProvDAG()
+        pdag = select_parser(dag)
+        self.assertIsInstance(pdag, ProvDAGParser)
+
+    def test_correct_archive_parser_version(self):
+        for arch_ver in TEST_DATA:
+            qzv_fp = TEST_DATA[arch_ver]['qzv_fp']
+            handler = select_parser(qzv_fp)
+            self.assertIsInstance(handler, TEST_DATA[arch_ver]['parser'])
+
+
+class ParseProvenanceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.cfg = Config()
 
-    # Can we make a ParserDispatcher without anything blowing up?
-    def test_smoke(self):
-        for arch_ver in TEST_DATA:
-            qzv_fp = TEST_DATA[arch_ver]['qzv_fp']
-            ParserDispatcher(self.cfg, qzv_fp)
-        self.assertTrue(True)
-
-    def test_correct_parser_type(self):
-        empty = ParserDispatcher(self.cfg, None)
-        self.assertIsInstance(empty.parser, EmptyParser)
-
-        test_arch_fp = TEST_DATA['5']['qzv_fp']
-        archive = ParserDispatcher(self.cfg, test_arch_fp)
-        self.assertIsInstance(archive.parser, ArtifactParser)
-
-        dag = ProvDAG()
-        pdag = ParserDispatcher(self.cfg, dag)
-        self.assertIsInstance(pdag.parser, ProvDAGParser)
-
-    def test_correct_parser_archive_parser_versions(self):
-        for arch_ver in TEST_DATA:
-            qzv_fp = TEST_DATA[arch_ver]['qzv_fp']
-            handler = ParserDispatcher(self.cfg, qzv_fp)
-            self.assertIsInstance(handler.parser,
-                                  TEST_DATA[arch_ver]['parser'])
-
     def test_parse_with_artifact_parser(self):
         uuid = TEST_DATA['5']['uuid']
         qzv_fp = TEST_DATA['5']['qzv_fp']
-        handler = ParserDispatcher(self.cfg, qzv_fp)
-        parser_results = handler.parse()
+        parser_results = parse_provenance(self.cfg, qzv_fp)
         self.assertIsInstance(parser_results, ParserResults)
         p_a_uuids = parser_results.parsed_artifact_uuids
         self.assertIsInstance(p_a_uuids, set)
@@ -1064,8 +1055,7 @@ class ParserDispatcherTests(unittest.TestCase):
         uuid = TEST_DATA['5']['uuid']
         qzv_fp = TEST_DATA['5']['qzv_fp']
         starter = ProvDAG(qzv_fp)
-        handler = ParserDispatcher(self.cfg, starter)
-        parser_results = handler.parse()
+        parser_results = parse_provenance(self.cfg, starter)
         self.assertIsInstance(parser_results, ParserResults)
         p_a_uuids = parser_results.parsed_artifact_uuids
         self.assertIsInstance(p_a_uuids, set)
@@ -1081,8 +1071,7 @@ class ParserDispatcherTests(unittest.TestCase):
                          TEST_DATA['5']['checksum'])
 
     def test_parse_with_empty_parser(self):
-        handler = ParserDispatcher(self.cfg, None)
-        res = handler.parse()
+        res = parse_provenance(self.cfg, None)
         self.assertIsInstance(res, ParserResults)
         self.assertEqual(res.parsed_artifact_uuids, set())
         self.assertTrue(
@@ -1103,4 +1092,4 @@ class ParserDispatcherTests(unittest.TestCase):
             "ProvDAGParser.*is not a ProvDAG.*"
             "EmptyParser.*is not None"
                 ):
-            ParserDispatcher(self.cfg, input_data)
+            select_parser(input_data)

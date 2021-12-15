@@ -241,7 +241,8 @@ class ProvDAG:
         new_dag._checksum_diff = dags[0].checksum_diff
 
         for dag in dags[1:]:
-            new_dag._parsed_artifact_uuids |= dag._parsed_artifact_uuids
+            new_dag._parsed_artifact_uuids = new_dag._parsed_artifact_uuids \
+                                             .union(dag._parsed_artifact_uuids)
             new_dag._provenance_is_valid = min(new_dag.provenance_is_valid,
                                                dag.provenance_is_valid)
             # Here we retain as much data as possible, preferencing any

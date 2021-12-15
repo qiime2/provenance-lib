@@ -1,6 +1,6 @@
 from __future__ import annotations
 import copy
-from typing import Any, Iterable, Mapping, Optional, Set
+from typing import Any, List, Mapping, Optional, Set
 
 import networkx as nx
 from networkx.classes.reportviews import NodeView  # type: ignore
@@ -221,7 +221,7 @@ class ProvDAG:
             return None
 
     @classmethod
-    def union(cls, dags: Iterable[ProvDAG]) -> ProvDAG:
+    def union(cls, dags: List[ProvDAG]) -> ProvDAG:
         """
         Class method that creates a new ProvDAG by unioning the graphs in an
         arbitrary number of ProvDAGs.
@@ -377,10 +377,9 @@ def select_parser(payload: Any) -> Parser:
     errors = []
     for parser in _PARSER_TYPE_REGISTRY:
         try:
-            optional_parser = parser().get_parser(payload)
+            optional_parser = parser.get_parser(payload)
             if optional_parser is not None:
-                parser = optional_parser  # type: Parser
-                return parser
+                return optional_parser
         except Exception as e:
             errors.append(e)
     # If we finish the loop without a parser that can_handle, raise errors

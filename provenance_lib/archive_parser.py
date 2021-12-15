@@ -556,7 +556,6 @@ class ParserV1(ParserV0):
                 self.expected_files_root_only)
             root_uuid = get_root_uuid(zf)
 
-            # TODO: Can we drop this? We're not capturing arch type/format data
             root_md = self._parse_root_md(zf, root_uuid)
 
             # make a provnode for each UUID

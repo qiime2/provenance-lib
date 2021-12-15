@@ -154,8 +154,7 @@ class ProvNode:
         associated with the correct parameters during replay.
 
         - it captures uuids for all artifacts passed to this action as
-        metadata, and associates them with a consistent/identifiable filler
-        type (see NOTE below), so they can be included as parents of this node.
+        metadata so they can be included as parents of this node.
 
         Returns a two-tuple (all_metadata, artifacts_as_metadata) where:
         - all-metadata conforms to {parameter_name: relative_filename}
@@ -187,11 +186,11 @@ class ProvNode:
         the other Artifacts. As a result, Semantic Type data is not captured.
         This function returns a hardcoded filler 'Type' for all UUIDs
         discovered here: 'artifact_passed_as_metadata'. This will not match the
-        actual Type of the parent Artifact, but should make it possible for a
-        ProvDAG to identify and relabel any artifacts passed as metadata with
-        their actual type if needed. Replay likely wouldn't be achievable
-        without these Artifact inputs, so our DAG must be able to track them as
-        parents to a given node.
+        actual Type of the parent Artifact, but the properties of provenance
+        DiGraphs make this irrelevant. Because Artifacts passed as Metadata
+        retain their provenance, downstream Artifacts are linked to their
+        "real" parent Artifact nodes, which have accurate Type information.
+        The filler type is moot.
         """
         all_metadata = dict()
         artifacts_as_metadata = []
@@ -367,7 +366,6 @@ class Parser(metaclass=abc.ABCMeta):
 
 
 class ArtifactParser(Parser):
-    # TODO: Using strings here is kinda clumsy and limiting. Fix that.
     # description from (and more details available at)
     # https://docs.python.org/3/library/zipfile.html#zipfile-objects
     accepted_data_types = ("a path to a file (a string), "
@@ -377,14 +375,6 @@ class ArtifactParser(Parser):
     def get_parser(cls, artifact_data: Any) -> Parser:
         """
         Returns the correct archive format parser for a zip archive.
-
-        TODO: In future, this can decide whether it is dealing with a zip
-        archive or an Artifact in memory, and can get the appropriate interface
-        the Vx parsers should use when they interact with that artifact's data
-        representation. If we want, we could probably pass the interface
-        in when we return the instantiated parser object. This will slightly
-        complicate tests that currently assume a parser is always dealing
-        with a zip archive
         """
         try:
             # By trying to open artifact_data directly, we get more
@@ -393,9 +383,6 @@ class ArtifactParser(Parser):
                 archive_version, _ = \
                     version_parser.parse_version(zf)
             return FORMAT_REGISTRY[archive_version]()
-        # TODO: when non-file-like objects are passed, this raises an Attribute
-        # Error that's not super informative. (has no attribute 'seek')
-        # Maybe catch and raise a more informative error?
         except Exception as e:
             # Re-raise after appending the name of this parser to the error
             # message, so we can figure out which parser it's coming from
@@ -410,15 +397,7 @@ class ArtifactParser(Parser):
 class ParserV0(ArtifactParser):
     """
     Parser for V0 archives. These have no provenance, so we only parse metadata
-
-    TODO: Change the way _parsed_artifact_uuids is populated. Our parser can
-    only handle one Artifact at a time, which is not an io-efficient way to
-    deal with a directory of Artifacts. We should refactor ParserVx.parse_prov
-    in line with #29 so that we can parse multiple Artifacts efficiently and in
-    one go.
     """
-    version_string = 0
-
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames (like Metadata, which may or may
     # not be present in an archive) should not be included here.
@@ -444,7 +423,6 @@ class ParserV0(ArtifactParser):
                           UserWarning)
 
             root_md = self._parse_root_md(zf, uuid)
-            # TODO: Drop this line and make p_a_uuids accept many
             parsed_artifact_uuids = {root_md.uuid}
             expected_files = self.expected_files_in_all_nodes
             prov_data_fps = [pathlib.Path(uuid) / fp for fp in expected_files]
@@ -602,7 +580,6 @@ class ParserV1(ParserV0):
 
         archv_contents = self._digraph_from_archive_contents(archv_contents)
 
-        # TODO: make p_a_uuids accept many
         parsed_artifact_uuids = {root_md.uuid}
         return ParserResults(
             parsed_artifact_uuids,

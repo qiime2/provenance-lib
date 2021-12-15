@@ -67,14 +67,6 @@ class ProvDAG:
     node_data: Optional[ProvNode]
     has_provenance: bool
 
-    TODO: Now that we have outsourced the creation of ParserResults entirely,
-    should ProvDAG vet that every node has node_data and has_provenance?
-    Alternately, maybe we can enforce this in the Parser ABC. The only
-    machinery currently making ProvNodes is in archive_parser, so there's no
-    real risk right now, but because we can now write and plug in arbitrary
-    parsers here, the door is no longer closed to introduced breaches of that
-    guarantee.
-
     No-provenance nodes:
     When parsing v1+ archives, v0 ancestor nodes without tracked provenance
     (e.g. !no-provenance inputs) are discovered only as parents to the current
@@ -115,13 +107,6 @@ class ProvDAG:
     def __len__(self) -> int:
         return len(self.dag)
 
-    # TODO: Is this a reasonable way to define ProvDAG equality?
-    # It doesn't take into account the equality of some ProvDAG attributes, but
-    # leans on DiGraph isomorphism. Are two isomorphic ProvDAGs unequal if one
-    # was created without checksum validation? Or if one has a checksum diff
-    # because it's been tinkered with? If in the future we have a method that
-    # produces non-identical results from two identical DiGraphs based on
-    # _parsed_artifact_uuids, are those ProvDAGs still equal?
     def __eq__(self, other) -> bool:
         if (self.__class__ != other.__class__ or
                 not nx.is_isomorphic(self.dag, other.dag)):
@@ -288,24 +273,7 @@ class ProvDAG:
 class EmptyParser(Parser):
     """
     Creates empty ProvDAGs.
-
     Disregards Config, because it's not meaningful in this context.
-
-    TODO: Empty ProvDAGs aren't very useful. Maybe we should refac this as a
-    ParserResults parser. This would mean tools like Union that are
-    constructing ParserResults "manually" don't need to create an empty ProvDAG
-    and then overwrite its fields. Instead, they create a ParserResults and
-    throw it at ProvDAG() once the data's there.
-
-    In favor: By requiring tools to actually write ParserResults, we ensure
-    they create all required data, and mypy can check it's correctly typed.
-    This approach may be slightly more efficient, too.
-
-    I also don't love that passing no args to ProvDAG is possible,
-    because it seems to encourage this somewhat useless behavior.
-
-    Against: The "create an empty object and populate it" idiom is common and
-    familiar.
     """
     accepted_data_types = "None"
 
@@ -332,7 +300,6 @@ class ProvDAGParser(Parser):
 
     Disregards Config, because it's not meaningful in this context.
     """
-    # Using strings here is kinda clumsy. Maybe fix that someday?
     accepted_data_types = 'ProvDAG'
 
     @classmethod

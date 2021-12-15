@@ -21,3 +21,6 @@ uml:
 
 uml-full:
 	pyreverse -ASmy -o png provenance_lib/ --ignore tests
+
+dev:
+	pip install -e .

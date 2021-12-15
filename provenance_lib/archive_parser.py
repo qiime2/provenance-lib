@@ -387,8 +387,8 @@ class ArtifactParser(Parser):
         with a zip archive
         """
         try:
-            # By attempting to open artifact_data directly, we get more
-            # informative errors than with zipfile.is_zipfile()
+            # By trying to open artifact_data directly, we get more
+            # informative errors than with `if zipfile.is_zipfile():`
             with zipfile.ZipFile(artifact_data, 'r') as zf:
                 archive_version, _ = \
                     version_parser.parse_version(zf)
@@ -556,7 +556,7 @@ class ParserV1(ParserV0):
                 self.expected_files_root_only)
             root_uuid = get_root_uuid(zf)
 
-            # Can we drop this? I don't think we're keepin type/format data now
+            # TODO: Can we drop this? We're not capturing arch type/format data
             root_md = self._parse_root_md(zf, root_uuid)
 
             # make a provnode for each UUID

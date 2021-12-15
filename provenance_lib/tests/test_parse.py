@@ -588,37 +588,60 @@ class ProvDAGUnionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """
-        Use this when we have a copy-based union, for all tests which copy.
-        In-place union will modify any dags we build here, so this is invalid.
+        Because union is copy-only, we can create our test data once here,
+        and union it to our hearts' content.
         """
-        pass
+        cls.v3_dag = ProvDAG(str(TEST_DATA['3']['qzv_fp']))
+        cls.v4_dag = ProvDAG(str(TEST_DATA['4']['qzv_fp']))
+        cls.v5_qzv = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
+        cls.v5_table = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
+
+        cls.v3_uuid = TEST_DATA['3']['uuid']
+        cls.v4_uuid = TEST_DATA['4']['uuid']
+        cls.qzv_uuid = TEST_DATA['5']['uuid']
+        cls.table_uuid = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
+
+        drop_file = pathlib.Path('checksums.md5')
+        with generate_archive_with_file_removed(
+            qzv_fp=TEST_DATA['5']['qzv_fp'],
+            root_uuid=TEST_DATA['5']['uuid'],
+                file_to_drop=drop_file) as chopped_archive:
+            # we can't assert in a classmethod, so capture all warnings and
+            # assert in test_setup_warnings
+            with warnings.catch_warnings(record=True) as cls.w:
+                cls.bad_dag = ProvDAG(chopped_archive)
+                print(cls.w)
+
+    def test_setup_warnings(self):
+        self.assertEqual(len(self.w), 1)
+        with self.assertWarnsRegex(
+            UserWarning,
+                'There is no item named.*checksums.*in the archive'):
+            warnings.warn(next(iter(self.w)))
 
     def test_union_zero_or_one_dags(self):
         """
         Tests union of zero or one ProvDAGs.
         """
-        dag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
-
         with self.assertRaisesRegex(ValueError, "pass.*two ProvDAGs"):
             ProvDAG.union([])
 
         with self.assertRaisesRegex(ValueError, "pass.*two ProvDAGs"):
-            ProvDAG.union([dag])
+            ProvDAG.union([self.v5_qzv])
 
     def test_union_identity(self):
         """
         Tests union of a ProvDAG with itself.
         """
-        dag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
-        v5_uuid = TEST_DATA['5']['uuid']
+        unioned_dag = ProvDAG.union([self.v5_qzv, self.v5_qzv])
 
-        unioned_dag = ProvDAG.union([dag, dag])
-
-        self.assertEqual(dag, unioned_dag)
-        self.assertSetEqual({v5_uuid}, unioned_dag._parsed_artifact_uuids)
+        self.assertEqual(self.v5_qzv, unioned_dag)
+        self.assertSetEqual({self.qzv_uuid},
+                            unioned_dag._parsed_artifact_uuids)
         self.assertEqual(unioned_dag.provenance_is_valid, ValidationCode.VALID)
-        self.assertRegex(repr(unioned_dag),
-                         f'ProvDAG representing these Artifacts.*{v5_uuid}')
+        self.assertRegex(
+            repr(unioned_dag),
+            f'ProvDAG representing these Artifacts.*{self.qzv_uuid}')
 
     def test_union_two(self):
         """
@@ -626,21 +649,16 @@ class ProvDAGUnionTests(unittest.TestCase):
         Also checks that provenance_is_valid retains the lesser of the
         ValidationCodes from the v4- and v5+ dags.
         """
-        v4_dag = ProvDAG(str(TEST_DATA['4']['qzv_fp']))
-        v5_dag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
-        v4_uuid = TEST_DATA['4']['uuid']
-        v5_uuid = TEST_DATA['5']['uuid']
+        unioned_dag = ProvDAG.union([self.v4_dag, self.v5_qzv])
 
-        unioned_dag = ProvDAG.union([v4_dag, v5_dag])
-
-        self.assertSetEqual({v4_uuid, v5_uuid},
+        self.assertSetEqual({self.v4_uuid, self.qzv_uuid},
                             unioned_dag._parsed_artifact_uuids)
         self.assertEqual(unioned_dag.provenance_is_valid,
                          ValidationCode.PREDATES_CHECKSUMS)
         rep = repr(unioned_dag)
         self.assertRegex(rep, 'ProvDAG representing these Artifacts {')
-        self.assertRegex(rep, f'{v4_uuid}')
-        self.assertRegex(rep, f'{v5_uuid}')
+        self.assertRegex(rep, f'{self.v4_uuid}')
+        self.assertRegex(rep, f'{self.qzv_uuid}')
 
         # There should be two disconnected trees
         self.assertEqual(
@@ -650,27 +668,19 @@ class ProvDAGUnionTests(unittest.TestCase):
         """
         Tests union of dag with multiple other dags.
         Also checks that we have the correct number of disconnected trees
-        (these three dags come from unrelated analyses, so should be
-     disjoint)
+        (these three dags come from unrelated analyses, so should be disjoint)
         """
-        v3_dag = ProvDAG(str(TEST_DATA['3']['qzv_fp']))
-        v4_dag = ProvDAG(str(TEST_DATA['4']['qzv_fp']))
-        v5_dag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
-        v3_uuid = TEST_DATA['3']['uuid']
-        v4_uuid = TEST_DATA['4']['uuid']
-        v5_uuid = TEST_DATA['5']['uuid']
+        unioned_dag = ProvDAG.union([self.v5_qzv, self.v4_dag, self.v3_dag])
 
-        unioned_dag = ProvDAG.union([v5_dag, v4_dag, v3_dag])
-
-        self.assertSetEqual({v3_uuid, v4_uuid, v5_uuid},
+        self.assertSetEqual({self.v3_uuid, self.v4_uuid, self.qzv_uuid},
                             unioned_dag._parsed_artifact_uuids)
         self.assertEqual(unioned_dag.provenance_is_valid,
                          ValidationCode.PREDATES_CHECKSUMS)
         rep = repr(unioned_dag)
         self.assertRegex(rep, 'ProvDAG representing these Artifacts {')
-        self.assertRegex(rep, f'{v3_uuid}')
-        self.assertRegex(rep, f'{v4_uuid}')
-        self.assertRegex(rep, f'{v5_uuid}')
+        self.assertRegex(rep, f'{self.v3_uuid}')
+        self.assertRegex(rep, f'{self.v4_uuid}')
+        self.assertRegex(rep, f'{self.qzv_uuid}')
 
         # There should be three disconnected trees
         self.assertEqual(
@@ -680,25 +690,12 @@ class ProvDAGUnionTests(unittest.TestCase):
         """
         Tests unions of v5 dags where the calling ProvDAG is missing its
         checksums.md5 but the other is not
-
-        TODO: NEXT Consolidate the following tests once we can copy-union.
         """
-        drop_file = pathlib.Path('checksums.md5')
-        with generate_archive_with_file_removed(
-            qzv_fp=TEST_DATA['5']['qzv_fp'],
-            root_uuid=TEST_DATA['5']['uuid'],
-                file_to_drop=drop_file) as chopped_archive:
-            with self.assertWarnsRegex(UserWarning, 'no item.*checksums'):
-                bad_dag = ProvDAG(chopped_archive)
-
-        good_dag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
-        v5_uuid = TEST_DATA['5']['uuid']
-
-        # In-place union
-        unioned_dag = ProvDAG.union([bad_dag, good_dag])
+        unioned_dag = ProvDAG.union([self.bad_dag, self.v5_qzv])
 
         self.assertRegex(repr(unioned_dag),
-                         f'ProvDAG representing these Artifacts.*{v5_uuid}')
+                         'ProvDAG representing these Artifacts.*'
+                         f'{self.qzv_uuid}')
 
         # The ChecksumDiff==None from the tinkered dag gets ignored...
         self.assertEqual(unioned_dag.checksum_diff, ChecksumDiff({}, {}, {}))
@@ -717,21 +714,11 @@ class ProvDAGUnionTests(unittest.TestCase):
         Tests unions of v5 dags where the other ProvDAG is missing its
         checksums.md5 but the calling ProvDAG is not
         """
-        drop_file = pathlib.Path('checksums.md5')
-        with generate_archive_with_file_removed(
-            qzv_fp=TEST_DATA['5']['qzv_fp'],
-            root_uuid=TEST_DATA['5']['uuid'],
-                file_to_drop=drop_file) as chopped_archive:
-            with self.assertWarnsRegex(UserWarning, 'no item.*checksums'):
-                bad_dag = ProvDAG(chopped_archive)
-
-        good_dag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
-        v5_uuid = TEST_DATA['5']['uuid']
-
-        unioned_dag = ProvDAG.union([good_dag, bad_dag])
+        unioned_dag = ProvDAG.union([self.v5_qzv, self.bad_dag])
 
         self.assertRegex(repr(unioned_dag),
-                         f'ProvDAG representing these Artifacts.*{v5_uuid}')
+                         'ProvDAG representing these Artifacts.*'
+                         f'{self.qzv_uuid}')
 
         # The ChecksumDiff==None from the tinkered dag gets ignored...
         self.assertEqual(unioned_dag.checksum_diff, ChecksumDiff({}, {}, {}))
@@ -750,20 +737,11 @@ class ProvDAGUnionTests(unittest.TestCase):
         Tests unions of v5 dags where both artifacts are missing their
         checksums.md5 files.
         """
-        drop_file = pathlib.Path('checksums.md5')
-        with generate_archive_with_file_removed(
-            qzv_fp=TEST_DATA['5']['qzv_fp'],
-            root_uuid=TEST_DATA['5']['uuid'],
-                file_to_drop=drop_file) as chopped_archive:
-            with self.assertWarnsRegex(UserWarning, 'no item.*checksums'):
-                bad_dag = ProvDAG(chopped_archive)
-
-        v5_uuid = TEST_DATA['5']['uuid']
-
-        unioned_dag = ProvDAG.union([bad_dag, bad_dag])
+        unioned_dag = ProvDAG.union([self.bad_dag, self.bad_dag])
 
         self.assertRegex(repr(unioned_dag),
-                         f'ProvDAG representing these Artifacts.*{v5_uuid}')
+                         'ProvDAG representing these Artifacts.*'
+                         f'{self.qzv_uuid}')
 
         # Both DAGs have NoneType checksum_diffs, so the ChecksumDiff==None
         self.assertEqual(unioned_dag.checksum_diff, None)
@@ -780,23 +758,18 @@ class ProvDAGUnionTests(unittest.TestCase):
         others. We expect three _parsed_artifact_uuids, one terminal uuid,
         and one weakly_connected_component.
         """
-        v5_qzv = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
-        unmodified_dag = copy.copy(v5_qzv.dag)
-        v5_table = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
         v5_tree = ProvDAG(os.path.join(DATA_DIR, 'v5_rooted_tree.qza'))
-        qzv_uuid = TEST_DATA['5']['uuid']
-        table_uuid = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
         tree_uuid = 'bce3d09b-e296-4f2b-9af4-834db6412429'
+        unmodified_dag = copy.copy(self.v5_qzv.dag)
+        unioned_dag = ProvDAG.union([self.v5_qzv, self.v5_table, v5_tree])
 
-        unioned_dag = ProvDAG.union([v5_qzv, v5_table, v5_tree])
-
-        self.assertIn(qzv_uuid, unioned_dag._parsed_artifact_uuids)
-        self.assertIn(table_uuid, unioned_dag._parsed_artifact_uuids)
+        self.assertIn(self.qzv_uuid, unioned_dag._parsed_artifact_uuids)
+        self.assertIn(self.table_uuid, unioned_dag._parsed_artifact_uuids)
         self.assertIn(tree_uuid, unioned_dag._parsed_artifact_uuids)
         self.assertEqual(len(unioned_dag._parsed_artifact_uuids), 3)
 
         self.assertEqual(len(unioned_dag.terminal_uuids), 1)
-        self.assertEqual(unioned_dag.terminal_uuids, {qzv_uuid})
+        self.assertEqual(unioned_dag.terminal_uuids, {self.qzv_uuid})
 
         self.assertEqual(
             nx.number_weakly_connected_components(unioned_dag.dag), 1)
@@ -804,7 +777,7 @@ class ProvDAGUnionTests(unittest.TestCase):
         # G == H tests identity of objects in memory, so we need
         # is_isomorphic
         self.assertTrue(nx.is_isomorphic(unmodified_dag, unioned_dag.dag))
-        self.assertEqual(v5_qzv, unioned_dag)
+        self.assertEqual(self.v5_qzv, unioned_dag)
 
     def test_three_artifacts_two_terminal_uuids(self):
         """
@@ -813,23 +786,19 @@ class ProvDAGUnionTests(unittest.TestCase):
         _parsed_artifact_uuids, two terminal uuids, and one
         weakly_connected_component.
         """
-        v5_qzv = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
-        v5_table = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
         v5_unr_tree = ProvDAG(os.path.join(DATA_DIR, 'v5_unrooted_tree.qza'))
-        qzv_uuid = TEST_DATA['5']['uuid']
-        table_uuid = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
         tree_uuid = '12e012d5-b01c-40b7-b825-a17f0478a02f'
 
-        unioned_dag = ProvDAG.union([v5_qzv, v5_table, v5_unr_tree])
+        unioned_dag = ProvDAG.union([self.v5_qzv, self.v5_table, v5_unr_tree])
 
-        self.assertIn(qzv_uuid, unioned_dag._parsed_artifact_uuids)
-        self.assertIn(table_uuid, unioned_dag._parsed_artifact_uuids)
+        self.assertIn(self.qzv_uuid, unioned_dag._parsed_artifact_uuids)
+        self.assertIn(self.table_uuid, unioned_dag._parsed_artifact_uuids)
         self.assertIn(tree_uuid, unioned_dag._parsed_artifact_uuids)
         self.assertEqual(len(unioned_dag._parsed_artifact_uuids), 3)
 
         self.assertEqual(len(unioned_dag.terminal_uuids), 2)
         self.assertEqual(unioned_dag.terminal_uuids,
-                         set([qzv_uuid, tree_uuid]))
+                         set([self.qzv_uuid, tree_uuid]))
 
         self.assertEqual(
             nx.number_weakly_connected_components(unioned_dag.dag), 1)
@@ -840,22 +809,18 @@ class ProvDAGUnionTests(unittest.TestCase):
         feature table, so should produce one connected DAG even though we are
         missing the rarefied_table.qza used to create the rarefied_table.qzv
         """
-        v5_qzv = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
-        v5_table = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
         rar_qzv = ProvDAG(os.path.join(DATA_DIR, 'v5_rarefied_table.qzv'))
-        qzv_uuid = TEST_DATA['5']['uuid']
-        table_uuid = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
         rar_uuid = '79a0d2ea-ea01-40c0-a4a4-0beab7c1f244'
 
-        unioned_dag = ProvDAG.union([v5_qzv, v5_table, rar_qzv])
+        unioned_dag = ProvDAG.union([self.v5_qzv, self.v5_table, rar_qzv])
 
-        self.assertIn(qzv_uuid, unioned_dag._parsed_artifact_uuids)
-        self.assertIn(table_uuid, unioned_dag._parsed_artifact_uuids)
+        self.assertIn(self.qzv_uuid, unioned_dag._parsed_artifact_uuids)
+        self.assertIn(self.table_uuid, unioned_dag._parsed_artifact_uuids)
         self.assertIn(rar_uuid, unioned_dag._parsed_artifact_uuids)
         self.assertEqual(len(unioned_dag._parsed_artifact_uuids), 3)
 
         self.assertEqual(len(unioned_dag.terminal_uuids), 2)
-        self.assertEqual(unioned_dag.terminal_uuids, {qzv_uuid, rar_uuid})
+        self.assertEqual(unioned_dag.terminal_uuids, {self.qzv_uuid, rar_uuid})
 
         self.assertEqual(
             nx.number_weakly_connected_components(unioned_dag.dag), 1)
@@ -969,8 +934,6 @@ class EmptyParserTests(unittest.TestCase):
 class ProvDAGParserTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        # TODO: If we make a module-global set of dags, we can replace this
-        # with test_get_parser
         cls.dags = dict()
         for archive_version in TEST_DATA:
             # supress warning from parsing provenance for a v0 provDag
@@ -1000,8 +963,7 @@ class ProvDAGParserTests(unittest.TestCase):
             self.assertEqual(parsed.parsed_artifact_uuids,
                              dag._parsed_artifact_uuids)
             # NOTE: networkx thinks about graph equality in terms of object
-            # identity. Because this parser creates a deep copy of pdag,
-            # we must use nx.is_isomorphic to confirm "equality"
+            # identity, so we must use nx.is_isomorphic to confirm "equality"
             self.assertTrue(nx.is_isomorphic(parsed.prov_digraph, dag.dag))
             self.assertEqual(parsed.provenance_is_valid,
                              dag.provenance_is_valid)

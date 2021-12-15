@@ -63,9 +63,6 @@ class ParserVxTests(unittest.TestCase):
                                       (type(None), nx.DiGraph))
                 self.assertIsInstance(res.provenance_is_valid,
                                       checksum_validator.ValidationCode)
-                # TODO: Do we actually expect None here? or ChecksumDiff({}...)
-                # If the former, some internal documentation probably needs
-                # cleaning up
                 exp_diff_type = (type(None) if int(archive_version[0]) < 5
                                  else checksum_validator.ChecksumDiff)
                 self.assertIsInstance(res.checksum_diff, exp_diff_type)

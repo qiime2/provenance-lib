@@ -10,6 +10,7 @@ if __name__ == "__main__" and __package__ is None:
     __package__ = "provenance_lib"
 
 from .parse import ProvDAG, Config
+from .replay import replay_provdag
 
 if __name__ == '__main__':
     # To begin, we'll read in exactly one fp
@@ -40,3 +41,6 @@ if __name__ == '__main__':
     print(
           dummy_DAG
           .get_node_data('ffb7cee3-2f1f-4988-90cc-efd5184ef003')._parents)
+
+    print("\nTopological sort of dummy dag: ")
+    replay_provdag(dummy_DAG)

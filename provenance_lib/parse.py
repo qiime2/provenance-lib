@@ -153,6 +153,7 @@ class ProvDAG:
     @property
     # NOTE: This actually returns a graphview, which is a read-only DiGraph
     def collapsed_view(self) -> nx.DiGraph:
+        # TODO: Cache this?
         outer_nodes = set()
         for terminal_uuid in self._parsed_artifact_uuids:
             outer_nodes |= self.get_outer_provenance_nodes(terminal_uuid)

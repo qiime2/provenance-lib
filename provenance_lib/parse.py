@@ -174,8 +174,14 @@ class ProvDAG:
         return self.dag.nodes[uuid]['has_provenance']
 
     def get_node_data(self, uuid: UUID) -> ProvNode:
-        """Returns a ProvNode from this ProvDAG selected by UUID"""
+        """ Returns a ProvNode from this ProvDAG selected by UUID """
         return self.dag.nodes[uuid]['node_data']
+
+    def predecessors(self, node: UUID, dag: nx.DiGraph = None) \
+            -> List[UUID]:
+        """ Returns the parent UUIDs of a given node """
+        dag = self.collapsed_view if dag is None else dag
+        return set(self.dag.predecessors(node))
 
     def relabel_nodes(self, mapping: Mapping, copy: bool = False) -> \
             Optional[ProvDAG]:

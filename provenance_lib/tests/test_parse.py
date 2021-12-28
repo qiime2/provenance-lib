@@ -583,6 +583,19 @@ class ProvDAGTests(unittest.TestCase):
             self.assertEqual(dag, copied)
             self.assertIsNot(dag, copied)
 
+    def test_predecessors(self):
+        exp = {'bce3d09b-e296-4f2b-9af4-834db6412429',
+               '89af91c0-033d-4e30-8ac4-f29a3b407dc1'}
+        act = self.dags['5'].predecessors(TEST_DATA['5']['uuid'])
+        self.assertSetEqual(exp, act)
+
+    def test_predecessors_not_collapsed(self):
+        inner_node = '83a80bfd-8954-4571-8fc7-ac9e8435156e'
+        exp = {'9cc3281a-fefb-408e-8cf0-10637a06d84a'}
+        this_dag = self.dags['5']
+        act = this_dag.predecessors(inner_node, this_dag)
+        self.assertSetEqual(exp, act)
+
 
 class ProvDAGUnionTests(unittest.TestCase):
     @classmethod

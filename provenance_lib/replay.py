@@ -15,6 +15,8 @@ SUPPORTED_USAGE_DRIVERS = {
     'cli': CLIUsage,
 }
 
+# TODO Sanitization: Make user opt in to exec code, offering them a view of the
+# genereated usage example text by default. Consider explicit sanitization.
 
 def replay_provdag(dag: ProvDAG,
                    usage_driver: DRIVER_CHOICES,
@@ -46,13 +48,15 @@ def build_usage_examples(dag: ProvDAG, node_gen: Iterator[ProvNode]) -> \
         Dict[UUID, str]:
     # TODO: Handle disconnected graphs
     examples = {}
+    # TODO: add empty example_namespace dict here, and pass to example builders
+    # type: Dict[UUID, str] # str here is the variable name holding the artif.
     for node in node_gen:
         if dag.node_has_provenance(node):
             data = dag.get_node_data(node)
             if data.action.action_type == 'import':
-                example = build_import_usage(node, dag)
+                example = build_import_usage(data)
             else:
-                example = build_usage_action(data)
+                example = build_action_usage(data)
             print(node + ': \n', example, '\n')
             examples[node] = example
         else:
@@ -61,7 +65,7 @@ def build_usage_examples(dag: ProvDAG, node_gen: Iterator[ProvNode]) -> \
     return examples
 
 
-def build_import_usage(uuid: UUID, dag: ProvDAG) -> str:
+def build_import_usage(node: ProvNode) -> str:
     """
     Given a ProvNode, builds the import component of a usage example, roughly
     resembling the following:
@@ -76,7 +80,7 @@ def build_import_usage(uuid: UUID, dag: ProvDAG) -> str:
     The `lambda: None` is a placeholder for some actual data factory,
     and should not impact the rendered usage.
     """
-    sem_type = dag.get_node_data(uuid).type
+    sem_type = node.type
 
     # TODO: Get these somewhere
     fmt_var_name = 'raw_seqs'
@@ -98,7 +102,7 @@ def build_import_usage(uuid: UUID, dag: ProvDAG) -> str:
     return init_fmt_str + import_str
 
 
-def build_usage_action(node: ProvNode) -> str:
+def build_action_usage(node: ProvNode) -> str:
     """
     # TODO: MYPY
     Maybe this actually returns a qiime2.sdk.usage.UsageOutputs?

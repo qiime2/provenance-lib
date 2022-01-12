@@ -1,5 +1,6 @@
 import networkx as nx
 import pathlib
+from string import Template
 from typing import Any, Dict, Iterator, Literal
 
 from .archive_parser import ProvNode
@@ -15,8 +16,6 @@ SUPPORTED_USAGE_DRIVERS = {
     'cli': CLIUsage,
 }
 
-# TODO Sanitization: Make user opt in to exec code, offering them a view of the
-# genereated usage example text by default. Consider explicit sanitization.
 
 def replay_provdag(dag: ProvDAG,
                    usage_driver: DRIVER_CHOICES,
@@ -35,6 +34,9 @@ def replay_provdag(dag: ProvDAG,
     # inject usage_driver
     PluginManager()
     use = SUPPORTED_USAGE_DRIVERS[usage_driver]()
+
+    # TODO Make user opt in to exec code, offering them a view of the generated
+    # usage example text by default. Consider explicit sanitization.
     exec(joined_text)
 
     # render usage and write to file
@@ -80,24 +82,30 @@ def build_import_usage(node: ProvNode) -> str:
     The `lambda: None` is a placeholder for some actual data factory,
     and should not impact the rendered usage.
     """
-    sem_type = node.type
-
     # TODO: Get these somewhere
-    fmt_var_name = 'raw_seqs'
-    usage_var_name = 'raw_seqs'
-    file_ext = '.fastq.gz'
-    imp_var_name = 'imported_seqs'
-    imp_usage_var_name = 'emp_single_end_sequences'
+    init_fmt_args = {
+        'var_name': 'raw_seqs',
+        'usage_var_name': 'raw_seqs',
+        'file_ext': '.fastq.gz'}
 
-    init_fmt_str = (
-        f"{fmt_var_name} = use.init_format('{usage_var_name}', "
-        f"lambda: None, ext='{file_ext}')\n")
+    import_args = {
+        'var_name': 'imported_seqs',
+        'usage_var_name': 'emp_single_end_sequences',
+        'sem_type': node.type,
+        'fmt_var_name': init_fmt_args['var_name']}
 
-    import_str = (
-        f"{imp_var_name} = use.import_from_format('{imp_usage_var_name}', "
-        f"'{sem_type}'"
-        f", {fmt_var_name})"
+    # string.Template does not exec substitutions like fstrings do, so safer
+    init_fmt_template = Template(
+        "$var_name = use.init_format('$usage_var_name', "
+        "lambda: None, ext='$file_ext')\n")
+    init_fmt_str = init_fmt_template.substitute(init_fmt_args)
+
+    import_template = Template(
+        "$var_name = use.import_from_format('$usage_var_name', "
+        "'$sem_type'"
+        ", $fmt_var_name)"
     )
+    import_str = import_template.substitute(import_args)
 
     return init_fmt_str + import_str
 
@@ -116,20 +124,22 @@ def build_action_usage(node: ProvNode) -> str:
         use.UsageOutputNames(vector='pielou_vector')
     )
     """
-    plugin = node.action.plugin
-    action = node.action.action_name
-    if node.action.action_type == 'import':
-        # TODO: Handle qiime imports
-        inputs = None
-    else:
-        inputs = {key: value for key, value in node.action.inputs.items()}
-        params = {key: value for key, value in node.action.parameters.items()}
-        inputs.update(params)
-    outputs = {key: value for key, value in node.action.outputs.items()}
-    # TODO: Confirm I can pass these 'argument objects' dictionaries
-    return ('use.action('
-            f'use.UsageAction(plugin_id=\'{plugin}\', '
-            f'action_id=\'{action}\'), '
-            f'use.UsageInputs({inputs}), '
-            f'use.UsageOutputNames({outputs}))'
-            )
+    inputs = {key: value for key, value in node.action.inputs.items()}
+    params = {key: value for key, value in node.action.parameters.items()}
+    inputs.update(params)
+    subst_args = {
+        'plugin': node.action.plugin,
+        'action': node.action.action_name,
+        'inputs': inputs,
+        'outputs': {key: value for key, value in node.action.outputs.items()},
+    }
+
+    # TODO: Confirm I can pass dictionaires to inputs/outputs argument objects
+    action_template = Template(
+        'use.action('
+        'use.UsageAction(plugin_id=\'$plugin\', '
+        'action_id=\'$action\'), '
+        'use.UsageInputs($inputs), '
+        'use.UsageOutputNames($outputs))'
+    )
+    return action_template.substitute(subst_args)

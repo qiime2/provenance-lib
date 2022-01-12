@@ -305,6 +305,43 @@ class _Action:
             plugin = 'framework'
         return plugin
 
+    @property
+    def inputs(self) -> dict:
+        """ returns a dict of artifact inputs to this action """
+        inputs = self._action_details.get('inputs')
+        results = {}
+        if inputs is not None:
+            for item in inputs:
+                results.update(item.items())
+        return results
+
+    @property
+    def parameters(self) -> dict:
+        """ returns a dict of parameters passed to this action """
+        params = self._action_details.get('parameters')
+        results = {}
+        if params is not None:
+            for item in params:
+                results.update(item.items())
+        return results
+
+    @property
+    def outputs(self) -> dict:
+        """ returns a single-item dict of the output of this action """
+        output = self._action_details.get('output-name')
+        results = {}
+        if output is not None:
+            results = {output: output}
+        return results
+
+    @property
+    def format(self) -> Optional[str]:
+        """
+        Returns this action's format field if any.
+        Expected with actions of type import, maybe no others?
+        """
+        return self._action_details.get('format')
+
     def __init__(self, zf: zipfile.ZipFile, fp: str):
         self._action_dict = yaml.safe_load(zf.read(fp))
         self._action_details = self._action_dict['action']

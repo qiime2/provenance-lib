@@ -1,4 +1,5 @@
 # flake8: noqa
+import pathlib
 import sys
 import zipfile
 
@@ -37,10 +38,14 @@ if __name__ == '__main__':
 
     print(f'\nIts prov DAG looks like\n{dummy_DAG}')
 
-    print('#########################################')
+    print(dummy_DAG.predecessors('ffb7cee3-2f1f-4988-90cc-efd5184ef003'))
+    # The following is not trustworthy bc _parents may not be updated
     print(
           dummy_DAG
           .get_node_data('ffb7cee3-2f1f-4988-90cc-efd5184ef003')._parents)
+    print('#########################################')
 
     print("\nTopological sort of dummy dag: ")
-    replay_provdag(dummy_DAG)
+    out_fp = pathlib.Path(
+        '/home/chris/src/provenance_py/provenance_lib/test_outputs/analysis.txt')
+    replay_provdag(dag=dummy_DAG, usage_driver='python3', out_fp=out_fp)

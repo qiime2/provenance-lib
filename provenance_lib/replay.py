@@ -98,21 +98,6 @@ def build_import_usage(uuid: UUID, dag: ProvDAG) -> str:
     return init_fmt_str + import_str
 
 
-def build_artifact_initializer(uuid: UUID, dag: ProvDAG) -> str:
-    """
-    Given a ProvNode, builds a command roughly resembling the following:
-
-    ft = use.init_artifact('feature_table', lambda: None)
-
-    The `lambda: None` is a placeholder for some actual data factory,
-    and should not impact the rendered usage.
-    """
-    # TODO: Get these somewhere
-    var = "assignment variable"
-    usage_var = "internal name"
-    return f"<{var}> = use.init_artifact('{usage_var}', lambda: None)"
-
-
 def build_usage_action(node: ProvNode) -> str:
     """
     # TODO: MYPY
@@ -144,8 +129,3 @@ def build_usage_action(node: ProvNode) -> str:
             f'use.UsageInputs({inputs}), '
             f'use.UsageOutputNames({outputs}))'
             )
-
-
-def build_metadata_initializer(node: ProvNode) -> str:
-    # TODO
-    raise NotImplementedError

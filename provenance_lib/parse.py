@@ -178,7 +178,7 @@ class ProvDAG:
         return self.dag.nodes[uuid]['node_data']
 
     def predecessors(self, node: UUID, dag: nx.DiGraph = None) \
-            -> List[UUID]:
+            -> Set[UUID]:
         """ Returns the parent UUIDs of a given node """
         dag = self.collapsed_view if dag is None else dag
         return set(self.dag.predecessors(node))

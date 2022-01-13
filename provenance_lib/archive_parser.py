@@ -326,13 +326,13 @@ class _Action:
         return results
 
     @property
-    def outputs(self) -> dict:
-        """ returns a single-item dict of the output of this action """
-        output = self._action_details.get('output-name')
-        results = {}
-        if output is not None:
-            results = {output: output}
-        return results
+    def output_name(self) -> str:
+        """
+        Returns the output name for the node that owns this action.yaml
+        note that a QIIME 2 action may have multiple outputs not represented
+        here.
+        """
+        return self._action_details.get('output-name')
 
     @property
     def format(self) -> Optional[str]:

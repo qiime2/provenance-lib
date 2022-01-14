@@ -326,7 +326,7 @@ class _Action:
         return results
 
     @property
-    def output_name(self) -> str:
+    def output_name(self) -> Optional[str]:
         """
         Returns the output name for the node that owns this action.yaml
         note that a QIIME 2 action may have multiple outputs not represented
@@ -341,6 +341,13 @@ class _Action:
         Expected with actions of type import, maybe no others?
         """
         return self._action_details.get('format')
+
+    @property
+    def transformers(self) -> Optional[Dict]:
+        """
+        Returns this action's transformers dictionary if any.
+        """
+        return self._action_dict.get('transformers')
 
     def __init__(self, zf: zipfile.ZipFile, fp: str):
         self._action_dict = yaml.safe_load(zf.read(fp))

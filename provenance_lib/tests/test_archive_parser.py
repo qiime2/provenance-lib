@@ -220,6 +220,41 @@ class ActionTests(unittest.TestCase):
         exp = 'diversity'
         self.assertEqual(self.act.plugin, exp)
 
+    def test_inputs(self):
+        action_exp = {'table': '706b6bce-8f19-4ae9-b8f5-21b14a814a1b',
+                      'phylogeny': 'ad7e5b50-065c-4fdd-8d9b-991e92caad22'}
+        import_exp = {}
+        self.assertEqual(self.act.inputs, action_exp)
+        self.assertEqual(self.imp_act.inputs, import_exp)
+
+    def test_parameters(self):
+        action_exp = {'sampling_depth': 1000,
+                      'metadata': MetadataInfo(input_artifact_uuids=[],
+                                               relative_fp='metadata.tsv'),
+                      'n_jobs_or_threads': 'auto'}
+        import_exp = {}
+        self.assertEqual(self.act.parameters, action_exp)
+        self.assertEqual(self.imp_act.parameters, import_exp)
+
+    def test_output_name(self):
+        action_exp = 'unweighted_unifrac_emperor'
+        import_exp = None
+        self.assertEqual(self.act.output_name, action_exp)
+        self.assertEqual(self.imp_act.output_name, import_exp)
+
+    def test_format(self):
+        action_exp = None
+        import_exp = 'EMPSingleEndDirFmt'
+        self.assertEqual(self.act.format, action_exp)
+        self.assertEqual(self.imp_act.format, import_exp)
+
+    def test_transformers(self):
+        action_exp = None
+        import_exp = {'output': [{'from': 'EMPSingleEndDirFmt',
+                                  'to': 'EMPSingleEndDirFmt'}]}
+        self.assertEqual(self.act.transformers, action_exp)
+        self.assertEqual(self.imp_act.transformers, import_exp)
+
     def test_repr(self):
         exp = ('_Action(action_id=5bc4b090-abbc-46b0-a219-346c8026f7d7, '
                'type=pipeline, plugin=diversity, '

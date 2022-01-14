@@ -2,7 +2,7 @@ import networkx as nx
 import pathlib
 import re
 from string import Template
-from typing import Dict, Iterator, List, Literal
+from typing import Dict, Iterator, List, Optional, Literal
 
 from .archive_parser import ProvNode
 from .parse import ProvDAG, UUID
@@ -18,9 +18,29 @@ SUPPORTED_USAGE_DRIVERS = {
 }
 
 
-def replay_provdag(dag: ProvDAG,
-                   usage_driver: DRIVER_CHOICES,
-                   out_fp: pathlib.Path):
+def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
+                   unsafe_render: bool = False,
+                   usage_driver: Optional[DRIVER_CHOICES] = None):
+    """
+    Generates usage example code for a single ProvDAG.
+    Optionally executes and renders that code into an interface-specific script
+
+    WARNING: This latter step, activated by passing unsafe_render=True,
+    is unsafe, capable of executing arbitrary code, and should only be used
+    with trusted ProvDAGs.
+
+    Review the output of a run with the default settings first, and only use
+    unsafe_render once you're confident that code is not malicious.
+
+    TODO: Consider explicit sanitization.
+    Initially, we separated this from the function above, in an effort to
+    offer users a view of the generated usage example text, and THEN make
+    them opt in over warnings to exec that code.
+    """
+    if unsafe_render is True and usage_driver is None:
+        raise ValueError(
+            "A usage_driver is required when unsafe_render is True.")
+
     sorted_nodes = nx.topological_sort(dag.collapsed_view)
     # NOTE: input nodes must be sorted if returned actions are also to be
     actions = group_by_action(dag, sorted_nodes)
@@ -29,22 +49,22 @@ def replay_provdag(dag: ProvDAG,
     # Join usage examples
     # TODO: Drop this subscript and actually join all the examples
     usage_example_texts = usage_examples[0:1]
-    joined_text = "\n".join(usage_example_texts)
-    print("Joined Text: \n" + joined_text)
+    generated_code = "\n".join(usage_example_texts)
 
-    # inject usage_driver
-    PluginManager()
-    use = SUPPORTED_USAGE_DRIVERS[usage_driver]()
+    if unsafe_render is True:
+        # Begin unsafe render
+        PluginManager()
+        use = SUPPORTED_USAGE_DRIVERS[usage_driver]()
+        exec(generated_code)
 
-    # TODO Make user opt in to exec code, offering them a view of the generated
-    # usage example text by default. Consider explicit sanitization.
-    exec(joined_text)
+        # render usage and write to file
+        output = use.render()
+        print("\nRendered: \n" + output)
+    else:
+        output = generated_code
 
-    # render usage and write to file
-    rendered = use.render()
-    print("\nRendered: \n" + rendered)
-    with open(out_fp, mode='w') as fp:
-        fp.write(rendered)
+    with open(out_fp, mode='w') as out_fh:
+        out_fh.write(output)
 
 
 def camel_to_snake(name: str) -> str:

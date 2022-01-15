@@ -1,6 +1,7 @@
 import networkx as nx
 import pathlib
 import re
+from collections import UserDict
 from string import Template
 from typing import Dict, Iterator, List, Optional, Literal
 
@@ -18,6 +19,37 @@ SUPPORTED_USAGE_DRIVERS = {
 }
 
 
+class UniqueValsDict(UserDict):
+    """
+    A dict where values are also unique. Used here as a UUID-queryable
+    "namespace" of strings that will be evaluated into python variable names.
+    Non-unique values would cause namespace collisions.
+
+    For consistency and simplicity, all values are suffixed with _n, such that
+    n is some int. When potentially colliding values are added, n is
+    incremented as needed until collision is avoided.
+
+    NOTE: In cases where a var_name string must be used locally AND added to a
+    UniqueValsDict as a value, best practice is to add it to the Dict before
+    using it locally. UniqueValsDicts mutate ALL dict values they receive.
+    """
+    def __setitem__(self, key: UUID, item: str) -> None:
+        unique_val = self._uniquify(item)
+        return super().__setitem__(key, unique_val)
+
+    def _uniquify(self, var_name: str) -> str:
+        """
+        Appends _<some_int> to var_name, such that the returned name won't
+        collide with any variable-name values that already exist in the dict.
+        """
+        some_int = 0
+        unique_name = f"{var_name}_{some_int}"
+        while unique_name in self.data.values():
+            some_int += 1
+            unique_name = f"{var_name}_{some_int}"
+        return unique_name
+
+
 def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
                    unsafe_render: bool = False,
                    usage_driver: Optional[DRIVER_CHOICES] = None):
@@ -32,10 +64,7 @@ def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
     Review the output of a run with the default settings first, and only use
     unsafe_render once you're confident that code is not malicious.
 
-    TODO: Consider explicit sanitization.
-    Initially, we separated this from the function above, in an effort to
-    offer users a view of the generated usage example text, and THEN make
-    them opt in over warnings to exec that code.
+    TODO: Consider robust input sanitization.
     """
     if unsafe_render is True and usage_driver is None:
         raise ValueError(
@@ -52,12 +81,12 @@ def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
     generated_code = "\n".join(usage_example_texts)
 
     if unsafe_render is True:
-        # Begin unsafe render
         PluginManager()
-        use = SUPPORTED_USAGE_DRIVERS[usage_driver]()
+        # This position is only reachable if usage_driver is a string, but
+        # mypy is nervous, so ignoring type.
+        use = SUPPORTED_USAGE_DRIVERS[usage_driver]()  # type: ignore
+        # execing generated usage examples makes use.render possible
         exec(generated_code)
-
-        # render usage and write to file
         output = use.render()
         print("\nRendered: \n" + output)
     else:
@@ -123,24 +152,21 @@ def build_usage_examples(
     """
     # TODO: Handle disconnected graphs
     examples = []
-    # TODO: Deal with namespace collisions gracefully
-    example_namespace = {}  # type: Dict[UUID, str]
+    results_namespace = UniqueValsDict()
     for action in actions:
         some_node_id_from_this_action = next(iter(actions[action]))
         # group_nodes_by_action guarantees only nodes with prov are in actions
         # all nodes from one action should have the same action_type etc, so:
         n_data = dag.get_node_data(some_node_id_from_this_action)
-        # print(n_data.action.action_type)
         if n_data.action.action_type == 'import':
-            example = build_import_usage(n_data, example_namespace)
+            example = build_import_usage(n_data, results_namespace)
         else:
             example = build_action_usage(n_data,
-                                         example_namespace,
+                                         results_namespace,
                                          actions,
                                          action)
         print(action + ': \n', example, '\n')
         examples.append(example)
-        # print("EXAMPLE NAMESPACE:\n" + str(example_namespace))
     return examples
 
 
@@ -148,7 +174,8 @@ def build_usage_examples(
 # check on this before shit gets too complicated. Are we updating ProvNode.uuid
 # when we update dag UUIDs? It's probably time for that.
 # TODO: Should this take a dag and actions instead of a single node?
-def build_import_usage(node: ProvNode, namespace: Dict[UUID, str]) -> str:
+def build_import_usage(node: ProvNode,
+                       results_namespace: UniqueValsDict) -> str:
     """
     Given a ProvNode, builds the import component of a usage example, roughly
     resembling the following:
@@ -163,22 +190,21 @@ def build_import_usage(node: ProvNode, namespace: Dict[UUID, str]) -> str:
     The `lambda: None` is a placeholder for some actual data factory,
     and should not impact the rendered usage.
     """
-    # TODO: Get these somewhere
     init_fmt_args = {
-        'var_name': 'raw_seqs',
-        'usage_var_name': 'raw_seqs',
-        'file_ext': '.fastq.gz'}
+        'var_name': get_init_from_format_var_name(node, results_namespace),
+        'usage_var_name':  '<your data here>'}
 
+    results_namespace.update({node.uuid: camel_to_snake(node.type)})
     import_args = {
-        'var_name': 'imported_seqs',
-        'usage_var_name': 'emp_single_end_sequences',
+        'var_name': 'imported_data',
+        'usage_var_name': results_namespace[node.uuid],
         'sem_type': node.type,
         'fmt_var_name': init_fmt_args['var_name']}
 
     # string.Template does not exec substitutions like fstrings do, so safer
     init_fmt_template = Template(
         "$var_name = use.init_format('$usage_var_name', "
-        "lambda: None, ext='$file_ext')\n")
+        "lambda: None)\n")
     init_fmt_str = init_fmt_template.substitute(init_fmt_args)
 
     import_template = Template(
@@ -187,13 +213,41 @@ def build_import_usage(node: ProvNode, namespace: Dict[UUID, str]) -> str:
         ", $fmt_var_name)"
     )
     import_str = import_template.substitute(import_args)
-    namespace.update({node.uuid: import_args['var_name']})
 
     return init_fmt_str + import_str
 
 
+def get_init_from_format_var_name(node: ProvNode,
+                                  results_namespace: UniqueValsDict) -> str:
+    """
+    Attempts to return a meaningful format name from an import's action.yaml
+    Failing that, returns 'filler_format_var'.
+
+    These variables don't need to be unique, as they are intermediate objects
+    (formats, not artifacts) and so not saved to our results_namespace dict.
+    """
+    var_name = None
+    try:
+        var_name = camel_to_snake(node.action._action_details['format'])
+    except KeyError:
+        pass
+
+    if var_name is None:
+        transformers = node.action.transformers
+        if transformers is not None:  # Makes mypy happy
+            try:
+                var_name = camel_to_snake(transformers['output'][-1]['to'])
+            except KeyError:
+                pass
+
+    if var_name is None:
+        var_name = "filler_format_var"
+
+    return var_name
+
+
 def build_action_usage(node: ProvNode,
-                       namespace: Dict[UUID, str],
+                       namespace: UniqueValsDict,
                        actions: Dict[UUID, Dict[UUID, str]],
                        action_id: UUID) -> str:
     """

@@ -1,0 +1,4 @@
+qiime tools import \
+  --type 'EMPSingleEndSequences' \
+  --input-path <your data here> \
+  --output-path emp-single-end-sequences-0.qza

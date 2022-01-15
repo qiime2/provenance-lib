@@ -1,0 +1,6 @@
+from qiime2 import Artifact
+
+emp_single_end_sequences_0 = Artifact.import_data(
+    'EMPSingleEndSequences',
+    '<your data here>',
+)

@@ -261,6 +261,19 @@ def build_action_usage(node: ProvNode,
     """
     inputs = {key: value for key, value in node.action.inputs.items()}
     params = {key: value for key, value in node.action.parameters.items()}
+    # TODO: NEXT handle metadata garbage
+    # if there is metadata in any of our parameter values:
+    #   if we are re-running with baked-in metadata, use the md files in prov
+    #   else:
+    #     dump the md files for user review
+    #     use.comment("Context on reviewing dumped md sheets for structure")
+    #     if no input_artifacts:
+    #       mock: <your sample metadata here>
+    #     else (input_artifact_uuids):
+    #       pass variable names from namespace
+    #     (both cases) <This command may have received additional metadata>
+
+    print(params)
     inputs.update(params)
     subst_args = {
         'plugin': node.action.plugin,

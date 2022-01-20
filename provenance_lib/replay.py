@@ -283,12 +283,12 @@ def build_action_usage(node: ProvNode,
     }
     namespace.update(subst_args['outputs'])
 
-    # TODO: Confirm I can pass dictionaires to inputs/outputs argument objects
     action_template = Template(
         'use.action('
         'use.UsageAction(plugin_id=\'$plugin\', '
         'action_id=\'$action\'), '
-        'use.UsageInputs($inputs), '
-        'use.UsageOutputNames($outputs))'
+        # inputs and outputs dicts must be unpacked for use as kwargs
+        'use.UsageInputs(**$inputs), '
+        'use.UsageOutputNames(**$outputs))'
     )
     return action_template.substitute(subst_args)

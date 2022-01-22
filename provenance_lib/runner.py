@@ -54,6 +54,7 @@ if __name__ == '__main__':
         '/home/chris/src/provenance_py/provenance_lib/test_outputs/rendered.txt')
     replay_provdag(dag=dummy_DAG, out_fp=out_fp, unsafe_render=True, usage_driver='python3')
 
-    out_fp = pathlib.Path(
-        '/home/chris/src/provenance_py/provenance_lib/test_outputs/cli_rendered.txt')
-    replay_provdag(dag=dummy_DAG, out_fp=out_fp, unsafe_render=True, usage_driver='cli')
+    # TODO: Uncomment to test CLI
+    # out_fp = pathlib.Path(
+    #     '/home/chris/src/provenance_py/provenance_lib/test_outputs/cli_rendered.txt')
+    # replay_provdag(dag=dummy_DAG, out_fp=out_fp, unsafe_render=True, usage_driver='cli')

@@ -7,6 +7,7 @@ from typing import Dict, Iterator, List, Optional, Literal
 
 from .archive_parser import ProvNode
 from .parse import ProvDAG, UUID
+from .yaml_constructors import MetadataInfo
 
 from qiime2.sdk import PluginManager  # type: ignore
 from qiime2.plugins import ArtifactAPIUsage  # type: ignore
@@ -77,7 +78,7 @@ def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
 
     # Join usage examples
     # TODO: Drop this subscript and actually join all the examples
-    usage_example_texts = usage_examples[0:1]
+    usage_example_texts = usage_examples
     generated_code = "\n".join(usage_example_texts)
 
     if unsafe_render is True:
@@ -88,7 +89,6 @@ def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
         # execing generated usage examples makes use.render possible
         exec(generated_code)
         output = use.render()
-        print("\nRendered: \n" + output)
     else:
         output = generated_code
 
@@ -258,10 +258,30 @@ def build_action_usage(node: ProvNode,
         use.UsageInputs(table=ft),
         use.UsageOutputNames(vector='pielou_vector')
     )
+
+    # TODO: clean up or remove
+    actions looks like: {action_id: {node_id: node_name, ...}, ...}
     """
-    inputs = {key: value for key, value in node.action.inputs.items()}
-    params = {key: value for key, value in node.action.parameters.items()}
-    # TODO: NEXT handle metadata garbage
+    inputs = {}
+    for k, v in node.action.inputs.items():
+        # TODO: namespace[v] is a string and renders as such - it should render
+        # without single-quotes for the artifact API.
+        # This guy could be useful: https://github.com/qiime2/qiime2/blob/
+        # 6ef6df712f2f14be1baa5551368a41c3e9f8e340/qiime2/plugins.py#L31
+        print(k, namespace[v])
+        inputs.update({k: namespace[v]})
+
+    print("PARAMS BE LIKE")
+    # params = {key: value for key, value in node.action.parameters.items()}
+    for k, v in node.action.parameters.items():
+        print(k, v)
+        if isinstance(v, MetadataInfo):
+            print("JACKPOT!")
+            # TODO NEXT: handle metadata
+            # Look at raw examples with one metadata input and multiple
+            # metadata inputs to the same parameter name. Capture the data we
+            # need to duplicate that. Or maybe now's the time to move away from
+            # templating and embrace the usage api properly?
     # if there is metadata in any of our parameter values:
     #   if we are re-running with baked-in metadata, use the md files in prov
     #   else:
@@ -272,16 +292,22 @@ def build_action_usage(node: ProvNode,
     #     else (input_artifact_uuids):
     #       pass variable names from namespace
     #     (both cases) <This command may have received additional metadata>
+        inputs.update({k: v})
 
-    print(params)
-    inputs.update(params)
+    raw_outputs = actions[action_id].items()
+    outputs = {}
+    for (k, v) in raw_outputs:
+        namespace.update({k: v})
+        uniquified_val = namespace[k]
+        outputs.update({v: uniquified_val})
+
     subst_args = {
         'plugin': node.action.plugin,
         'action': node.action.action_name,
+        # TODO: get the right input values
         'inputs': inputs,
-        'outputs': actions[action_id],
+        'outputs': outputs,
     }
-    namespace.update(subst_args['outputs'])
 
     action_template = Template(
         'use.action('

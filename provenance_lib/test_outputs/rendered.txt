@@ -1,6 +1,41 @@
 from qiime2 import Artifact
+import qiime2.plugins.dada2.actions as dada2_actions
+import qiime2.plugins.demux.actions as demux_actions
+import qiime2.plugins.diversity.actions as diversity_actions
+import qiime2.plugins.phylogeny.actions as phylogeny_actions
 
 emp_single_end_sequences_0 = Artifact.import_data(
     'EMPSingleEndSequences',
     '<your data here>',
+)
+per_sample_sequences_0, _ = demux_actions.emp_single(
+    seqs='emp_single_end_sequences_0',
+    barcodes=MetadataInfo(input_artifact_uuids=[], relative_fp='barcodes.tsv'),
+    rev_comp_barcodes=False,
+    rev_comp_mapping_barcodes=False,
+)
+table_0, representative_sequences_0, _ = dada2_actions.denoise_single(
+    demultiplexed_seqs='per_sample_sequences_0',
+    trunc_len=120,
+    trim_left=0,
+    max_ee=2.0,
+    trunc_q=2,
+    chimera_method='consensus',
+    min_fold_parent_over_abundance=1.0,
+    n_threads=1,
+    n_reads_learn=1000000,
+    hashed_feature_ids=True,
+)
+_, _, _, rooted_tree_0 = phylogeny_actions.align_to_tree_mafft_fasttree(
+    sequences='representative_sequences_0',
+    n_threads=1,
+    mask_max_gap_frequency=1.0,
+    mask_min_conservation=0.4,
+)
+_, _, _, _, _, _, _, _, _, _, _, _, _, unweighted_unifrac_emperor_0_viz, _, _, _ = diversity_actions.core_metrics_phylogenetic(
+    table='table_0',
+    phylogeny='rooted_tree_0',
+    sampling_depth=1109,
+    metadata=MetadataInfo(input_artifact_uuids=[], relative_fp='metadata.tsv'),
+    n_jobs=1,
 )

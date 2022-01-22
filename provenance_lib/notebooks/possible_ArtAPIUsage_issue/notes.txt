@@ -1,0 +1,7 @@
+This is here because there may be an issue with the ArtifactAPIUsage,
+and it should probably be investigated.
+
+It's possible for the artifact API to import from a filepath, or a python variable holding some object
+The artifact API, in my experience, wraps the filepath location in the import call in single-quotes.
+
+We need to see whether that also happens in cases like this, where we're not importing an fp.

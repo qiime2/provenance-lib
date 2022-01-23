@@ -74,10 +74,13 @@ def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
     sorted_nodes = nx.topological_sort(dag.collapsed_view)
     # NOTE: input nodes must be sorted if returned actions are also to be
     actions = group_by_action(dag, sorted_nodes)
+    # TODO: probably refactor build_usage_examples to build a structure
+    # containing the required data. This way we build the data once, and users
+    # can use it to generate multiple UI examples from it.
+    # for now, we'll just pass the use into our builders.
     usage_examples = build_usage_examples(dag, actions)
 
     # Join usage examples
-    # TODO: Drop this subscript and actually join all the examples
     usage_example_texts = usage_examples
     generated_code = "\n".join(usage_example_texts)
 
@@ -277,6 +280,7 @@ def build_action_usage(node: ProvNode,
         print(k, v)
         if isinstance(v, MetadataInfo):
             print("JACKPOT!")
+            # TODO NEXT: stop templating and embrace the usage API
             # TODO NEXT: handle metadata
             # Look at raw examples with one metadata input and multiple
             # metadata inputs to the same parameter name. Capture the data we
@@ -292,6 +296,7 @@ def build_action_usage(node: ProvNode,
     #     else (input_artifact_uuids):
     #       pass variable names from namespace
     #     (both cases) <This command may have received additional metadata>
+    # How does this look for MetadataColumns?
         inputs.update({k: v})
 
     raw_outputs = actions[action_id].items()

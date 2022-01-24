@@ -1,6 +1,0 @@
-from qiime2 import Artifact
-
-emp_single_end_sequences = Artifact.import_data(
-    'EMPSingleEndSequences',
-    'raw_seqs..fastq.gz',
-)

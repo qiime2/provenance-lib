@@ -51,23 +51,23 @@ class UniqueValsDict(UserDict):
 
 
 def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
-                   usage_driver: DRIVER_CHOICES):
+                   usage_driver: DRIVER_CHOICES,
+                   use_recorded_metadata: bool = False):
     """
     Renders usage examples describing a ProvDAG, producing an interface-
     specific executable.
 
+    if use_recorded_metadata is True, TODO: DO SOMETHING
+
     TODO: Consider robust input sanitization.
+    TODO: probably refactor build_usage_examples to build a structure
+    containing the required data. This way we build the data once, and users
+    can use it to generate multiple UI examples from it.
+    for now, we'll just pass the use into our builders.
     """
-    sorted_nodes = nx.topological_sort(dag.collapsed_view)
-    # NOTE: input nodes must be sorted if returned actions are also to be
-    actions = group_by_action(dag, sorted_nodes)
-    # TODO: probably refactor build_usage_examples to build a structure
-    # containing the required data. This way we build the data once, and users
-    # can use it to generate multiple UI examples from it.
-    # for now, we'll just pass the use into our builders.
     PluginManager()
     use = SUPPORTED_USAGE_DRIVERS[usage_driver]()  # type: ignore
-    build_usage_examples(dag, actions, use)
+    build_usage_examples(dag, use)
     output = use.render()
     with open(out_fp, mode='w') as out_fh:
         out_fh.write(output)
@@ -116,23 +116,24 @@ def group_by_action(dag: ProvDAG, nodes: Iterator[UUID]) -> \
             except KeyError:
                 actions[action_id] = {node: output_name}
         else:
-            # For the sake of build_usage_examples, we should probably
+            # TODO: For the sake of build_usage_examples, we should probably
             # continue to guarantee that no-prov nodes aren't added to actions
             raise NotImplementedError("Replay does not support no-prov nodes")
     return actions
 
 
-def build_usage_examples(
-        dag: ProvDAG, actions: Dict[UUID, Dict[UUID, str]], use):
+def build_usage_examples(dag: ProvDAG, use):
     """
+    Builds a chained usage example representing the analysis `dag`.
     TODO: import Usage for typing?
-    TODO: docstring
     """
     # TODO: Handle disconnected graphs
+    sorted_nodes = nx.topological_sort(dag.collapsed_view)
+    actions = group_by_action(dag, sorted_nodes)
     results_namespace = UniqueValsDict()
     for action in actions:
         some_node_id_from_this_action = next(iter(actions[action]))
-        # group_nodes_by_action guarantees only nodes with prov are in actions
+        # group_by_action guarantees only nodes with prov are in actions
         # all nodes from one action should have the same action_type etc, so:
         n_data = dag.get_node_data(some_node_id_from_this_action)
         if n_data.action.action_type == 'import':
@@ -207,8 +208,7 @@ def build_action_usage(node: ProvNode,
             # TODO NEXT: handle metadata
             # Look at raw examples with one metadata input and multiple
             # metadata inputs to the same parameter name. Capture the data we
-            # need to duplicate that. Or maybe now's the time to move away from
-            # templating and embrace the usage api properly?
+            # need to duplicate that.
     # if there is metadata in any of our parameter values:
     #   if we are re-running with baked-in metadata, use the md files in prov
     #   else:

@@ -46,15 +46,12 @@ if __name__ == '__main__':
     print('#########################################')
 
     print("\nTopological sort of dummy dag: ")
-    raw_fp = pathlib.Path(
-        '/home/chris/src/provenance_py/provenance_lib/test_outputs/raw.txt')
-    replay_provdag(dag=dummy_DAG, out_fp=raw_fp)
 
     out_fp = pathlib.Path(
         '/home/chris/src/provenance_py/provenance_lib/test_outputs/rendered.txt')
-    replay_provdag(dag=dummy_DAG, out_fp=out_fp, unsafe_render=True, usage_driver='python3')
+    replay_provdag(dag=dummy_DAG, out_fp=out_fp, usage_driver='python3')
 
     # TODO: Uncomment to test CLI
     # out_fp = pathlib.Path(
     #     '/home/chris/src/provenance_py/provenance_lib/test_outputs/cli_rendered.txt')
-    # replay_provdag(dag=dummy_DAG, out_fp=out_fp, unsafe_render=True, usage_driver='cli')
+    # replay_provdag(dag=dummy_DAG, out_fp=out_fp, usage_driver='cli')

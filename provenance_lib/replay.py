@@ -2,8 +2,7 @@ import networkx as nx
 import pathlib
 import re
 from collections import UserDict
-from string import Template
-from typing import Dict, Iterator, List, Optional, Literal
+from typing import Dict, Iterator, Literal
 
 from .archive_parser import ProvNode
 from .parse import ProvDAG, UUID
@@ -52,25 +51,13 @@ class UniqueValsDict(UserDict):
 
 
 def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
-                   unsafe_render: bool = False,
-                   usage_driver: Optional[DRIVER_CHOICES] = None):
+                   usage_driver: DRIVER_CHOICES):
     """
-    Generates usage example code for a single ProvDAG.
-    Optionally executes and renders that code into an interface-specific script
-
-    WARNING: This latter step, activated by passing unsafe_render=True,
-    is unsafe, capable of executing arbitrary code, and should only be used
-    with trusted ProvDAGs.
-
-    Review the output of a run with the default settings first, and only use
-    unsafe_render once you're confident that code is not malicious.
+    Renders usage examples describing a ProvDAG, producing an interface-
+    specific executable.
 
     TODO: Consider robust input sanitization.
     """
-    if unsafe_render is True and usage_driver is None:
-        raise ValueError(
-            "A usage_driver is required when unsafe_render is True.")
-
     sorted_nodes = nx.topological_sort(dag.collapsed_view)
     # NOTE: input nodes must be sorted if returned actions are also to be
     actions = group_by_action(dag, sorted_nodes)
@@ -78,23 +65,10 @@ def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
     # containing the required data. This way we build the data once, and users
     # can use it to generate multiple UI examples from it.
     # for now, we'll just pass the use into our builders.
-    usage_examples = build_usage_examples(dag, actions)
-
-    # Join usage examples
-    usage_example_texts = usage_examples
-    generated_code = "\n".join(usage_example_texts)
-
-    if unsafe_render is True:
-        PluginManager()
-        # This position is only reachable if usage_driver is a string, but
-        # mypy is nervous, so ignoring type.
-        use = SUPPORTED_USAGE_DRIVERS[usage_driver]()  # type: ignore
-        # execing generated usage examples makes use.render possible
-        exec(generated_code)
-        output = use.render()
-    else:
-        output = generated_code
-
+    PluginManager()
+    use = SUPPORTED_USAGE_DRIVERS[usage_driver]()  # type: ignore
+    build_usage_examples(dag, actions, use)
+    output = use.render()
     with open(out_fp, mode='w') as out_fh:
         out_fh.write(output)
 
@@ -149,12 +123,12 @@ def group_by_action(dag: ProvDAG, nodes: Iterator[UUID]) -> \
 
 
 def build_usage_examples(
-        dag: ProvDAG, actions: Dict[UUID, Dict[UUID, str]]) -> List[str]:
+        dag: ProvDAG, actions: Dict[UUID, Dict[UUID, str]], use):
     """
-    TODO:
+    TODO: import Usage for typing?
+    TODO: docstring
     """
     # TODO: Handle disconnected graphs
-    examples = []
     results_namespace = UniqueValsDict()
     for action in actions:
         some_node_id_from_this_action = next(iter(actions[action]))
@@ -162,26 +136,21 @@ def build_usage_examples(
         # all nodes from one action should have the same action_type etc, so:
         n_data = dag.get_node_data(some_node_id_from_this_action)
         if n_data.action.action_type == 'import':
-            example = build_import_usage(n_data, results_namespace)
+            build_import_usage(n_data, results_namespace, use)
         else:
-            example = build_action_usage(n_data,
-                                         results_namespace,
-                                         actions,
-                                         action)
-        print(action + ': \n', example, '\n')
-        examples.append(example)
-    return examples
+            build_action_usage(n_data, results_namespace, actions, action, use)
 
 
 # TODO: I THINK we need the UUID from the dag, not from the ProvNode.
 # check on this before shit gets too complicated. Are we updating ProvNode.uuid
 # when we update dag UUIDs? It's probably time for that.
 # TODO: Should this take a dag and actions instead of a single node?
-def build_import_usage(node: ProvNode,
-                       results_namespace: UniqueValsDict) -> str:
+def build_import_usage(node: ProvNode, results_namespace: UniqueValsDict, use):
     """
-    Given a ProvNode, builds the import component of a usage example, roughly
-    resembling the following:
+    Given a ProvNode, adds an import usage example for it, roughly
+    resembling the following.
+
+    Returns nothing, modifying the passed usage instance in place.
 
     raw_seqs = use.init_format('raw_seqs', lambda: None, ext='fastq.gz')
     imported_seqs = use.import_from_format(
@@ -193,68 +162,23 @@ def build_import_usage(node: ProvNode,
     The `lambda: None` is a placeholder for some actual data factory,
     and should not impact the rendered usage.
     """
-    init_fmt_args = {
-        'var_name': get_init_from_format_var_name(node, results_namespace),
-        'usage_var_name':  '<your data here>'}
-
     results_namespace.update({node.uuid: camel_to_snake(node.type)})
-    import_args = {
-        'var_name': 'imported_data',
-        'usage_var_name': results_namespace[node.uuid],
-        'sem_type': node.type,
-        'fmt_var_name': init_fmt_args['var_name']}
-
-    # string.Template does not exec substitutions like fstrings do, so safer
-    init_fmt_template = Template(
-        "$var_name = use.init_format('$usage_var_name', "
-        "lambda: None)\n")
-    init_fmt_str = init_fmt_template.substitute(init_fmt_args)
-
-    import_template = Template(
-        "$var_name = use.import_from_format('$usage_var_name', "
-        "'$sem_type'"
-        ", $fmt_var_name)"
-    )
-    import_str = import_template.substitute(import_args)
-
-    return init_fmt_str + import_str
-
-
-def get_init_from_format_var_name(node: ProvNode,
-                                  results_namespace: UniqueValsDict) -> str:
-    """
-    Attempts to return a meaningful format name from an import's action.yaml
-    Failing that, returns 'filler_format_var'.
-
-    These variables don't need to be unique, as they are intermediate objects
-    (formats, not artifacts) and so not saved to our results_namespace dict.
-    """
-    var_name = None
-    try:
-        var_name = camel_to_snake(node.action._action_details['format'])
-    except KeyError:
-        pass
-
-    if var_name is None:
-        transformers = node.action.transformers
-        if transformers is not None:  # Makes mypy happy
-            try:
-                var_name = camel_to_snake(transformers['output'][-1]['to'])
-            except KeyError:
-                pass
-
-    if var_name is None:
-        var_name = "filler_format_var"
-
-    return var_name
+    format_for_import = use.init_format('<your data here>', lambda: None)
+    use.import_from_format(results_namespace[node.uuid],
+                           node.type, format_for_import)
 
 
 def build_action_usage(node: ProvNode,
                        namespace: UniqueValsDict,
                        actions: Dict[UUID, Dict[UUID, str]],
-                       action_id: UUID) -> str:
+                       action_id: UUID,
+                       use):
     """
-    Builds an action usage example roughly resembling the following:
+    Adds an action usage example to use for some ProvNode, roughly resembling
+    the following.
+
+    Returns nothing, modifying the passed usage instance in place.
+
     use.action(
         use.UsageAction(plugin_id='diversity_lib',
                         action_id='pielou_evenness'),
@@ -280,7 +204,6 @@ def build_action_usage(node: ProvNode,
         print(k, v)
         if isinstance(v, MetadataInfo):
             print("JACKPOT!")
-            # TODO NEXT: stop templating and embrace the usage API
             # TODO NEXT: handle metadata
             # Look at raw examples with one metadata input and multiple
             # metadata inputs to the same parameter name. Capture the data we
@@ -306,20 +229,10 @@ def build_action_usage(node: ProvNode,
         uniquified_val = namespace[k]
         outputs.update({v: uniquified_val})
 
-    subst_args = {
-        'plugin': node.action.plugin,
-        'action': node.action.action_name,
-        # TODO: get the right input values
-        'inputs': inputs,
-        'outputs': outputs,
-    }
+    plugin = node.action.plugin
+    action = node.action.action_name
 
-    action_template = Template(
-        'use.action('
-        'use.UsageAction(plugin_id=\'$plugin\', '
-        'action_id=\'$action\'), '
-        # inputs and outputs dicts must be unpacked for use as kwargs
-        'use.UsageInputs(**$inputs), '
-        'use.UsageOutputNames(**$outputs))'
-    )
-    return action_template.substitute(subst_args)
+    use.action(
+        use.UsageAction(plugin_id=plugin, action_id=action),
+        use.UsageInputs(**inputs),
+        use.UsageOutputNames(**outputs))

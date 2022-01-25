@@ -8,9 +8,18 @@ emp_single_end_sequences_0 = Artifact.import_data(
     'EMPSingleEndSequences',
     '<your data here>',
 )
+# Replay attempts to represent metadata inputs accurately, but metadata .tsv
+files are merged automatically by some interfaces, rendering distinctions
+between file inputs invisible in provenance. We output the recorded metadata
+to disk to enable visual inspection.
+# The following command may have received additional metadata .tsv files. 
+To confirm you have covered your metadata needs adequately, review the original
+metadata, saved at:
+/home/TODO/this_is_fake.tsv.
+
 per_sample_sequences_0, _ = demux_actions.emp_single(
     seqs='emp_single_end_sequences_0',
-    barcodes=MetadataInfo(input_artifact_uuids=[], relative_fp='barcodes.tsv'),
+    barcodes=_your_metadata_file_here__md,
     rev_comp_barcodes=False,
     rev_comp_mapping_barcodes=False,
 )
@@ -32,10 +41,19 @@ _, _, _, rooted_tree_0 = phylogeny_actions.align_to_tree_mafft_fasttree(
     mask_max_gap_frequency=1.0,
     mask_min_conservation=0.4,
 )
+# Replay attempts to represent metadata inputs accurately, but metadata .tsv
+files are merged automatically by some interfaces, rendering distinctions
+between file inputs invisible in provenance. We output the recorded metadata
+to disk to enable visual inspection.
+# The following command may have received additional metadata .tsv files. 
+To confirm you have covered your metadata needs adequately, review the original
+metadata, saved at:
+/home/TODO/this_is_fake.tsv.
+
 _, _, _, _, _, _, _, _, _, _, _, _, _, unweighted_unifrac_emperor_0_viz, _, _, _ = diversity_actions.core_metrics_phylogenetic(
     table='table_0',
     phylogeny='rooted_tree_0',
     sampling_depth=1109,
-    metadata=MetadataInfo(input_artifact_uuids=[], relative_fp='metadata.tsv'),
+    metadata=_your_metadata_file_here__md,
     n_jobs=1,
 )

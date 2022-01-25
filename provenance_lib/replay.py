@@ -2,21 +2,32 @@ import networkx as nx
 import pathlib
 import re
 from collections import UserDict
+from dataclasses import dataclass
 from typing import Dict, Iterator, Literal
 
 from .archive_parser import ProvNode
 from .parse import ProvDAG, UUID
 from .yaml_constructors import MetadataInfo
 
-from qiime2.sdk import PluginManager  # type: ignore
-from qiime2.plugins import ArtifactAPIUsage  # type: ignore
 from q2cli.core.usage import CLIUsage  # type: ignore
+from qiime2.metadata import MetadataColumn  # type: ignore
+from qiime2.plugins import ArtifactAPIUsage  # type: ignore
+from qiime2.sdk import PluginManager  # type: ignore
+from qiime2.sdk.usage import Usage  # type: ignore
 
 DRIVER_CHOICES = Literal['python3', 'cli']
 SUPPORTED_USAGE_DRIVERS = {
     'python3': ArtifactAPIUsage,
     'cli': CLIUsage,
 }
+
+
+@dataclass(frozen=False)
+class ReplayConfig():
+    use: Usage
+    use_recorded_metadata: bool
+    pm: PluginManager = PluginManager()
+    md_context_has_been_printed: bool = False
 
 
 class UniqueValsDict(UserDict):
@@ -65,10 +76,10 @@ def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
     can use it to generate multiple UI examples from it.
     for now, we'll just pass the use into our builders.
     """
-    PluginManager()
-    use = SUPPORTED_USAGE_DRIVERS[usage_driver]()  # type: ignore
-    build_usage_examples(dag, use)
-    output = use.render()
+    cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS[usage_driver](),
+                       use_recorded_metadata=use_recorded_metadata)
+    build_usage_examples(dag, cfg)
+    output = cfg.use.render()
     with open(out_fp, mode='w') as out_fh:
         out_fh.write(output)
 
@@ -122,31 +133,31 @@ def group_by_action(dag: ProvDAG, nodes: Iterator[UUID]) -> \
     return actions
 
 
-def build_usage_examples(dag: ProvDAG, use):
+def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
     """
     Builds a chained usage example representing the analysis `dag`.
-    TODO: import Usage for typing?
+    TODO: Handle disconnected graphs
     """
-    # TODO: Handle disconnected graphs
     sorted_nodes = nx.topological_sort(dag.collapsed_view)
     actions = group_by_action(dag, sorted_nodes)
     results_namespace = UniqueValsDict()
     for action in actions:
-        some_node_id_from_this_action = next(iter(actions[action]))
-        # group_by_action guarantees only nodes with prov are in actions
+        # group_by_action guarantees only nodes with provenance are in actions
         # all nodes from one action should have the same action_type etc, so:
+        some_node_id_from_this_action = next(iter(actions[action]))
         n_data = dag.get_node_data(some_node_id_from_this_action)
         if n_data.action.action_type == 'import':
-            build_import_usage(n_data, results_namespace, use)
+            build_import_usage(n_data, results_namespace, cfg)
         else:
-            build_action_usage(n_data, results_namespace, actions, action, use)
+            build_action_usage(n_data, results_namespace, actions, action, cfg)
 
 
 # TODO: I THINK we need the UUID from the dag, not from the ProvNode.
 # check on this before shit gets too complicated. Are we updating ProvNode.uuid
 # when we update dag UUIDs? It's probably time for that.
 # TODO: Should this take a dag and actions instead of a single node?
-def build_import_usage(node: ProvNode, results_namespace: UniqueValsDict, use):
+def build_import_usage(node: ProvNode, results_namespace: UniqueValsDict,
+                       cfg: ReplayConfig):
     """
     Given a ProvNode, adds an import usage example for it, roughly
     resembling the following.
@@ -164,16 +175,16 @@ def build_import_usage(node: ProvNode, results_namespace: UniqueValsDict, use):
     and should not impact the rendered usage.
     """
     results_namespace.update({node.uuid: camel_to_snake(node.type)})
-    format_for_import = use.init_format('<your data here>', lambda: None)
-    use.import_from_format(results_namespace[node.uuid],
-                           node.type, format_for_import)
+    format_for_import = cfg.use.init_format('<your data here>', lambda: None)
+    cfg.use.import_from_format(results_namespace[node.uuid],
+                               node.type, format_for_import)
 
 
 def build_action_usage(node: ProvNode,
                        namespace: UniqueValsDict,
                        actions: Dict[UUID, Dict[UUID, str]],
                        action_id: UUID,
-                       use):
+                       cfg: ReplayConfig):
     """
     Adds an action usage example to use for some ProvNode, roughly resembling
     the following.
@@ -190,6 +201,8 @@ def build_action_usage(node: ProvNode,
     # TODO: clean up or remove
     actions looks like: {action_id: {node_id: node_name, ...}, ...}
     """
+    plugin = node.action.plugin
+    action = node.action.action_name
     inputs = {}
     for k, v in node.action.inputs.items():
         # TODO: namespace[v] is a string and renders as such - it should render
@@ -200,26 +213,56 @@ def build_action_usage(node: ProvNode,
         inputs.update({k: namespace[v]})
 
     print("PARAMS BE LIKE")
-    # params = {key: value for key, value in node.action.parameters.items()}
     for k, v in node.action.parameters.items():
-        print(k, v)
         if isinstance(v, MetadataInfo):
-            print("JACKPOT!")
-            # TODO NEXT: handle metadata
+            if cfg.use_recorded_metadata:
+                # TODO: use the md files in prov
+                raise NotImplementedError("We should handle recorded MD files")
+            else:
+                # TODO: dump the md files for user review
+                if not cfg.md_context_has_been_printed:
+                    cfg.md_context_has_been_printed = True
+                    cfg.use.comment(
+                        "Replay attempts to represent metadata inputs "
+                        "accurately, but metadata .tsv\nfiles are merged "
+                        "automatically by some interfaces, rendering "
+                        "distinctions\nbetween file inputs invisible in "
+                        "provenance. We output the recorded metadata\nto disk "
+                        "to enable visual inspection.")
+                if not v.input_artifact_uuids:
+                    # TODO: Sub this in for <your metadata file>?
+                    # md_file_name = k
+                    # TODO: NEXT - require uniqueness from metadata names
+                    md = cfg.use.init_metadata('<your metadata file here>',
+                                               lambda: None)
+                    if param_is_metadata_column(cfg, k, plugin, action):
+                        print("WE ARE HERE")
+                        md = cfg.use.get_metadata_column('a_column',
+                                                         '<column_name>',
+                                                         md)
+                else:
+                    md_files_in = []
+                    for artif in v.input_artifact_uuids:
+                        art_as_md = cfg.use.view_as_metadata(artif,
+                                                             namespace[artif])
+                        md_files_in.append(art_as_md)
+                    md = cfg.use.merge_metadata('merged', *md_files_in)
+                    # TODO: handle metadata columns
+                v = md
+
+                # TODO: Fix this fp getter once we're actually dumping md files
+                fp = '/home/TODO/this_is_fake.tsv'
+                cfg.use.comment(
+                    "The following command may have received additional "
+                    "metadata .tsv files.\nTo confirm you have covered your "
+                    "metadata needs adequately, review the original\nmetadata,"
+                    f" saved at:\n{fp}.\n")
+                # TODO: How does this look for MetadataColumns?
+
             # Look at raw examples with one metadata input and multiple
             # metadata inputs to the same parameter name. Capture the data we
             # need to duplicate that.
-    # if there is metadata in any of our parameter values:
-    #   if we are re-running with baked-in metadata, use the md files in prov
-    #   else:
-    #     dump the md files for user review
-    #     use.comment("Context on reviewing dumped md sheets for structure")
-    #     if no input_artifacts:
-    #       mock: <your sample metadata here>
-    #     else (input_artifact_uuids):
-    #       pass variable names from namespace
-    #     (both cases) <This command may have received additional metadata>
-    # How does this look for MetadataColumns?
+        print(k, v)
         inputs.update({k: v})
 
     raw_outputs = actions[action_id].items()
@@ -229,10 +272,26 @@ def build_action_usage(node: ProvNode,
         uniquified_val = namespace[k]
         outputs.update({v: uniquified_val})
 
-    plugin = node.action.plugin
-    action = node.action.action_name
+    cfg.use.action(
+        cfg.use.UsageAction(plugin_id=plugin, action_id=action),
+        cfg.use.UsageInputs(**inputs),
+        cfg.use.UsageOutputNames(**outputs))
 
-    use.action(
-        use.UsageAction(plugin_id=plugin, action_id=action),
-        use.UsageInputs(**inputs),
-        use.UsageOutputNames(**outputs))
+
+def param_is_metadata_column(
+        cfg: ReplayConfig, param: str, plg: str, action: str) -> bool:
+    """
+    Returns True if the param name `param` is registered as a MetadataColumn
+
+    TODO: Should we make a tool that can do a simple diff of qiime 2 plugins
+    present vs those required?
+    """
+    plugin = cfg.pm.get_plugin(id=plg)
+    try:
+        action_f = plugin.actions[action]
+    except KeyError:
+        raise KeyError('No action currently registered with '
+                       'id: "%s".' % (action))
+    # HACK, but it works
+    return ('MetadataColumn' in
+            str(action_f.signature.parameters[param].qiime_type))

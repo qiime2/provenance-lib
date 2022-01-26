@@ -349,8 +349,12 @@ class ProvDAGTests(unittest.TestCase):
                      ]
         new_labels = {node: node[:8] for node in dag.nodes}
         dag.relabel_nodes(new_labels)
+        # Have all nodes been relabeled as expected?
         for node in exp_nodes:
             self.assertIn(node, dag.nodes)
+        # Are the UUIDs stored in the ProvNode payloads updated correctly?
+        for node in dag.nodes:
+            self.assertEqual(node, dag.get_node_data(node).uuid)
         self.assertEqual(dag._terminal_uuids, None)
 
         # Confirm terminal_uuids state is consistent with the relabeled node
@@ -379,8 +383,12 @@ class ProvDAGTests(unittest.TestCase):
                      ]
         new_labels = {node: node[:8] for node in self.dags['5'].nodes}
         new_dag = self.dags['5'].relabel_nodes(new_labels, copy=True)
+        # Have all nodes been relabeled as expected?
         for node in exp_nodes:
             self.assertIn(node, new_dag.nodes)
+        # Are the UUIDs stored in the ProvNode payloads updated correctly?
+        for node in new_dag.nodes:
+            self.assertEqual(node, new_dag.get_node_data(node).uuid)
         self.assertEqual(set(exp_nodes), set(new_dag.nodes))
         self.assertEqual(new_dag._terminal_uuids, None)
 

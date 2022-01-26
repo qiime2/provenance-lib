@@ -45,6 +45,10 @@ class ProvNode:
     def uuid(self) -> UUID:
         return self._result_md.uuid
 
+    @uuid.setter
+    def uuid(self, new_uuid: UUID):
+        self._result_md.uuid = new_uuid
+
     @property
     def type(self) -> str:
         return self._result_md.type

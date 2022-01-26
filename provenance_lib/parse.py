@@ -189,29 +189,33 @@ class ProvDAG:
     def relabel_nodes(self, mapping: Mapping, copy: bool = False) -> \
             Optional[ProvDAG]:
         """
-        Helper method for safe use of nx.relabel.relabel_nodes, this updates
-        the labels of self.dag in place.
+        Helper method for safe use of nx.relabel.relabel_nodes.
+        By default, this updates the labels of self.dag in place.
+        With copy=True, returns a copy of self with nodes relabeled.
 
-        Also updates the DAG's _parsed_artifact_uuids to match the new labels,
+        Also updates the DAG's _parsed_artifact_uuids to match the new labels
         to head off KeyErrors downstream, and clears the _terminal_uuids cache.
-
-        Users who need a copy of self.dag should use nx.relabel.relabel_nodes
-        directly, and proceed at their own risk.
         """
-        dag = self
+        mod_dag = self
         if copy:
-            dag = ProvDAG(self)
-        nx.relabel_nodes(dag.dag, mapping, copy=False)
+            mod_dag = ProvDAG(self)
 
-        dag._parsed_artifact_uuids = {mapping[uuid] for
-                                      uuid in self._parsed_artifact_uuids}
+        # rename node uuids in the provnode data payloads for consistency
+        for node_id in mod_dag:
+            mod_dag.get_node_data(node_id).uuid = mapping[node_id]
+
+        # then update the dag itself
+        nx.relabel_nodes(mod_dag.dag, mapping, copy=False)
+
+        mod_dag._parsed_artifact_uuids = {mapping[uuid] for
+                                          uuid in self._parsed_artifact_uuids}
 
         # Clear the _terminal_uuids cache of the dag whose nodes we're changing
         # so that property returns correctly
-        dag._terminal_uuids = None
+        mod_dag._terminal_uuids = None
 
         if copy:
-            return dag
+            return mod_dag
         else:
             return None
 

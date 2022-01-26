@@ -47,6 +47,12 @@ class ProvNode:
 
     @uuid.setter
     def uuid(self, new_uuid: UUID):
+        """
+        ProvNode's UUID. Safe for use as getter, but prefer
+        ProvDAG.relabel_nodes to using this property as a setter.
+        That method preserves alignment between ids across the dag
+        and its ProvNodes.
+        """
         self._result_md.uuid = new_uuid
 
     @property

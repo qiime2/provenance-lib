@@ -10,15 +10,42 @@ from .parse import ProvDAG, UUID
 from .yaml_constructors import MetadataInfo
 
 from q2cli.core.usage import CLIUsage  # type: ignore
-from qiime2.metadata import MetadataColumn  # type: ignore
 from qiime2.plugins import ArtifactAPIUsage  # type: ignore
 from qiime2.sdk import PluginManager  # type: ignore
 from qiime2.sdk.usage import Usage  # type: ignore
 
+
+class ReplayCLIUsage(CLIUsage):
+    def _append_action_line(self, signature, param_name, value):
+        # When param names have changed across versions, this call fails,
+        # breaking replay
+        param_state = signature.get(param_name)
+        if param_state is not None:
+            for opt, val in self._make_param(value, param_state):
+                line = self.INDENT + opt
+                if val is not None:
+                    line += ' ' + val
+                line += ' \\'
+                self.recorder.append(line)
+        else:  # no matching param name
+            # TODO: This case is not be caught by the ArtifactAPIDriver
+            # Does that matter?
+            line = self.INDENT + (
+                "# TODO: The following parameter name was not found in "
+                "your current\n  # QIIME 2 environment. This may occur "
+                "when the plugin version you have\n  # installed does not "
+                "match the version used in the original analysis.\n  # "
+                "Please see the docs and correct the parameter name "
+                "before running.\n")
+            line += self.INDENT + '--?-' + param_name + ' ' + str(value)
+            line += ' \\'
+            self.recorder.append(line)
+
+
 DRIVER_CHOICES = Literal['python3', 'cli']
 SUPPORTED_USAGE_DRIVERS = {
     'python3': ArtifactAPIUsage,
-    'cli': CLIUsage,
+    'cli': ReplayCLIUsage,
 }
 
 

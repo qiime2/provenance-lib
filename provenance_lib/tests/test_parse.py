@@ -193,7 +193,7 @@ class ProvDAGTests(unittest.TestCase):
                              TEST_DATA[vz]['uuid'])
             terminal_node, *_ = self.dags[vz].terminal_nodes
             self.assertEqual(type(terminal_node), ProvNode)
-            self.assertEqual(terminal_node.uuid, TEST_DATA[vz]['uuid'])
+            self.assertEqual(terminal_node._uuid, TEST_DATA[vz]['uuid'])
             self.assertEqual(self.dags[vz].provenance_is_valid,
                              TEST_DATA[vz]['prov_is_valid'])
             self.assertEqual(self.dags[vz].checksum_diff,
@@ -216,7 +216,7 @@ class ProvDAGTests(unittest.TestCase):
         self.assertEqual(type(root_node), ProvNode)
         # Smoke-test that this is actually the node we're looking for
         # Node attributes are tested properly in ProvNodeTests
-        self.assertEqual(root_node.uuid, root_uuid)
+        self.assertEqual(root_node._uuid, root_uuid)
 
     def test_V5_has_edges(self):
         self.assertTrue(self.dags['5'].has_edge(
@@ -354,7 +354,7 @@ class ProvDAGTests(unittest.TestCase):
             self.assertIn(node, dag.nodes)
         # Are the UUIDs stored in the ProvNode payloads updated correctly?
         for node in dag.nodes:
-            self.assertEqual(node, dag.get_node_data(node).uuid)
+            self.assertEqual(node, dag.get_node_data(node)._uuid)
         self.assertEqual(dag._terminal_uuids, None)
 
         # Confirm terminal_uuids state is consistent with the relabeled node
@@ -388,7 +388,7 @@ class ProvDAGTests(unittest.TestCase):
             self.assertIn(node, new_dag.nodes)
         # Are the UUIDs stored in the ProvNode payloads updated correctly?
         for node in new_dag.nodes:
-            self.assertEqual(node, new_dag.get_node_data(node).uuid)
+            self.assertEqual(node, new_dag.get_node_data(node)._uuid)
         self.assertEqual(set(exp_nodes), set(new_dag.nodes))
         self.assertEqual(new_dag._terminal_uuids, None)
 
@@ -569,7 +569,7 @@ class ProvDAGTests(unittest.TestCase):
                 UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
             dag = ProvDAG(mixed_archive_fp)
             self.assertEqual(dag.node_has_provenance(v1_uuid), True)
-            self.assertEqual(dag.get_node_data(v1_uuid).uuid, v1_uuid)
+            self.assertEqual(dag.get_node_data(v1_uuid)._uuid, v1_uuid)
 
             self.assertEqual(dag.node_has_provenance(v0_uuid), False)
             self.assertEqual(dag.get_node_data(v0_uuid), None)
@@ -587,7 +587,7 @@ class ProvDAGTests(unittest.TestCase):
 
         dag = ProvDAG(a_as_md_fp)
         self.assertEqual(dag.node_has_provenance(a_as_md_uuid), True)
-        self.assertEqual(dag.get_node_data(a_as_md_uuid).uuid, a_as_md_uuid)
+        self.assertEqual(dag.get_node_data(a_as_md_uuid)._uuid, a_as_md_uuid)
         self.assertEqual(dag.get_node_data(a_as_md_uuid).type,
                          'FeatureData[Taxonomy]')
 

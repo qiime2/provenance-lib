@@ -152,11 +152,8 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
             build_action_usage(n_data, results_namespace, actions, action, cfg)
 
 
-# TODO: I THINK we need the UUID from the dag, not from the ProvNode.
-# check on this before shit gets too complicated. Are we updating ProvNode.uuid
-# when we update dag UUIDs? It's probably time for that.
-# TODO: Should this take a dag and actions instead of a single node?
-def build_import_usage(node: ProvNode, results_namespace: UniqueValsDict,
+def build_import_usage(node: ProvNode,
+                       results_namespace: UniqueValsDict,
                        cfg: ReplayConfig):
     """
     Given a ProvNode, adds an import usage example for it, roughly
@@ -174,9 +171,9 @@ def build_import_usage(node: ProvNode, results_namespace: UniqueValsDict,
     The `lambda: None` is a placeholder for some actual data factory,
     and should not impact the rendered usage.
     """
-    results_namespace.update({node.uuid: camel_to_snake(node.type)})
+    results_namespace.update({node._uuid: camel_to_snake(node.type)})
     format_for_import = cfg.use.init_format('<your data here>', lambda: None)
-    cfg.use.import_from_format(results_namespace[node.uuid],
+    cfg.use.import_from_format(results_namespace[node._uuid],
                                node.type, format_for_import)
 
 

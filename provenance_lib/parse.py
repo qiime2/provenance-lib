@@ -202,7 +202,7 @@ class ProvDAG:
 
         # rename node uuids in the provnode data payloads for consistency
         for node_id in mod_dag:
-            mod_dag.get_node_data(node_id).uuid = mapping[node_id]
+            mod_dag.get_node_data(node_id)._uuid = mapping[node_id]
 
         # then update the dag itself
         nx.relabel_nodes(mod_dag.dag, mapping, copy=False)

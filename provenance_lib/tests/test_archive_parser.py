@@ -377,7 +377,7 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
 
     def test_properties_with_viz(self):
         for node in self.nodes:
-            self.assertEqual(self.nodes[node].uuid, TEST_DATA[node]['uuid'])
+            self.assertEqual(self.nodes[node]._uuid, TEST_DATA[node]['uuid'])
             self.assertEqual(self.nodes[node].type, 'Visualization')
             self.assertEqual(self.nodes[node].format, None)
             self.assertEqual(self.nodes[node].archive_version,
@@ -396,11 +396,11 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
         self.assertNotEqual(self.nodes['5'], mock_node)
 
         # Mock has bad UUID
-        mock_node.uuid = 'gerbil'
+        mock_node._uuid = 'gerbil'
         self.assertReallyNotEqual(self.nodes['5'], mock_node)
 
         # Matching UUIDs insufficient if classes differ
-        mock_node.uuid = TEST_DATA['5']['uuid']
+        mock_node._uuid = TEST_DATA['5']['uuid']
         self.assertReallyNotEqual(self.nodes['5'], mock_node)
         mock_node.__class__ = ProvNode
         self.assertReallyEqual(self.nodes['5'], mock_node)
@@ -516,12 +516,12 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
         self.assertEqual(self.nodes['0'].metadata, None)
 
     def test_node_has_provenance_but_no_metadata(self):
-        self.assertIn('3b7d36ff', self.nonroot_non_md_node.uuid)
+        self.assertIn('3b7d36ff', self.nonroot_non_md_node._uuid)
         self.assertEqual(self.nonroot_non_md_node.has_provenance, True)
         self.assertEqual(self.nonroot_non_md_node.metadata, {})
 
     def test_parse_metadata_for_nonroot_node(self):
-        self.assertIn('0af08fa8', self.nonroot_md_node.uuid)
+        self.assertIn('0af08fa8', self.nonroot_md_node._uuid)
         self.assertEqual(self.nonroot_md_node.has_provenance, True)
         self.assertIn('metadata', self.nonroot_md_node.metadata)
 

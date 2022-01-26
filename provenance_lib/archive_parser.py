@@ -42,11 +42,11 @@ class ProvNode:
     """ One node of a provenance DAG, describing one QIIME 2 Result """
 
     @property
-    def uuid(self) -> UUID:
+    def _uuid(self) -> UUID:
         return self._result_md.uuid
 
-    @uuid.setter
-    def uuid(self, new_uuid: UUID):
+    @_uuid.setter
+    def _uuid(self, new_uuid: UUID):
         """
         ProvNode's UUID. Safe for use as getter, but prefer
         ProvDAG.relabel_nodes to using this property as a setter.
@@ -233,10 +233,10 @@ class ProvNode:
         """
         root_uuid = get_root_uuid(zf)
         pfx = pathlib.Path(root_uuid) / 'provenance'
-        if root_uuid == self.uuid:
+        if root_uuid == self._uuid:
             pfx = pfx / 'action'
         else:
-            pfx = pfx / 'artifacts' / self.uuid / 'action'
+            pfx = pfx / 'artifacts' / self._uuid / 'action'
 
         all_md = dict()
         for param_name in metadata_fps:
@@ -253,11 +253,11 @@ class ProvNode:
     __str__ = __repr__
 
     def __hash__(self) -> int:
-        return hash(self.uuid)
+        return hash(self._uuid)
 
     def __eq__(self, other) -> bool:
         return (self.__class__ == other.__class__
-                and self.uuid == other.uuid
+                and self._uuid == other._uuid
                 )
 
 

@@ -114,6 +114,9 @@ class ProvDAG:
         else:
             return True
 
+    def __iter__(self):
+        return iter(self.dag)
+
     @property
     def terminal_uuids(self) -> Set[UUID]:
         """

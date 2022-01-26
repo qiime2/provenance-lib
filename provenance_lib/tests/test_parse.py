@@ -261,6 +261,12 @@ class ProvDAGTests(unittest.TestCase):
             'this_node_is_not_in_the_original_but_satisfies_len_requirement')
         self.assertNotEqual(self.dags['5'], dag_5_copied)
 
+    def test_iter(self):
+        # Just a smoke test
+        dag5 = self.dags['5']
+        iterable = iter(dag5)
+        self.assertEqual(next(iterable), TEST_DATA['5']['uuid'])
+
     def test_v5_captures_full_history(self):
         nodes = self.dags['5'].nodes
         self.assertEqual(len(nodes), 15)

@@ -264,12 +264,12 @@ def build_action_usage(node: ProvNode,
         # without single-quotes for the artifact API.
         # This guy could be useful: https://github.com/qiime2/qiime2/blob/
         # 6ef6df712f2f14be1baa5551368a41c3e9f8e340/qiime2/plugins.py#L31
-        print(k, namespace[v])
         inputs.update({k: namespace[v]})
 
-    print("PARAMS BE LIKE")
     for k, v in node.action.parameters.items():
         if isinstance(v, MetadataInfo):
+            unique_md_id = node._uuid + ':' + k
+            namespace.update({unique_md_id: camel_to_snake(k)})
             if cfg.use_recorded_metadata:
                 # TODO: use the md files in prov
                 raise NotImplementedError("We should handle recorded MD files")
@@ -283,16 +283,12 @@ def build_action_usage(node: ProvNode,
                         "automatically by some interfaces, rendering "
                         "distinctions\nbetween file inputs invisible in "
                         "provenance. We output the recorded metadata\nto disk "
-                        "to enable visual inspection.")
+                        "to enable visual inspection.\n")
                 if not v.input_artifact_uuids:
-                    # TODO: Sub this in for <your metadata file>?
-                    # md_file_name = k
-                    # TODO: NEXT - require uniqueness from metadata names
-                    md = cfg.use.init_metadata('<your metadata file here>',
+                    md = cfg.use.init_metadata(namespace[unique_md_id],
                                                lambda: None)
                     if param_is_metadata_column(cfg, k, plugin, action):
-                        print("WE ARE HERE")
-                        md = cfg.use.get_metadata_column('a_column',
+                        md = cfg.use.get_metadata_column('some',
                                                          '<column_name>',
                                                          md)
                 else:
@@ -302,7 +298,6 @@ def build_action_usage(node: ProvNode,
                                                              namespace[artif])
                         md_files_in.append(art_as_md)
                     md = cfg.use.merge_metadata('merged', *md_files_in)
-                    # TODO: handle metadata columns
                 v = md
 
                 # TODO: Fix this fp getter once we're actually dumping md files
@@ -312,12 +307,6 @@ def build_action_usage(node: ProvNode,
                     "metadata .tsv files.\nTo confirm you have covered your "
                     "metadata needs adequately, review the original\nmetadata,"
                     f" saved at:\n{fp}.\n")
-                # TODO: How does this look for MetadataColumns?
-
-            # Look at raw examples with one metadata input and multiple
-            # metadata inputs to the same parameter name. Capture the data we
-            # need to duplicate that.
-        print(k, v)
         inputs.update({k: v})
 
     raw_outputs = actions[action_id].items()
@@ -347,6 +336,6 @@ def param_is_metadata_column(
     except KeyError:
         raise KeyError('No action currently registered with '
                        'id: "%s".' % (action))
-    # HACK, but it works
+    # HACK, but it works without relying on Q2's type system
     return ('MetadataColumn' in
             str(action_f.signature.parameters[param].qiime_type))

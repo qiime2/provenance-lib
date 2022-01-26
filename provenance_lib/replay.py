@@ -15,10 +15,41 @@ from qiime2.sdk import PluginManager  # type: ignore
 from qiime2.sdk.usage import Usage  # type: ignore
 
 
+class ReplayPythonUsage(ArtifactAPIUsage):
+    def _template_outputs(self, action, variables):
+        """
+        Monkeypatch allowing us to replay an action even when our provenance
+        DAG doesn't have a record of all outputs from that action.
+        """
+        output_vars = []
+        action_f = action.get_action()
+
+        # need to coax the outputs into the correct order for unpacking
+        for output in action_f.signature.outputs:
+            try:
+                variable = getattr(variables, output)
+                output_vars.append(str(variable.to_interface_name()))
+            except AttributeError:
+                # if the args to UsageOutputNames skip an output name,
+                # can we assume the user doesn't care about that output?
+                # These assumptions are OK here, but not in the framework.
+                # I'm guessing this could break chaining, so maybe
+                # this behavior should warn?
+                output_vars.append('_')
+
+        if len(output_vars) == 1:
+            output_vars.append('')
+
+        return ', '.join(output_vars).strip()
+
+
 class ReplayCLIUsage(CLIUsage):
     def _append_action_line(self, signature, param_name, value):
-        # When param names have changed across versions, this call fails,
-        # breaking replay
+        """
+        Monkeypatch allowing us to replay when recorded parameter names
+        are not present in the registered function signatures in the active
+        QIIME 2 environment
+        """
         param_state = signature.get(param_name)
         if param_state is not None:
             for opt, val in self._make_param(value, param_state):
@@ -44,7 +75,7 @@ class ReplayCLIUsage(CLIUsage):
 
 DRIVER_CHOICES = Literal['python3', 'cli']
 SUPPORTED_USAGE_DRIVERS = {
-    'python3': ArtifactAPIUsage,
+    'python3': ReplayPythonUsage,
     'cli': ReplayCLIUsage,
 }
 

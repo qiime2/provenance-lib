@@ -17,9 +17,13 @@ from qiime2 import Artifact
 PluginManager()
 use = ArtifactAPIUsage()
 
+
 def factory():
-    return qiime2.Artifact.load("/home/chris/Downloads/demux.qza")
+    return Artifact.load("/home/chris/Downloads/demux.qza")
+
+
 demux = use.init_artifact('my_artifact', factory)
+
 
 use.action(
      use.UsageAction(plugin_id='dada2', action_id='denoise_single'),

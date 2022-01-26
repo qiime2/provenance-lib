@@ -6,8 +6,10 @@ from q2cli.core.usage import CLIUsage
 PluginManager()
 use = CLIUsage()
 
+
 def factory():
-    return qiime2.Artifact.load("/home/chris/Downloads/demux.qza")
+    return Artifact.load("/home/chris/Downloads/demux.qza")
+
 
 demux = use.init_artifact('my_artifact', factory)
 
@@ -42,5 +44,5 @@ qiime dada2 denoise-single \
   --o-representative-sequences rep-seqs-1.qza \
   --o-table table-1.qza
 
-The second will fail. We're going to need to write a filler 
+The second will fail. We're going to need to write a filler
 """

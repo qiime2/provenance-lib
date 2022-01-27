@@ -8,8 +8,7 @@ qiime tools import \
 # metadata to disk to enable visual inspection.
 # The following command may have received additional metadata .tsv files. To
 # confirm you have covered your metadata needs adequately, review the
-# original metadata, saved at:
-# recorded_metadata/demux_emp_single/barcodes.tsv
+# original metadata, saved at: recorded_metadata/demux_emp_single_0/
 qiime demux emp-single \
   --i-seqs emp_single_end_sequences_0 \
   --m-barcodes-file barcodes-0.tsv \
@@ -39,7 +38,7 @@ qiime phylogeny align-to-tree-mafft-fasttree \
 # The following command may have received additional metadata .tsv files. To
 # confirm you have covered your metadata needs adequately, review the
 # original metadata, saved at:
-# recorded_metadata/diversity_core_metrics_phylogenetic/metadata.tsv
+# recorded_metadata/diversity_core_metrics_phylogenetic_0/
 qiime diversity core-metrics-phylogenetic \
   --i-table table_0 \
   --i-phylogeny rooted_tree_0 \

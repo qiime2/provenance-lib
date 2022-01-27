@@ -200,18 +200,21 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
     Builds a chained usage example representing the analysis `dag`.
     TODO: Handle disconnected graphs
     """
+    actions_namespace = set()
+    results_namespace = UniqueValsDict()
+
     sorted_nodes = nx.topological_sort(dag.collapsed_view)
     actions = group_by_action(dag, sorted_nodes)
-    results_namespace = UniqueValsDict()
-    for action in actions:
+    for action_id in actions:
         # group_by_action guarantees only nodes with provenance are in actions
         # all nodes from one action should have the same action_type etc, so:
-        some_node_id_from_this_action = next(iter(actions[action]))
+        some_node_id_from_this_action = next(iter(actions[action_id]))
         n_data = dag.get_node_data(some_node_id_from_this_action)
         if n_data.action.action_type == 'import':
             build_import_usage(n_data, results_namespace, cfg)
         else:
-            build_action_usage(n_data, results_namespace, actions, action, cfg)
+            build_action_usage(n_data, results_namespace, actions_namespace,
+                               actions, action_id, cfg)
 
 
 def build_import_usage(node: ProvNode,
@@ -241,6 +244,7 @@ def build_import_usage(node: ProvNode,
 
 def build_action_usage(node: ProvNode,
                        namespace: UniqueValsDict,
+                       action_namespace: set,
                        actions: Dict[UUID, Dict[UUID, str]],
                        action_id: UUID,
                        cfg: ReplayConfig):
@@ -262,6 +266,8 @@ def build_action_usage(node: ProvNode,
     """
     plugin = node.action.plugin
     action = node.action.action_name
+    plg_action_name = uniquify_action_name(plugin, action, action_namespace)
+
     inputs = {}
     for k, v in node.action.inputs.items():
         # TODO: namespace[v] is a string and renders as such - it should render
@@ -276,15 +282,17 @@ def build_action_usage(node: ProvNode,
     outputs = {}
     for (k, v) in raw_outputs:
         namespace.update({k: v})
-        uniquified_val = namespace[k]
-        outputs.update({v: uniquified_val})
+        uniquified_v = namespace[k]
+        outputs.update({v: uniquified_v})
 
     for k, v in node.action.parameters.items():
         if isinstance(v, MetadataInfo):
             unique_md_id = namespace[node._uuid] + '_' + k
             namespace.update({unique_md_id: camel_to_snake(k)})
-            dump_recorded_md_files(node, k)
+            md_fn = namespace[unique_md_id] + '.tsv'
+            dump_recorded_md_file(node, plg_action_name, k, md_fn)
 
+            # TODO: Is this even useful if users must pass in data anyway?
             if cfg.use_recorded_metadata:
                 init_md_from_recorded_md(node, unique_md_id, namespace, cfg)
             else:
@@ -303,7 +311,7 @@ def build_action_usage(node: ProvNode,
                     md = init_md_from_artifacts(v, namespace, cfg)
 
                 # TODO: Fix this fp getter once we're actually dumping md files
-                fp = f'recorded_metadata/{plugin}_{action}/{k}.tsv'
+                fp = f'recorded_metadata/{plg_action_name}/'
                 # TODO: Clean this up so we comment once per action, not once
                 # per md file
                 cfg.use.comment(
@@ -366,25 +374,23 @@ def init_md_from_artifacts(md_inf: MetadataInfo, namespace: UniqueValsDict,
     return cfg.use.merge_metadata('md_from_artifacts', *md_files_in)
 
 
-def dump_recorded_md_files(node: ProvNode, md_id: str):
+def dump_recorded_md_file(
+        node: ProvNode, action_name: str, md_id: str, fn: str):
     """
-    Writes all of the metadata DataFrames recorded for an action to .tsv
+    Writes one metadata DataFrame passed to an action to .tsv
     Each action gets its own directory containing relevant md files.
     """
-    plugin = node.action.plugin
-    action = node.action.action_name
     cwd = pathlib.Path.cwd()
     md_out_fp_base = cwd / 'recorded_metadata'
-    action_dir = md_out_fp_base / (plugin + '_' + action)
+    action_dir = md_out_fp_base / action_name
     try:
         action_dir.mkdir(parents=True)
     except FileExistsError:
         pass
 
-    for md in node.metadata:
-        md_df = node.metadata[md]
-        out_fp = action_dir / (md_id + '.tsv')
-        md_df.to_csv(out_fp, sep='\t')
+    md_df = node.metadata[md_id]
+    out_fp = action_dir / (fn)
+    md_df.to_csv(out_fp, sep='\t')
 
 
 def param_is_metadata_column(
@@ -404,3 +410,17 @@ def param_is_metadata_column(
     # HACK, but it works without relying on Q2's type system
     return ('MetadataColumn' in
             str(action_f.signature.parameters[param].qiime_type))
+
+
+def uniquify_action_name(plugin: str, action: str, action_nmspace: set) -> str:
+    """
+    Creates a unique name for a plugin_action by appending it, then adds it to
+    the action_namespace
+    """
+    counter = 0
+    plg_action_name = f'{plugin}_{action}_{counter}'
+    while plg_action_name in action_nmspace:
+        counter += 1
+        plg_action_name = f'{plugin}_{action}_{counter}'
+    action_nmspace.add(plg_action_name)
+    return plg_action_name

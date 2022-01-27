@@ -283,7 +283,7 @@ def build_action_usage(node: ProvNode,
         if isinstance(v, MetadataInfo):
             unique_md_id = namespace[node._uuid] + '_' + k
             namespace.update({unique_md_id: camel_to_snake(k)})
-            dump_recorded_md_files(node, unique_md_id)
+            dump_recorded_md_files(node, k)
 
             if cfg.use_recorded_metadata:
                 init_md_from_recorded_md(node, unique_md_id, namespace, cfg)
@@ -303,7 +303,7 @@ def build_action_usage(node: ProvNode,
                     md = init_md_from_artifacts(v, namespace, cfg)
 
                 # TODO: Fix this fp getter once we're actually dumping md files
-                fp = f'recorded_metadata/{unique_md_id}.tsv'
+                fp = f'recorded_metadata/{plugin}_{action}/{k}.tsv'
                 # TODO: Clean this up so we comment once per action, not once
                 # per md file
                 cfg.use.comment(
@@ -366,16 +366,24 @@ def init_md_from_artifacts(md_inf: MetadataInfo, namespace: UniqueValsDict,
     return cfg.use.merge_metadata('md_from_artifacts', *md_files_in)
 
 
-def dump_recorded_md_files(node: ProvNode, unique_md_id: str):
+def dump_recorded_md_files(node: ProvNode, md_id: str):
+    """
+    Writes all of the metadata DataFrames recorded for an action to .tsv
+    Each action gets its own directory containing relevant md files.
+    """
+    plugin = node.action.plugin
+    action = node.action.action_name
     cwd = pathlib.Path.cwd()
     md_out_fp_base = cwd / 'recorded_metadata'
+    action_dir = md_out_fp_base / (plugin + '_' + action)
     try:
-        md_out_fp_base.mkdir()
+        action_dir.mkdir(parents=True)
     except FileExistsError:
         pass
+
     for md in node.metadata:
         md_df = node.metadata[md]
-        out_fp = md_out_fp_base / (unique_md_id + '.tsv')
+        out_fp = action_dir / (md_id + '.tsv')
         md_df.to_csv(out_fp, sep='\t')
 
 

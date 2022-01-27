@@ -12,7 +12,7 @@ from .yaml_constructors import MetadataInfo
 from q2cli.core.usage import CLIUsage  # type: ignore
 from qiime2.plugins import ArtifactAPIUsage  # type: ignore
 from qiime2.sdk import PluginManager  # type: ignore
-from qiime2.sdk.usage import Usage  # type: ignore
+from qiime2.sdk.usage import Usage, UsageVariable  # type: ignore
 
 
 class ReplayPythonUsage(ArtifactAPIUsage):
@@ -284,9 +284,9 @@ def build_action_usage(node: ProvNode,
             unique_md_id = namespace[node._uuid] + '_' + k
             namespace.update({unique_md_id: camel_to_snake(k)})
             dump_recorded_md_files(node, unique_md_id)
+
             if cfg.use_recorded_metadata:
-                # TODO NEXT: use the md files in prov
-                raise NotImplementedError("We should handle recorded MD files")
+                init_md_from_recorded_md(node, unique_md_id, namespace, cfg)
             else:
                 if not cfg.md_context_has_been_printed:
                     cfg.md_context_has_been_printed = True
@@ -298,20 +298,9 @@ def build_action_usage(node: ProvNode,
                         "provenance. We output the recorded metadata\nto disk "
                         "to enable visual inspection.\n")
                 if not v.input_artifact_uuids:
-                    md = cfg.use.init_metadata(namespace[unique_md_id],
-                                               lambda: None)
-                    if param_is_metadata_column(cfg, k, plugin, action):
-                        md = cfg.use.get_metadata_column('some',
-                                                         '<column_name>',
-                                                         md)
+                    md = init_md_from_md(node, k, unique_md_id, namespace, cfg)
                 else:
-                    md_files_in = []
-                    for artif in v.input_artifact_uuids:
-                        art_as_md = cfg.use.view_as_metadata(artif,
-                                                             namespace[artif])
-                        md_files_in.append(art_as_md)
-                    md = cfg.use.merge_metadata('merged', *md_files_in)
-                v = md
+                    md = init_md_from_artifacts(v, namespace, cfg)
 
                 # TODO: Fix this fp getter once we're actually dumping md files
                 fp = f'recorded_metadata/{unique_md_id}.tsv'
@@ -322,12 +311,59 @@ def build_action_usage(node: ProvNode,
                     "metadata .tsv files.\nTo confirm you have covered your "
                     "metadata needs adequately, review the original\nmetadata,"
                     f" saved at:\n{fp}\n")
+            v = md
         inputs.update({k: v})
 
     cfg.use.action(
         cfg.use.UsageAction(plugin_id=plugin, action_id=action),
         cfg.use.UsageInputs(**inputs),
         cfg.use.UsageOutputNames(**outputs))
+
+
+def init_md_from_recorded_md(node: ProvNode, unique_md_id: str,
+                             namespace: UniqueValsDict, cfg: ReplayConfig) -> \
+                                 UsageVariable:
+    """
+    initializes and returns a Metadata UsageVariable from a pd.df scraped from
+    provenance
+    """
+    from qiime2 import Metadata
+    md_df = node.metadata[unique_md_id]
+
+    def factory():
+        return Metadata(md_df)
+
+    return cfg.use.init_metadata(namespace[unique_md_id], factory)
+
+
+def init_md_from_md(node: ProvNode, param_name: str, md_id: str,
+                    namespace: UniqueValsDict, cfg: ReplayConfig) -> \
+                        UsageVariable:
+    """
+    initializes and returns a Metadata UsageVariable with no real data,
+    mimicking a user passing md as a .tsv file
+    """
+    plugin = node.action.plugin
+    action = node.action.action_name
+    md = cfg.use.init_metadata(namespace[md_id], lambda: None)
+    if param_is_metadata_column(cfg, param_name, plugin, action):
+        md = cfg.use.get_metadata_column('some', '<column_name>', md)
+    return md
+
+
+def init_md_from_artifacts(md_inf: MetadataInfo, namespace: UniqueValsDict,
+                           cfg: ReplayConfig) -> UsageVariable:
+    """
+    initializes and returns a Metadata UsageVariable with no real data,
+    mimicking a user passing md as one or more QIIME 2 Artifacts
+    """
+    md_files_in = []
+    # TODO: confirm this represented correctly w/many art-as-md
+    for artif in md_inf.input_artifact_uuids:
+        art_as_md = cfg.use.view_as_metadata(artif,
+                                             namespace[artif])
+        md_files_in.append(art_as_md)
+    return cfg.use.merge_metadata('md_from_artifacts', *md_files_in)
 
 
 def dump_recorded_md_files(node: ProvNode, unique_md_id: str):

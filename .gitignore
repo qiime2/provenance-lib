@@ -131,3 +131,6 @@ dmypy.json
 # Pyreverse UML diagrams
 classes.png
 packages.png
+
+# other local
+recorded_metadata/

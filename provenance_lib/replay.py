@@ -314,12 +314,14 @@ def build_action_usage(node: ProvNode,
                 v = md
 
                 # TODO: Fix this fp getter once we're actually dumping md files
-                fp = '/home/TODO/this_is_fake.tsv'
+                fp = f'recorded_metadata/{unique_md_id}.tsv'
+                # TODO: Clean this up so we comment once per action, not once
+                # per md file
                 cfg.use.comment(
                     "The following command may have received additional "
                     "metadata .tsv files.\nTo confirm you have covered your "
                     "metadata needs adequately, review the original\nmetadata,"
-                    f" saved at:\n{fp}.\n")
+                    f" saved at:\n{fp}\n")
         inputs.update({k: v})
 
     cfg.use.action(

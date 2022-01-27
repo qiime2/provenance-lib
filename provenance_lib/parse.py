@@ -90,6 +90,7 @@ class ProvDAG:
         """
         parser_results = parse_provenance(cfg, artifact_data)
 
+        self.cfg = cfg
         self._parsed_artifact_uuids = parser_results.parsed_artifact_uuids
         self.dag = parser_results.prov_digraph
         self._provenance_is_valid = parser_results.provenance_is_valid
@@ -244,6 +245,14 @@ class ProvDAG:
                                              .union(dag._parsed_artifact_uuids)
             new_dag._provenance_is_valid = min(new_dag.provenance_is_valid,
                                                dag.provenance_is_valid)
+            # TODO: test the following
+            # Min of a bool is False, so we can:
+            new_dag.cfg.parse_study_metadata = min(
+                new_dag.cfg.parse_study_metadata,
+                dag.cfg.parse_study_metadata)
+            new_dag.cfg.perform_checksum_validation = min(
+                new_dag.cfg.perform_checksum_validation,
+                dag.cfg.perform_checksum_validation)
             # Here we retain as much data as possible, preferencing any
             # ChecksumDiff over None. This might mean we keep a clean/empty
             # ChecksumDiff and drop None, used to indicate a missing

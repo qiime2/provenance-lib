@@ -24,7 +24,7 @@ for key in CONSTRUCTOR_REGISTRY:
 @dataclass(frozen=True)
 class Config():
     perform_checksum_validation: bool = True
-    parse_study_metadata: bool = False
+    parse_study_metadata: bool = True
 
 
 @dataclass

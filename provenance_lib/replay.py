@@ -136,6 +136,10 @@ def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
     """
     cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS[usage_driver](),
                        use_recorded_metadata=use_recorded_metadata)
+    if cfg.use_recorded_metadata and not dag.cfg.parse_study_metadata:
+        raise ValueError(
+            "Metadata not captured for replay.  Re-parse metadata, or set "
+            "use_recorded_metadata to False")
     build_usage_examples(dag, cfg)
     output = cfg.use.render()
     with open(out_fp, mode='w') as out_fh:
@@ -266,15 +270,24 @@ def build_action_usage(node: ProvNode,
         # 6ef6df712f2f14be1baa5551368a41c3e9f8e340/qiime2/plugins.py#L31
         inputs.update({k: namespace[v]})
 
+    # Process outputs before params so we can access the unique output name
+    # from the namespace when dumping metadata to files below
+    raw_outputs = actions[action_id].items()
+    outputs = {}
+    for (k, v) in raw_outputs:
+        namespace.update({k: v})
+        uniquified_val = namespace[k]
+        outputs.update({v: uniquified_val})
+
     for k, v in node.action.parameters.items():
         if isinstance(v, MetadataInfo):
-            unique_md_id = node._uuid + ':' + k
+            unique_md_id = namespace[node._uuid] + '_' + k
             namespace.update({unique_md_id: camel_to_snake(k)})
+            dump_recorded_md_files(node, unique_md_id)
             if cfg.use_recorded_metadata:
-                # TODO: use the md files in prov
+                # TODO NEXT: use the md files in prov
                 raise NotImplementedError("We should handle recorded MD files")
             else:
-                # TODO: dump the md files for user review
                 if not cfg.md_context_has_been_printed:
                     cfg.md_context_has_been_printed = True
                     cfg.use.comment(
@@ -309,17 +322,23 @@ def build_action_usage(node: ProvNode,
                     f" saved at:\n{fp}.\n")
         inputs.update({k: v})
 
-    raw_outputs = actions[action_id].items()
-    outputs = {}
-    for (k, v) in raw_outputs:
-        namespace.update({k: v})
-        uniquified_val = namespace[k]
-        outputs.update({v: uniquified_val})
-
     cfg.use.action(
         cfg.use.UsageAction(plugin_id=plugin, action_id=action),
         cfg.use.UsageInputs(**inputs),
         cfg.use.UsageOutputNames(**outputs))
+
+
+def dump_recorded_md_files(node: ProvNode, unique_md_id: str):
+    cwd = pathlib.Path.cwd()
+    md_out_fp_base = cwd / 'recorded_metadata'
+    try:
+        md_out_fp_base.mkdir()
+    except FileExistsError:
+        pass
+    for md in node.metadata:
+        md_df = node.metadata[md]
+        out_fp = md_out_fp_base / (unique_md_id + '.tsv')
+        md_df.to_csv(out_fp, sep='\t')
 
 
 def param_is_metadata_column(

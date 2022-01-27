@@ -134,12 +134,12 @@ def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
     can use it to generate multiple UI examples from it.
     for now, we'll just pass the use into our builders.
     """
+    if use_recorded_metadata and not dag.cfg.parse_study_metadata:
+        raise ValueError(
+            "Metadata not captured for replay. Re-parse metadata, or set "
+            "use_recorded_metadata to False")
     cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS[usage_driver](),
                        use_recorded_metadata=use_recorded_metadata)
-    if cfg.use_recorded_metadata and not dag.cfg.parse_study_metadata:
-        raise ValueError(
-            "Metadata not captured for replay.  Re-parse metadata, or set "
-            "use_recorded_metadata to False")
     build_usage_examples(dag, cfg)
     output = cfg.use.render()
     with open(out_fp, mode='w') as out_fh:

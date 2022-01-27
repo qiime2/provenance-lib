@@ -264,6 +264,7 @@ def build_action_usage(node: ProvNode,
     # TODO: clean up or remove
     actions looks like: {action_id: {node_id: node_name, ...}, ...}
     """
+    command_specific_md_context_has_been_printed = False
     plugin = node.action.plugin
     action = node.action.action_name
     plg_action_name = uniquify_action_name(plugin, action, action_namespace)
@@ -305,20 +306,20 @@ def build_action_usage(node: ProvNode,
                         "distinctions\nbetween file inputs invisible in "
                         "provenance. We output the recorded metadata\nto disk "
                         "to enable visual inspection.\n")
+
+                if not command_specific_md_context_has_been_printed:
+                    fp = f'recorded_metadata/{plg_action_name}/'
+                    cfg.use.comment(
+                        "The following command may have received additional "
+                        "metadata .tsv files.\nTo confirm you have covered "
+                        "your metadata needs adequately, review the original\n"
+                        f"metadata, saved at '{fp}'\n")
+
                 if not v.input_artifact_uuids:
                     md = init_md_from_md(node, k, unique_md_id, namespace, cfg)
                 else:
                     md = init_md_from_artifacts(v, namespace, cfg)
 
-                # TODO: Fix this fp getter once we're actually dumping md files
-                fp = f'recorded_metadata/{plg_action_name}/'
-                # TODO: Clean this up so we comment once per action, not once
-                # per md file
-                cfg.use.comment(
-                    "The following command may have received additional "
-                    "metadata .tsv files.\nTo confirm you have covered your "
-                    "metadata needs adequately, review the original\nmetadata,"
-                    f" saved at:\n{fp}\n")
             v = md
         inputs.update({k: v})
 

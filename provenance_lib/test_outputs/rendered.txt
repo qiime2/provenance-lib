@@ -13,12 +13,11 @@ files are merged automatically by some interfaces, rendering distinctions
 between file inputs invisible in provenance. We output the recorded metadata
 to disk to enable visual inspection.
 
-some_mdc = barcodes_0_md.get_column('<column_name>')
 # The following command may have received additional metadata .tsv files.
 To confirm you have covered your metadata needs adequately, review the original
-metadata, saved at:
-recorded_metadata/demux_emp_single_0/
+metadata, saved at 'recorded_metadata/demux_emp_single_0/'
 
+some_mdc = barcodes_0_md.get_column('<column_name>')
 per_sample_sequences_0, _ = demux_actions.emp_single(
     seqs='emp_single_end_sequences_0',
     barcodes=some_mdc,
@@ -45,8 +44,7 @@ _, _, _, rooted_tree_0 = phylogeny_actions.align_to_tree_mafft_fasttree(
 )
 # The following command may have received additional metadata .tsv files.
 To confirm you have covered your metadata needs adequately, review the original
-metadata, saved at:
-recorded_metadata/diversity_core_metrics_phylogenetic_0/
+metadata, saved at 'recorded_metadata/diversity_core_metrics_phylogenetic_0/'
 
 _, _, _, _, _, _, _, _, _, _, _, _, _, unweighted_unifrac_emperor_0_viz, _, _, _ = diversity_actions.core_metrics_phylogenetic(
     table='table_0',

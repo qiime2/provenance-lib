@@ -52,7 +52,7 @@ if __name__ == '__main__':
     replay_provdag(dag=dummy_DAG, out_fp=out_fp, usage_driver='python3',
                    use_recorded_metadata=False)
 
-    # out_fp = pathlib.Path(
-    #     '/home/chris/src/provenance_py/provenance_lib/test_outputs/cli_rendered.txt')
-    # replay_provdag(dag=dummy_DAG, out_fp=out_fp, usage_driver='cli',
-    #                use_recorded_metadata=False)
+    out_fp = pathlib.Path(
+        '/home/chris/src/provenance_py/provenance_lib/test_outputs/cli_rendered.txt')
+    replay_provdag(dag=dummy_DAG, out_fp=out_fp, usage_driver='cli',
+                   use_recorded_metadata=False)

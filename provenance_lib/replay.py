@@ -135,13 +135,15 @@ class UsageVarsDict(UserDict):
         Given some value in the dict, returns its key
         Results are predictable due to the uniqueness of dict values.
 
+        Raises KeyError if search value does not exist.
+
         NOTE: If this proves too slow at scale, we can pivot to storing a
         second (reversed) dict for hashed lookups
         """
         for key, val in self.items():
             if value == val:
                 return key
-        raise KeyError('passed value does not exist in this dict.')
+        raise KeyError(f"passed value '{value}' does not exist in this dict.")
 
 
 def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,

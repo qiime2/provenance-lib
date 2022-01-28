@@ -3,7 +3,7 @@ import copy
 from typing import Any, List, Mapping, Optional, Set
 
 import networkx as nx
-from networkx.classes.reportviews import NodeView  # type: ignore
+from networkx.classes.reportviews import NodeView
 
 from . import checksum_validator
 from .archive_parser import (

@@ -7,7 +7,7 @@ import warnings
 import zipfile
 
 from networkx import DiGraph
-from networkx.classes.reportviews import NodeView  # type: ignore
+from networkx.classes.reportviews import NodeView
 
 from ..checksum_validator import ChecksumDiff, ValidationCode
 from ..parse import (

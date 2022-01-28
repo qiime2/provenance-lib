@@ -4,16 +4,16 @@ import pytest
 import re
 from collections import UserDict
 from dataclasses import dataclass
-from typing import Dict, Iterator, Literal, Union
+from typing import Dict, Iterator, Literal, Set, Union
 
 from .archive_parser import ProvNode
 from .parse import ProvDAG, UUID
 from .yaml_constructors import MetadataInfo
 
-from q2cli.core.usage import CLIUsage  # type: ignore
-from qiime2.plugins import ArtifactAPIUsage  # type: ignore
-from qiime2.sdk import PluginManager  # type: ignore
-from qiime2.sdk.usage import Usage, UsageVariable  # type: ignore
+from q2cli.core.usage import CLIUsage
+from qiime2.plugins import ArtifactAPIUsage
+from qiime2.sdk import PluginManager
+from qiime2.sdk.usage import Usage, UsageVariable
 
 
 class ReplayPythonUsage(ArtifactAPIUsage):
@@ -218,7 +218,7 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
     """
     Builds a chained usage example representing the analysis `dag`.
     """
-    actions_namespace = set()
+    actions_namespace = set()  # type: Set[str]
     usg_var_namespce = UsageVarsDict()
 
     sorted_nodes = nx.topological_sort(dag.collapsed_view)
@@ -353,8 +353,13 @@ def init_md_from_recorded_md(node: ProvNode, unique_md_id: str,
     """
     initializes and returns a Metadata UsageVariable from a pd.df scraped from
     provenance
+
+    Raises a ValueError if the node has no metadata
     """
     from qiime2 import Metadata
+    if node.metadata is None:
+        raise ValueError(
+            'This function should only be called if the node has metadata.')
     md_df = node.metadata[unique_md_id]
 
     def factory():
@@ -398,6 +403,8 @@ def dump_recorded_md_file(
     """
     Writes one metadata DataFrame passed to an action to .tsv
     Each action gets its own directory containing relevant md files.
+
+    Raises a ValueError if the node has no metadata
     """
     cwd = pathlib.Path.cwd()
     md_out_fp_base = cwd / 'recorded_metadata'
@@ -407,6 +414,9 @@ def dump_recorded_md_file(
     except FileExistsError:
         pass
 
+    if node.metadata is None:
+        raise ValueError(
+            'This function should only be called if the node has metadata.')
     md_df = node.metadata[md_id]
     out_fp = action_dir / (fn)
     md_df.to_csv(out_fp, sep='\t')

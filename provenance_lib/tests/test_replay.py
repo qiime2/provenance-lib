@@ -2,7 +2,7 @@ import unittest
 import os
 
 from qiime2 import Artifact
-from qiime2.sdk import PluginManager  # type: ignore
+from qiime2.sdk import PluginManager
 from qiime2.sdk.usage import Usage, UsageVariable
 
 from ..replay import UsageVarsDict

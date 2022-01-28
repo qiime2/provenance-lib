@@ -19,13 +19,13 @@ metadata, saved at 'recorded_metadata/demux_emp_single_0/'
 
 some_mdc = barcodes_0_md.get_column('<column_name>')
 per_sample_sequences_0, _ = demux_actions.emp_single(
-    seqs='emp_single_end_sequences_0',
+    seqs=emp_single_end_sequences_0,
     barcodes=some_mdc,
     rev_comp_barcodes=False,
     rev_comp_mapping_barcodes=False,
 )
 table_0, representative_sequences_0, _ = dada2_actions.denoise_single(
-    demultiplexed_seqs='per_sample_sequences_0',
+    demultiplexed_seqs=per_sample_sequences_0,
     trunc_len=120,
     trim_left=0,
     max_ee=2.0,
@@ -37,7 +37,7 @@ table_0, representative_sequences_0, _ = dada2_actions.denoise_single(
     hashed_feature_ids=True,
 )
 _, _, _, rooted_tree_0 = phylogeny_actions.align_to_tree_mafft_fasttree(
-    sequences='representative_sequences_0',
+    sequences=representative_sequences_0,
     n_threads=1,
     mask_max_gap_frequency=1.0,
     mask_min_conservation=0.4,
@@ -47,8 +47,8 @@ To confirm you have covered your metadata needs adequately, review the original
 metadata, saved at 'recorded_metadata/diversity_core_metrics_phylogenetic_0/'
 
 _, _, _, _, _, _, _, _, _, _, _, _, _, unweighted_unifrac_emperor_0_viz, _, _, _ = diversity_actions.core_metrics_phylogenetic(
-    table='table_0',
-    phylogeny='rooted_tree_0',
+    table=table_0,
+    phylogeny=rooted_tree_0,
     sampling_depth=1109,
     metadata=metadata_0_md,
     n_jobs=1,

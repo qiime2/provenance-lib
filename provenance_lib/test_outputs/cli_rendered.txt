@@ -10,14 +10,14 @@ qiime tools import \
 # confirm you have covered your metadata needs adequately, review the
 # original metadata, saved at 'recorded_metadata/demux_emp_single_0/'
 qiime demux emp-single \
-  --i-seqs emp_single_end_sequences_0 \
+  --i-seqs emp-single-end-sequences-0.qza \
   --m-barcodes-file barcodes-0.tsv \
   --m-barcodes-column <column_name> \
   --p-no-rev-comp-barcodes \
   --p-no-rev-comp-mapping-barcodes \
   --o-per-sample-sequences per-sample-sequences-0.qza
 qiime dada2 denoise-single \
-  --i-demultiplexed-seqs per_sample_sequences_0 \
+  --i-demultiplexed-seqs per-sample-sequences-0.qza \
   --p-trunc-len 120 \
   --p-trim-left 0 \
   --p-max-ee 2.0 \
@@ -30,7 +30,7 @@ qiime dada2 denoise-single \
   --o-representative-sequences representative-sequences-0.qza \
   --o-table table-0.qza
 qiime phylogeny align-to-tree-mafft-fasttree \
-  --i-sequences representative_sequences_0 \
+  --i-sequences representative-sequences-0.qza \
   --p-n-threads 1 \
   --p-mask-max-gap-frequency 1.0 \
   --p-mask-min-conservation 0.4 \
@@ -40,8 +40,8 @@ qiime phylogeny align-to-tree-mafft-fasttree \
 # original metadata, saved at
 # 'recorded_metadata/diversity_core_metrics_phylogenetic_0/'
 qiime diversity core-metrics-phylogenetic \
-  --i-table table_0 \
-  --i-phylogeny rooted_tree_0 \
+  --i-table table-0.qza \
+  --i-phylogeny rooted-tree-0.qza \
   --p-sampling-depth 1109 \
   --m-metadata-file metadata-0.tsv \
   # TODO: The following parameter name was not found in your current

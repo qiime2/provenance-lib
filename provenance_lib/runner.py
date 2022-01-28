@@ -45,8 +45,6 @@ if __name__ == '__main__':
           .get_node_data('ffb7cee3-2f1f-4988-90cc-efd5184ef003')._parents)
     print('#########################################')
 
-    print("\nTopological sort of dummy dag: ")
-
     out_fp = pathlib.Path(
         '/home/chris/src/provenance_py/provenance_lib/test_outputs/rendered.txt')
     replay_provdag(dag=dummy_DAG, out_fp=out_fp, usage_driver='python3',

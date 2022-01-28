@@ -3,7 +3,7 @@ import pathlib
 import re
 from collections import UserDict
 from dataclasses import dataclass
-from typing import Dict, Iterator, Literal
+from typing import Dict, Iterator, Literal, Union
 
 from .archive_parser import ProvNode
 from .parse import ProvDAG, UUID
@@ -94,17 +94,26 @@ class UniqueValsDict(UserDict):
     "namespace" of strings that will be evaluated into python variable names.
     Non-unique values would cause namespace collisions.
 
-    For consistency and simplicity, all values are suffixed with _n, such that
-    n is some int. When potentially colliding values are added, n is
-    incremented as needed until collision is avoided.
+    For consistency and simplicity, all str values are suffixed with _n when
+    added, such that n is some int. When potentially colliding values are
+    added, n is incremented as needed until collision is avoided.
+    UniqueValsDicts mutate ALL str values they receive.
 
-    NOTE: In cases where a var_name string must be used locally AND added to a
-    UniqueValsDict as a value, best practice is to add it to the Dict before
-    using it locally. UniqueValsDicts mutate ALL dict values they receive.
+    This dict explicitly supports the storage of variable-name strings,
+    and of the UsageVariables that correspond to those strings.
+
+    Best practice is generally to add the UUID: variable-name pair to the dict,
+    create the usage variable using the name stored in the dict,
+    then replace the variable-name with the related UsageVariable. This
+    ensures that UsageVariable.name is unique, preventing namespace collisions.
+
+    .get_key exists to support this use case, by enabling reverse lookup
     """
-    def __setitem__(self, key: UUID, item: str) -> None:
-        unique_val = self._uniquify(item)
-        return super().__setitem__(key, unique_val)
+    def __setitem__(self, key: UUID, item: Union[str, UsageVariable]) -> None:
+        unique_item = item
+        if isinstance(item, str):
+            unique_item = self._uniquify(item)
+        return super().__setitem__(key, unique_item)
 
     def _uniquify(self, var_name: str) -> str:
         """
@@ -118,6 +127,19 @@ class UniqueValsDict(UserDict):
             unique_name = f"{var_name}_{some_int}"
         return unique_name
 
+    def get_key(self, value: Union[str, UsageVariable]):
+        """
+        Given some value in the dict, returns its key
+        Results are predictable due to the uniqueness of dict values.
+
+        NOTE: If this proves too slow at scale, we can pivot to storing a
+        second (reversed) dict for hashed lookups
+        """
+        for key, val in self.items():
+            if value == val:
+                return key
+        raise KeyError('passed value does not exist in this dict.')
+
 
 def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
                    usage_driver: DRIVER_CHOICES,
@@ -125,8 +147,6 @@ def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
     """
     Renders usage examples describing a ProvDAG, producing an interface-
     specific executable.
-
-    if use_recorded_metadata is True, TODO: DO SOMETHING
 
     TODO: Consider robust input sanitization.
     TODO: probably refactor build_usage_examples to build a structure
@@ -238,8 +258,9 @@ def build_import_usage(node: ProvNode,
     """
     results_namespace.update({node._uuid: camel_to_snake(node.type)})
     format_for_import = cfg.use.init_format('<your data here>', lambda: None)
-    cfg.use.import_from_format(results_namespace[node._uuid],
-                               node.type, format_for_import)
+    use_var = cfg.use.import_from_format(
+        results_namespace[node._uuid], node.type, format_for_import)
+    results_namespace.update({node._uuid: use_var})
 
 
 def build_action_usage(node: ProvNode,
@@ -271,17 +292,13 @@ def build_action_usage(node: ProvNode,
 
     inputs = {}
     for k, v in node.action.inputs.items():
-        # TODO: namespace[v] is a string and renders as such - it should render
-        # without single-quotes for the artifact API.
-        # This guy could be useful: https://github.com/qiime2/qiime2/blob/
-        # 6ef6df712f2f14be1baa5551368a41c3e9f8e340/qiime2/plugins.py#L31
         inputs.update({k: namespace[v]})
 
     # Process outputs before params so we can access the unique output name
     # from the namespace when dumping metadata to files below
     raw_outputs = actions[action_id].items()
     outputs = {}
-    for (k, v) in raw_outputs:
+    for k, v in raw_outputs:
         namespace.update({k: v})
         uniquified_v = namespace[k]
         outputs.update({v: uniquified_v})
@@ -316,17 +333,23 @@ def build_action_usage(node: ProvNode,
                         f"metadata, saved at '{fp}'\n")
 
                 if not v.input_artifact_uuids:
-                    md = init_md_from_md(node, k, unique_md_id, namespace, cfg)
+                    md = init_md_from_md_file(
+                        node, k, unique_md_id, namespace, cfg)
                 else:
                     md = init_md_from_artifacts(v, namespace, cfg)
 
             v = md
         inputs.update({k: v})
 
-    cfg.use.action(
+    usg_var = cfg.use.action(
         cfg.use.UsageAction(plugin_id=plugin, action_id=action),
         cfg.use.UsageInputs(**inputs),
         cfg.use.UsageOutputNames(**outputs))
+
+    # Replace variable names with built UsageVariables to allow chaining
+    for res in usg_var:
+        uuid_key = namespace.get_key(value=res.name)
+        namespace[uuid_key] = res
 
 
 def init_md_from_recorded_md(node: ProvNode, unique_md_id: str,
@@ -345,9 +368,9 @@ def init_md_from_recorded_md(node: ProvNode, unique_md_id: str,
     return cfg.use.init_metadata(namespace[unique_md_id], factory)
 
 
-def init_md_from_md(node: ProvNode, param_name: str, md_id: str,
-                    namespace: UniqueValsDict, cfg: ReplayConfig) -> \
-                        UsageVariable:
+def init_md_from_md_file(node: ProvNode, param_name: str, md_id: str,
+                         namespace: UniqueValsDict, cfg: ReplayConfig) -> \
+        UsageVariable:
     """
     initializes and returns a Metadata UsageVariable with no real data,
     mimicking a user passing md as a .tsv file

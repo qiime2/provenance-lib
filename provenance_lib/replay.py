@@ -1,5 +1,6 @@
 import networkx as nx
 import pathlib
+import pytest
 import re
 from collections import UserDict
 from dataclasses import dataclass
@@ -16,6 +17,8 @@ from qiime2.sdk.usage import Usage, UsageVariable  # type: ignore
 
 
 class ReplayPythonUsage(ArtifactAPIUsage):
+    # Ignoring coverage for now because these will hopefully get moved off repo
+    @pytest.mark.no_cover
     def _template_outputs(self, action, variables):
         """
         Monkeypatch allowing us to replay an action even when our provenance
@@ -44,6 +47,8 @@ class ReplayPythonUsage(ArtifactAPIUsage):
 
 
 class ReplayCLIUsage(CLIUsage):
+    # Ignoring coverage for now because these will hopefully get moved off repo
+    @pytest.mark.no_cover
     def _append_action_line(self, signature, param_name, value):
         """
         Monkeypatch allowing us to replay when recorded parameter names
@@ -59,8 +64,6 @@ class ReplayCLIUsage(CLIUsage):
                 line += ' \\'
                 self.recorder.append(line)
         else:  # no matching param name
-            # TODO: This case is not be caught by the ArtifactAPIDriver
-            # Does that matter?
             line = self.INDENT + (
                 "# TODO: The following parameter name was not found in "
                 "your current\n  # QIIME 2 environment. This may occur "

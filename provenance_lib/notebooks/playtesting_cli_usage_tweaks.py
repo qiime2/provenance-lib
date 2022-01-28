@@ -1,3 +1,4 @@
+# flake8: noqa
 # coding: utf-8
 from qiime2.sdk import PluginManager
 from qiime2 import Artifact

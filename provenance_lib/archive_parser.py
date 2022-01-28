@@ -21,7 +21,7 @@ for key in CONSTRUCTOR_REGISTRY:
     yaml.SafeLoader.add_constructor(key, CONSTRUCTOR_REGISTRY[key])
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=False)
 class Config():
     perform_checksum_validation: bool = True
     parse_study_metadata: bool = True

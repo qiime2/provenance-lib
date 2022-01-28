@@ -152,12 +152,6 @@ def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
     """
     Renders usage examples describing a ProvDAG, producing an interface-
     specific executable.
-
-    TODO: Consider robust input sanitization.
-    TODO: probably refactor build_usage_examples to build a structure
-    containing the required data. This way we build the data once, and users
-    can use it to generate multiple UI examples from it.
-    for now, we'll just pass the use into our builders.
     """
     if use_recorded_metadata and not dag.cfg.parse_study_metadata:
         raise ValueError(
@@ -223,7 +217,6 @@ def group_by_action(dag: ProvDAG, nodes: Iterator[UUID]) -> \
 def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
     """
     Builds a chained usage example representing the analysis `dag`.
-    TODO: Handle disconnected graphs
     """
     actions_namespace = set()
     usg_var_namespce = UsageVarsDict()
@@ -423,9 +416,6 @@ def param_is_metadata_column(
         cfg: ReplayConfig, param: str, plg: str, action: str) -> bool:
     """
     Returns True if the param name `param` is registered as a MetadataColumn
-
-    TODO: Should we make a tool that can do a simple diff of qiime 2 plugins
-    present vs those required?
     """
     plugin = cfg.pm.get_plugin(id=plg)
     try:

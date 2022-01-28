@@ -88,7 +88,7 @@ class ReplayConfig():
     md_context_has_been_printed: bool = False
 
 
-class UniqueValsDict(UserDict):
+class UsageVarsDict(UserDict):
     """
     A dict where values are also unique. Used here as a UUID-queryable
     "namespace" of strings that will be evaluated into python variable names.
@@ -97,7 +97,7 @@ class UniqueValsDict(UserDict):
     For consistency and simplicity, all str values are suffixed with _n when
     added, such that n is some int. When potentially colliding values are
     added, n is incremented as needed until collision is avoided.
-    UniqueValsDicts mutate ALL str values they receive.
+    UsageVarsDicts mutate ALL str values they receive.
 
     This dict explicitly supports the storage of variable-name strings,
     and of the UsageVariables that correspond to those strings.
@@ -221,7 +221,7 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
     TODO: Handle disconnected graphs
     """
     actions_namespace = set()
-    results_namespace = UniqueValsDict()
+    usg_var_namespce = UsageVarsDict()
 
     sorted_nodes = nx.topological_sort(dag.collapsed_view)
     actions = group_by_action(dag, sorted_nodes)
@@ -231,14 +231,14 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
         some_node_id_from_this_action = next(iter(actions[action_id]))
         n_data = dag.get_node_data(some_node_id_from_this_action)
         if n_data.action.action_type == 'import':
-            build_import_usage(n_data, results_namespace, cfg)
+            build_import_usage(n_data, usg_var_namespce, cfg)
         else:
-            build_action_usage(n_data, results_namespace, actions_namespace,
+            build_action_usage(n_data, usg_var_namespce, actions_namespace,
                                actions, action_id, cfg)
 
 
 def build_import_usage(node: ProvNode,
-                       results_namespace: UniqueValsDict,
+                       usg_var_namespce: UsageVarsDict,
                        cfg: ReplayConfig):
     """
     Given a ProvNode, adds an import usage example for it, roughly
@@ -256,15 +256,15 @@ def build_import_usage(node: ProvNode,
     The `lambda: None` is a placeholder for some actual data factory,
     and should not impact the rendered usage.
     """
-    results_namespace.update({node._uuid: camel_to_snake(node.type)})
+    usg_var_namespce.update({node._uuid: camel_to_snake(node.type)})
     format_for_import = cfg.use.init_format('<your data here>', lambda: None)
     use_var = cfg.use.import_from_format(
-        results_namespace[node._uuid], node.type, format_for_import)
-    results_namespace.update({node._uuid: use_var})
+        usg_var_namespce[node._uuid], node.type, format_for_import)
+    usg_var_namespce.update({node._uuid: use_var})
 
 
 def build_action_usage(node: ProvNode,
-                       namespace: UniqueValsDict,
+                       namespace: UsageVarsDict,
                        action_namespace: set,
                        actions: Dict[UUID, Dict[UUID, str]],
                        action_id: UUID,
@@ -281,9 +281,6 @@ def build_action_usage(node: ProvNode,
         use.UsageInputs(table=ft),
         use.UsageOutputNames(vector='pielou_vector')
     )
-
-    # TODO: clean up or remove
-    actions looks like: {action_id: {node_id: node_name, ...}, ...}
     """
     command_specific_md_context_has_been_printed = False
     plugin = node.action.plugin
@@ -353,7 +350,7 @@ def build_action_usage(node: ProvNode,
 
 
 def init_md_from_recorded_md(node: ProvNode, unique_md_id: str,
-                             namespace: UniqueValsDict, cfg: ReplayConfig) -> \
+                             namespace: UsageVarsDict, cfg: ReplayConfig) -> \
                                  UsageVariable:
     """
     initializes and returns a Metadata UsageVariable from a pd.df scraped from
@@ -369,7 +366,7 @@ def init_md_from_recorded_md(node: ProvNode, unique_md_id: str,
 
 
 def init_md_from_md_file(node: ProvNode, param_name: str, md_id: str,
-                         namespace: UniqueValsDict, cfg: ReplayConfig) -> \
+                         namespace: UsageVarsDict, cfg: ReplayConfig) -> \
         UsageVariable:
     """
     initializes and returns a Metadata UsageVariable with no real data,
@@ -383,7 +380,7 @@ def init_md_from_md_file(node: ProvNode, param_name: str, md_id: str,
     return md
 
 
-def init_md_from_artifacts(md_inf: MetadataInfo, namespace: UniqueValsDict,
+def init_md_from_artifacts(md_inf: MetadataInfo, namespace: UsageVarsDict,
                            cfg: ReplayConfig) -> UsageVariable:
     """
     initializes and returns a Metadata UsageVariable with no real data,

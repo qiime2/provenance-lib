@@ -172,6 +172,9 @@ def camel_to_snake(name: str) -> str:
     e.g. EMPSingleEndSequences -> emp_single_end_sequences
     c/o https://stackoverflow.com/a/1176023/9872253
     """
+    # drop [ and ]
+    name = re.sub(r'[\[\]]', '', name)
+    # camel to snake
     name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
 

@@ -1,13 +1,15 @@
-import unittest
+import networkx as nx
 import os
+import unittest
 
 from qiime2 import Artifact
 from qiime2.sdk import PluginManager
 from qiime2.sdk.usage import Usage, UsageVariable
 
+from ..parse import ProvDAG
 from ..replay import (
-    camel_to_snake, UsageVarsDict, uniquify_action_name)
-from .test_parse import DATA_DIR
+    camel_to_snake, group_by_action, UsageVarsDict, uniquify_action_name)
+from .test_parse import DATA_DIR, TEST_DATA
 
 # Create a PM Instance once and use it throughout - expensive!
 pm = PluginManager()
@@ -112,3 +114,31 @@ class MiscHelperFnTests(unittest.TestCase):
         duplicate = uniquify_action_name(p1, a1, ns)
         self.assertEqual(duplicate, 'dummy_plugin_action_jackson_1')
         print(unique1, unique2, duplicate)
+
+    def test_group_by_action_w_provenance(self):
+        self.maxDiff = None
+        v5_dag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
+        sorted_nodes = nx.topological_sort(v5_dag.collapsed_view)
+        actual = group_by_action(v5_dag, sorted_nodes)
+        exp = {
+            '5cf3fd87-22ac-47ea-936d-576cc12f9110':
+                {'a35830e1-4535-47c6-aa23-be295a57ee1c':
+                    'emp_single_end_sequences', },
+            '3d69c8d1-a1fa-4ab3-ac88-3a98da15b2d5':
+                {'99fa3670-aa1a-45f6-ba8e-803c976a1163':
+                    'per_sample_sequences', },
+            'c0f74c1c-d596-4b1b-9aad-50101b4a9950':
+                {'89af91c0-033d-4e30-8ac4-f29a3b407dc1': 'table',
+                 '7ecf8954-e49a-4605-992e-99fcee397935':
+                    'representative_sequences', },
+            '4779bf7d-cae8-4ff2-a27d-4c97f581803f':
+                {'bce3d09b-e296-4f2b-9af4-834db6412429': 'rooted_tree', },
+            'aefba6e7-3dd1-45e5-8e6b-60e784062a5e':
+                {'ffb7cee3-2f1f-4988-90cc-efd5184ef003':
+                    'unweighted_unifrac_emperor', },
+        }
+        self.assertEqual(actual, exp)
+
+    def test_group_by_action_no_provenance(self):
+        # TODO: NEXT
+        raise NotImplementedError

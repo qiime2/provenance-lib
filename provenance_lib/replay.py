@@ -163,6 +163,8 @@ class UsageVarsDict(UserDict):
         raise KeyError(f"passed value '{value}' does not exist in this dict.")
 
 
+# TESTED ABOVE THIS
+
 def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
                    usage_driver: DRIVER_CHOICES,
                    use_recorded_metadata: bool = False):
@@ -464,6 +466,7 @@ def dump_recorded_md_file(
     md_df.to_csv(out_fp, sep='\t')
 
 
+# TESTED BELOW THIS POINT
 def param_is_metadata_column(
         cfg: ReplayConfig, param: str, plg: str, action: str) -> bool:
     """
@@ -473,11 +476,15 @@ def param_is_metadata_column(
     try:
         action_f = plugin.actions[action]
     except KeyError:
-        raise KeyError('No action currently registered with '
-                       'id: "%s".' % (action))
+        raise KeyError(f'No action currently registered with id: {action}.')
+
+    try:
+        param_spec = action_f.signature.parameters[param]
+    except KeyError:
+        raise KeyError(f'No parameter currently registered with id: {param}')
+
     # HACK, but it works without relying on Q2's type system
-    return ('MetadataColumn' in
-            str(action_f.signature.parameters[param].qiime_type))
+    return ('MetadataColumn' in str(param_spec.qiime_type))
 
 
 def uniquify_action_name(plugin: str, action: str, action_nmspace: set) -> str:

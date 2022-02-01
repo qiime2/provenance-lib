@@ -8,7 +8,8 @@ from qiime2.sdk.usage import Usage, UsageVariable
 
 from ..parse import ProvDAG
 from ..replay import (
-    camel_to_snake, group_by_action, UsageVarsDict, uniquify_action_name)
+    camel_to_snake, group_by_action, param_is_metadata_column, ReplayConfig,
+    UsageVarsDict, uniquify_action_name)
 from .test_parse import DATA_DIR, TEST_DATA
 
 # Create a PM Instance once and use it throughout - expensive!
@@ -114,6 +115,37 @@ class MiscHelperFnTests(unittest.TestCase):
         duplicate = uniquify_action_name(p1, a1, ns)
         self.assertEqual(duplicate, 'dummy_plugin_action_jackson_1')
         print(unique1, unique2, duplicate)
+
+    def test_param_is_metadata_col(self):
+        """
+        Assumes q2-demux and q2-diversity are installed in the active env.
+        TODO: replace with dummy plugin if we integrate this into the framework
+        """
+        cfg = ReplayConfig(use='cli', use_recorded_metadata=False, pm=pm)
+        # Is a MDC
+        actual = param_is_metadata_column(
+            cfg, 'barcodes', 'demux', 'emp_single')
+        self.assertTrue(actual)
+
+        # Isn't an MDC
+        not_md = param_is_metadata_column(
+            cfg, 'custom_axes', 'emperor', 'plot')
+        self.assertFalse(not_md)
+
+        # Action doesn't exist
+        with self.assertRaisesRegex(KeyError, "No param.*registered.*fake"):
+            param_is_metadata_column(
+                cfg, 'fake_param', 'emperor', 'plot')
+
+        # Parameter doesn't exist
+        with self.assertRaisesRegex(KeyError, "No action.*registered.*fake"):
+            param_is_metadata_column(
+                cfg, 'custom_axes', 'emperor', 'fake_action')
+
+        # Plugin doesn't exist
+        with self.assertRaisesRegex(KeyError, "No plugin.*registered.*prince"):
+            param_is_metadata_column(
+                cfg, 'custom_axes', 'princeling', 'plot')
 
 
 class GroupByActionTests(unittest.TestCase):

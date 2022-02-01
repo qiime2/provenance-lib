@@ -13,9 +13,10 @@ from qiime2.sdk.usage import Usage, UsageVariable
 from ..parse import ProvDAG
 from ..replay import (
     camel_to_snake, dump_recorded_md_file, group_by_action,
-    param_is_metadata_column, ReplayConfig, UsageVarsDict,
-    uniquify_action_name)
+    init_md_from_artifacts, param_is_metadata_column, ReplayConfig,
+    SUPPORTED_USAGE_DRIVERS, UsageVarsDict, uniquify_action_name)
 from .test_parse import DATA_DIR, TEST_DATA
+from ..yaml_constructors import MetadataInfo
 
 # Create a PM Instance once and use it throughout - expensive!
 pm = PluginManager()
@@ -126,7 +127,8 @@ class MiscHelperFnTests(unittest.TestCase):
         Assumes q2-demux and q2-diversity are installed in the active env.
         TODO: replace with dummy plugin if we integrate this into the framework
         """
-        cfg = ReplayConfig(use='cli', use_recorded_metadata=False, pm=pm)
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['cli'](),
+                           use_recorded_metadata=False, pm=pm)
         # Is a MDC
         actual = param_is_metadata_column(
             cfg, 'barcodes', 'demux', 'emp_single')
@@ -271,3 +273,60 @@ class GroupByActionTests(unittest.TestCase):
         self.assertEqual(action_collections.std_actions,
                          {act_id: {v1_uuid: 'visualization'}})
         self.assertEqual(action_collections.no_provenance_nodes, [v0_uuid])
+
+
+class InitializerTests(unittest.TestCase):
+    def test_init_md_from_artifacts_no_artifacts(self):
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
+                           use_recorded_metadata=False, pm=pm)
+        ns = UsageVarsDict()
+        md_info = MetadataInfo([], relative_fp='hmm.tsv')
+        with self.assertRaisesRegex(ValueError,
+                                    "not.*used.*input_artifact_uuids.*empty"):
+            init_md_from_artifacts(md_info, ns, cfg)
+
+    def test_init_md_from_artifacts_one_art(self):
+        # This helper doesn't capture real data, so we're only smoke testing,
+        # checking type, and confirming the repr looks reasonable.
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
+                           use_recorded_metadata=False, pm=pm)
+
+        # We expect artifact vars have already been added to the namespace, so:
+        a1 = cfg.use.init_artifact(name='uuid1', factory=lambda: None)
+        ns = UsageVarsDict({'uuid1': a1})
+
+        md_info = MetadataInfo(['uuid1'], relative_fp='hmm.tsv')
+        var = init_md_from_artifacts(md_info, ns, cfg)
+        self.assertIsInstance(var, UsageVariable)
+        self.assertEqual(var.var_type, 'metadata')
+        rendered = var.use.render()
+        exp = """from qiime2 import Metadata
+
+uuid1_md = uuid1.view(Metadata)"""
+        self.assertEqual(rendered, exp)
+
+    def test_init_md_from_artifacts_many(self):
+        # This helper doesn't capture real data, so we're only smoke testing,
+        # checking type, and confirming the repr looks reasonable.
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
+                           use_recorded_metadata=False, pm=pm)
+
+        # We expect artifact vars have already been added to the namespace, so:
+        a1 = cfg.use.init_artifact(name='uuid1', factory=lambda: None)
+        a2 = cfg.use.init_artifact(name='uuid2', factory=lambda: None)
+        a3 = cfg.use.init_artifact(name='uuid3', factory=lambda: None)
+        ns = UsageVarsDict({'uuid1': a1, 'uuid2': a2, 'uuid3': a3})
+
+        md_info = MetadataInfo(['uuid1', 'uuid2', 'uuid3'],
+                               relative_fp='hmm.tsv')
+        var = init_md_from_artifacts(md_info, ns, cfg)
+        self.assertIsInstance(var, UsageVariable)
+        self.assertEqual(var.var_type, 'metadata')
+        rendered = var.use.render()
+        exp = """from qiime2 import Metadata
+
+uuid1_md = uuid1.view(Metadata)
+uuid2_md = uuid2.view(Metadata)
+uuid3_md = uuid3.view(Metadata)
+merged_artifacts_md = uuid1_md.merge(uuid2_md, uuid3_md)"""
+        self.assertEqual(rendered, exp)

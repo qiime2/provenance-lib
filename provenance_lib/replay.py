@@ -164,7 +164,6 @@ class UsageVarsDict(UserDict):
 
 
 # TESTED ABOVE THIS
-
 def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
                    usage_driver: DRIVER_CHOICES,
                    use_recorded_metadata: bool = False):
@@ -427,22 +426,30 @@ def init_md_from_md_file(node: ProvNode, param_name: str, md_id: str,
     return md
 
 
+# TESTED BELOW THIS POINT
 def init_md_from_artifacts(md_inf: MetadataInfo, namespace: UsageVarsDict,
                            cfg: ReplayConfig) -> UsageVariable:
     """
     initializes and returns a Metadata UsageVariable with no real data,
-    mimicking a user passing md as one or more QIIME 2 Artifacts
+    mimicking a user passing one or more QIIME 2 Artifacts as metadata
+
+    We expect these usage vars are already in the namespace, if we're reading
+    them in as metadata.
+    TODO: Test how no-prov nodes affect this - esp mixed.
     """
+    if not md_inf.input_artifact_uuids:
+        raise ValueError("This funtion should not be used if"
+                         "MetadataInfo.input_artifact_uuids is empty.")
     md_files_in = []
-    # TODO: confirm this represented correctly w/many art-as-md
     for artif in md_inf.input_artifact_uuids:
         art_as_md = cfg.use.view_as_metadata(artif,
                                              namespace[artif])
         md_files_in.append(art_as_md)
-    return cfg.use.merge_metadata('md_from_artifacts', *md_files_in)
+    if len(md_inf.input_artifact_uuids) > 1:
+        art_as_md = cfg.use.merge_metadata('merged_artifacts', *md_files_in)
+    return art_as_md
 
 
-# TESTED BELOW THIS POINT
 def dump_recorded_md_file(
         node: ProvNode, action_name: str, md_id: str, fn: str):
     """

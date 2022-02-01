@@ -3,8 +3,8 @@ import pathlib
 import pytest
 import re
 from collections import UserDict
-from dataclasses import dataclass
-from typing import Dict, Iterator, Literal, Set, Union
+from dataclasses import dataclass, field
+from typing import Dict, Iterator, List, Literal, Optional, Set, Union
 
 from .archive_parser import ProvNode
 from .parse import ProvDAG, UUID
@@ -89,6 +89,23 @@ class ReplayConfig():
     use_recorded_metadata: bool
     pm: PluginManager = PluginManager()
     md_context_has_been_printed: bool = False
+    no_provenance_context_has_been_printed: bool = False
+
+
+@dataclass(frozen=False)
+class ActionCollections():
+    """
+    std_actions are all normal, provenance-tracked q2 actions, arranged like:
+    {<action_id>: {<output_node_uuid>: 'output_name',
+                   <output_node_2_uuid:> 'output_name_2'},
+     <action_2_id> : ...
+     }
+
+    no_provenance_nodes can't be organized by action, and in some cases we
+    don't know anything but UUID for them, so we can fit what we need in a list
+    """
+    std_actions: Dict[UUID, Dict[UUID, str]] = field(default_factory=dict)
+    no_provenance_nodes: List[UUID] = field(default_factory=list)
 
 
 class UsageVarsDict(UserDict):
@@ -157,6 +174,7 @@ def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
         raise ValueError(
             "Metadata not captured for replay. Re-parse metadata, or set "
             "use_recorded_metadata to False")
+
     cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS[usage_driver](),
                        use_recorded_metadata=use_recorded_metadata)
     build_usage_examples(dag, cfg)
@@ -172,33 +190,27 @@ def camel_to_snake(name: str) -> str:
     e.g. EMPSingleEndSequences -> emp_single_end_sequences
     c/o https://stackoverflow.com/a/1176023/9872253
     """
-    # drop [ and ]
+    # this will frequently be called on QIIME type expressions, so drop [ and ]
     name = re.sub(r'[\[\]]', '', name)
     # camel to snake
     name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
 
 
-def group_by_action(dag: ProvDAG, nodes: Iterator[UUID]) -> \
-        Dict[UUID, Dict[UUID, str]]:
+def group_by_action(dag: ProvDAG, nodes: Iterator[UUID]) -> ActionCollections:
     """
     Provenance is organized around outputs, but replay cares about actions.
     This groups the nodes from a DAG by action, returning a dict of dicts
     aggregating the outputs related to each action:
 
-    {<action_id>: {<output_node_uuid>: 'output_name',
-                   <output_node_2_uuid:> 'output_name_2'},
-     <action_2_id> : ...
-     }
-
     In cases where a captured output_name is unavailable, we substitute the
     output data's Semantic Type, snake-cased because it will be used as
     a variable name if this data is rendered by ArtifactAPIUsage.
     """
-    actions = {}  # type: Dict[UUID, Dict[UUID, str]]
-    for node in nodes:
-        if dag.node_has_provenance(node):
-            data = dag.get_node_data(node)
+    actions = ActionCollections()
+    for node_id in nodes:
+        if dag.node_has_provenance(node_id):
+            data = dag.get_node_data(node_id)
             action_id = data.action._execution_details['uuid']
             # neither imports nor older archive versions track output-names
             if (o_n := data.action.output_name) is not None:
@@ -207,13 +219,11 @@ def group_by_action(dag: ProvDAG, nodes: Iterator[UUID]) -> \
                 output_name = camel_to_snake(data.type)
 
             try:
-                actions[action_id].update({node: output_name})
+                actions.std_actions[action_id].update({node_id: output_name})
             except KeyError:
-                actions[action_id] = {node: output_name}
+                actions.std_actions[action_id] = {node_id: output_name}
         else:
-            # TODO: For the sake of build_usage_examples, we should probably
-            # continue to guarantee that no-prov nodes aren't added to actions
-            raise NotImplementedError("Replay does not support no-prov nodes")
+            actions.no_provenance_nodes.append(node_id)
     return actions
 
 
@@ -222,20 +232,49 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
     Builds a chained usage example representing the analysis `dag`.
     """
     actions_namespace = set()  # type: Set[str]
-    usg_var_namespce = UsageVarsDict()
+    usg_var_namespace = UsageVarsDict()
 
     sorted_nodes = nx.topological_sort(dag.collapsed_view)
     actions = group_by_action(dag, sorted_nodes)
-    for action_id in actions:
-        # group_by_action guarantees only nodes with provenance are in actions
-        # all nodes from one action should have the same action_type etc, so:
-        some_node_id_from_this_action = next(iter(actions[action_id]))
+
+    for node_id in actions.no_provenance_nodes:
+        n_data = dag.get_node_data(node_id)
+        build_no_provenance_node_usage(
+            n_data, node_id, usg_var_namespace, cfg)
+
+    for action_id in (std_actions := actions.std_actions):
+        some_node_id_from_this_action = next(iter(std_actions[action_id]))
         n_data = dag.get_node_data(some_node_id_from_this_action)
         if n_data.action.action_type == 'import':
-            build_import_usage(n_data, usg_var_namespce, cfg)
+            build_import_usage(n_data, usg_var_namespace, cfg)
         else:
-            build_action_usage(n_data, usg_var_namespce, actions_namespace,
-                               actions, action_id, cfg)
+            build_action_usage(n_data, usg_var_namespace, actions_namespace,
+                               std_actions, action_id, cfg)
+
+
+def build_no_provenance_node_usage(node: Optional[ProvNode],
+                                   uuid: UUID,
+                                   usg_var_namespace: UsageVarsDict,
+                                   cfg: ReplayConfig):
+    """
+    Given a ProvNode (with no provenance), does something useful with it.
+    """
+    if not cfg.no_provenance_context_has_been_printed:
+        cfg.no_provenance_context_has_been_printed = True
+        cfg.use.comment(
+            "One or more nodes have no provenance, so full replay is "
+            "impossible. Any\ncommands we were able to reconstruct have been "
+            "rendered, with the string\ndescriptions below replacing actual "
+            "inputs.")
+        cfg.use.comment(
+            "Original Node ID                       String Description")
+    if node is None:
+        # This occurs when the node is known only from a child node's prov,
+        # and we have no information beyond UUID
+        usg_var_namespace.update({uuid: 'no-provenance-node'})
+    else:
+        usg_var_namespace.update({uuid: camel_to_snake(node.type)})
+    cfg.use.comment(f"{uuid}   {usg_var_namespace[uuid]}\n")
 
 
 def build_import_usage(node: ProvNode,

@@ -115,9 +115,11 @@ class MiscHelperFnTests(unittest.TestCase):
         self.assertEqual(duplicate, 'dummy_plugin_action_jackson_1')
         print(unique1, unique2, duplicate)
 
-    def test_group_by_action_w_provenance(self):
+
+class GroupByActionTests(unittest.TestCase):
+    def test_g_b_a_w_provenance(self):
         self.maxDiff = None
-        v5_dag = ProvDAG(str(TEST_DATA['5']['qzv_fp']))
+        v5_dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
         sorted_nodes = nx.topological_sort(v5_dag.collapsed_view)
         actual = group_by_action(v5_dag, sorted_nodes)
         exp = {
@@ -137,8 +139,51 @@ class MiscHelperFnTests(unittest.TestCase):
                 {'ffb7cee3-2f1f-4988-90cc-efd5184ef003':
                     'unweighted_unifrac_emperor', },
         }
-        self.assertEqual(actual, exp)
+        self.assertEqual(actual.std_actions, exp)
+        self.assertEqual(actual.no_provenance_nodes, [])
 
-    def test_group_by_action_no_provenance(self):
-        # TODO: NEXT
-        raise NotImplementedError
+    def test_g_b_a_no_provenance(self):
+        # one v0 node
+        v0_uuid = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
+            single_no_prov = ProvDAG(
+                os.path.join(DATA_DIR, 'v0_uu_emperor.qzv'))
+        sorted_nodes = nx.topological_sort(single_no_prov.collapsed_view)
+        action_collections = group_by_action(single_no_prov, sorted_nodes)
+        self.assertEqual(action_collections.std_actions, {})
+        self.assertEqual(action_collections.no_provenance_nodes, [v0_uuid])
+
+    def test_g_b_a_two_joined_no_prov_nodes(self):
+        # Multiple no-prov nodes glued together into a single DAG
+        v0_uuid = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
+            single_no_prov = ProvDAG(os.path.join(DATA_DIR,
+                                     'v0_uu_emperor.qzv'))
+
+        tbl_uuid = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{tbl_uuid}.*prior.*incomplete'):
+            v0_tbl = ProvDAG(os.path.join(DATA_DIR, 'v0_table.qza'))
+        joined = ProvDAG.union([single_no_prov, v0_tbl])
+        sorted_nodes = nx.topological_sort(joined.collapsed_view)
+        action_collections = group_by_action(joined, sorted_nodes)
+        self.assertEqual(action_collections.std_actions, {})
+        self.assertEqual(action_collections.no_provenance_nodes,
+                         [v0_uuid, tbl_uuid])
+
+    def test_g_b_a_some_nodes_missing_provenance(self):
+        # A dag parsed from a v1 archive with a v0 predecessor node
+        act_id = 'c147dfbc-139a-4db0-ac17-b11948247f93'
+        v1_uuid = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
+        v0_uuid = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
+            mixed = ProvDAG(os.path.join(DATA_DIR,
+                            'mixed_v0_v1_uu_emperor.qzv'))
+        sorted_nodes = nx.topological_sort(mixed.collapsed_view)
+        action_collections = group_by_action(mixed, sorted_nodes)
+        self.assertEqual(action_collections.std_actions,
+                         {act_id: {v1_uuid: 'visualization'}})
+        self.assertEqual(action_collections.no_provenance_nodes, [v0_uuid])

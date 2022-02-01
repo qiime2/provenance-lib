@@ -27,7 +27,7 @@ class ProvDAG:
     terminal_nodes: Set[ProvNode] - the terminal ProvNodes present in the DAG,
         not including inner pipeline nodes.
     provenance_is_valid: checksum_validator.ValidationCode - the canonical
-        indicator of provenance validity, this contain the _poorest_
+        indicator of provenance validity for a dag, this contains the _poorest_
         ValidationCode from all parsed Artifacts unioned into a given ProvDAG.
     checksum_diff: checksum_validator.ChecksumDiff - a ChecksumDiff
         representing all added, removed, and changed filepaths from all parsed

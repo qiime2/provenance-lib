@@ -1,6 +1,10 @@
 import networkx as nx
 import os
+import pandas as pd
+import pathlib
+import tempfile
 import unittest
+from unittest.mock import MagicMock
 
 from qiime2 import Artifact
 from qiime2.sdk import PluginManager
@@ -8,8 +12,9 @@ from qiime2.sdk.usage import Usage, UsageVariable
 
 from ..parse import ProvDAG
 from ..replay import (
-    camel_to_snake, group_by_action, param_is_metadata_column, ReplayConfig,
-    UsageVarsDict, uniquify_action_name)
+    camel_to_snake, dump_recorded_md_file, group_by_action,
+    param_is_metadata_column, ReplayConfig, UsageVarsDict,
+    uniquify_action_name)
 from .test_parse import DATA_DIR, TEST_DATA
 
 # Create a PM Instance once and use it throughout - expensive!
@@ -146,6 +151,53 @@ class MiscHelperFnTests(unittest.TestCase):
         with self.assertRaisesRegex(KeyError, "No plugin.*registered.*prince"):
             param_is_metadata_column(
                 cfg, 'custom_axes', 'princeling', 'plot')
+
+    def test_dump_recorded_md_file(self):
+        mixed = ProvDAG(os.path.join(DATA_DIR, 'mixed_v0_v1_uu_emperor.qzv'))
+        root_uuid = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
+        out_dir = 'recorded_metadata'
+        provnode = mixed.get_node_data(root_uuid)
+        og_md = provnode.metadata['metadata']
+        act_nm = 'emperor_plot_0'
+        md_id = 'metadata'
+        fn = 'metadata_0.tsv'
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pathlib.Path.cwd = MagicMock(return_value=pathlib.Path(tmpdir))
+            dump_recorded_md_file(provnode, act_nm, md_id, fn)
+            out_path = pathlib.Path(tmpdir) / out_dir / act_nm / fn
+
+            # was the file written where expected?
+            self.assertTrue(out_path.is_file())
+
+            # is it the same df?
+            dumped_df = pd.read_csv(out_path, sep='\t')
+            pd.testing.assert_frame_equal(dumped_df, og_md)
+
+            # If we run it again, it shouldn't overwrite 'recorded_metadata',
+            # so we should have two files
+            act_nm2 = 'emperor_plot_1'
+            md_id2 = 'metadata'
+            fn2 = 'metadata_1.tsv'
+            dump_recorded_md_file(provnode, act_nm2, md_id2, fn2)
+            out_path2 = pathlib.Path(tmpdir) / out_dir / act_nm2 / fn2
+
+            # are both files where expected?
+            self.assertTrue(out_path.is_file())
+            self.assertTrue(out_path2.is_file())
+
+    def test_dump_recorded_md_file_no_md(self):
+        # V0 archives never have metadata
+        v0 = ProvDAG(os.path.join(DATA_DIR, 'v0_uu_emperor.qzv'))
+        root_uuid = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
+        provnode = v0.get_node_data(root_uuid)
+        act_nm = 'emperor_plot_0'
+        md_id = 'metadata'
+        fn = 'metadata_0.tsv'
+
+        with self.assertRaisesRegex(ValueError,
+                                    "should only be called.*if.*metadata"):
+            dump_recorded_md_file(provnode, act_nm, md_id, fn)
 
 
 class GroupByActionTests(unittest.TestCase):

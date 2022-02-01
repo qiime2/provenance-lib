@@ -442,6 +442,7 @@ def init_md_from_artifacts(md_inf: MetadataInfo, namespace: UsageVarsDict,
     return cfg.use.merge_metadata('md_from_artifacts', *md_files_in)
 
 
+# TESTED BELOW THIS POINT
 def dump_recorded_md_file(
         node: ProvNode, action_name: str, md_id: str, fn: str):
     """
@@ -450,23 +451,20 @@ def dump_recorded_md_file(
 
     Raises a ValueError if the node has no metadata
     """
-    cwd = pathlib.Path.cwd()
-    md_out_fp_base = cwd / 'recorded_metadata'
-    action_dir = md_out_fp_base / action_name
-    try:
-        action_dir.mkdir(parents=True)
-    except FileExistsError:
-        pass
-
     if node.metadata is None:
         raise ValueError(
             'This function should only be called if the node has metadata.')
+
+    cwd = pathlib.Path.cwd()
+    md_out_fp_base = cwd / 'recorded_metadata'
+    action_dir = md_out_fp_base / action_name
+    action_dir.mkdir(parents=True, exist_ok=True)
+
     md_df = node.metadata[md_id]
     out_fp = action_dir / (fn)
-    md_df.to_csv(out_fp, sep='\t')
+    md_df.to_csv(out_fp, sep='\t', index=False)
 
 
-# TESTED BELOW THIS POINT
 def param_is_metadata_column(
         cfg: ReplayConfig, param: str, plg: str, action: str) -> bool:
     """
@@ -489,8 +487,8 @@ def param_is_metadata_column(
 
 def uniquify_action_name(plugin: str, action: str, action_nmspace: set) -> str:
     """
-    Creates a unique name for a plugin_action by appending it, then adds it to
-    the action_namespace
+    Creates a unique name by concatenating plugin_action_<counter>,
+    and adds the name to action_namespace before returning it
     """
     counter = 0
     plg_action_name = f'{plugin}_{action}_{counter}'

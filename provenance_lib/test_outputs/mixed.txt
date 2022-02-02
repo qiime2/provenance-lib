@@ -1,3 +1,4 @@
+from qiime2 import Metadata
 import qiime2.plugins.emperor.actions as emperor_actions
 
 # One or more nodes have no provenance, so full replay is impossible. Any
@@ -14,6 +15,10 @@ to disk to enable visual inspection.
 # The following command may have received additional metadata .tsv files.
 To confirm you have covered your metadata needs adequately, review the original
 metadata, saved at 'recorded_metadata/emperor_plot_0/'
+
+# NOTE: You may substitute already-loaded Metadata for the following,
+# or cast a pandas.DataFrame to Metadata as needed.
+metadata_0_md = Metadata.load(<your metadata filepath>)
 
 visualization_0_viz, = emperor_actions.plot(
     pcoa='no-provenance-node_0',

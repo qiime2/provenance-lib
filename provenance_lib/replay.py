@@ -258,6 +258,11 @@ def build_no_provenance_node_usage(node: Optional[ProvNode],
                                    cfg: ReplayConfig):
     """
     Given a ProvNode (with no provenance), does something useful with it.
+    Returns nothing, modifying the passed usage instance in place.
+
+    # Basically:
+    use.comment("Some context")
+    use.comment("no-provenance nodes and descriptions")
     """
     if not cfg.no_provenance_context_has_been_printed:
         cfg.no_provenance_context_has_been_printed = True
@@ -283,7 +288,6 @@ def build_import_usage(node: ProvNode,
     """
     Given a ProvNode, adds an import usage example for it, roughly
     resembling the following.
-
     Returns nothing, modifying the passed usage instance in place.
 
     raw_seqs = use.init_format('raw_seqs', lambda: None, ext='fastq.gz')
@@ -310,9 +314,7 @@ def build_action_usage(node: ProvNode,
                        action_id: UUID,
                        cfg: ReplayConfig):
     """
-    Adds an action usage example to use for some ProvNode, roughly resembling
-    the following.
-
+    Adds an action usage example to use for some ProvNode.
     Returns nothing, modifying the passed usage instance in place.
 
     use.action(

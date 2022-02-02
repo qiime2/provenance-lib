@@ -13,8 +13,8 @@ from qiime2.sdk.usage import Usage, UsageVariable
 from ..parse import ProvDAG
 from ..replay import (
     camel_to_snake, dump_recorded_md_file, group_by_action,
-    init_md_from_artifacts, param_is_metadata_column, ReplayConfig,
-    SUPPORTED_USAGE_DRIVERS, UsageVarsDict, uniquify_action_name)
+    init_md_from_artifacts, init_md_from_md_file, param_is_metadata_column,
+    ReplayConfig, SUPPORTED_USAGE_DRIVERS, UsageVarsDict, uniquify_action_name)
 from .test_parse import DATA_DIR, TEST_DATA
 from ..yaml_constructors import MetadataInfo
 
@@ -330,3 +330,48 @@ uuid2_md = uuid2.view(Metadata)
 uuid3_md = uuid3.view(Metadata)
 merged_artifacts_md = uuid1_md.merge(uuid2_md, uuid3_md)"""
         self.assertEqual(rendered, exp)
+
+    def test_init_md_from_md_file_not_mdc(self):
+        v0_uuid = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
+        v1_uuid = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
+            mixed = ProvDAG(os.path.join(DATA_DIR,
+                            'mixed_v0_v1_uu_emperor.qzv'))
+        v1_node = mixed.get_node_data(v1_uuid)
+        md_id = 'whatevs'
+        param_name = 'metadata'
+        ns = UsageVarsDict({md_id: param_name})
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
+                           use_recorded_metadata=False, pm=pm)
+
+        var = init_md_from_md_file(v1_node, param_name, md_id, ns, cfg)
+
+        rendered = var.use.render()
+        self.assertRegex(rendered, 'from qiime2 import Metadata')
+        self.assertRegex(
+            rendered,
+            r'metadata_0_md = Metadata.load\(\<your metadata filepath\>\)')
+
+    def test_init_md_from_md_file_md_is_mdc(self):
+        dag = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
+        n_id = '99fa3670-aa1a-45f6-ba8e-803c976a1163'
+        demux_node = dag.get_node_data(n_id)
+        md_id = 'per_sample_sequences_0_barcodes'
+        # We expect the variable name has already been added to the namespace
+        ns = UsageVarsDict({md_id: 'barcodes'})
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
+                           use_recorded_metadata=False, pm=pm)
+
+        var = init_md_from_md_file(demux_node, 'barcodes', md_id, ns, cfg)
+        self.assertIsInstance(var, UsageVariable)
+        self.assertEqual(var.var_type, 'column')
+        rendered = var.use.render()
+        self.assertRegex(rendered, 'from qiime2 import Metadata')
+        self.assertRegex(
+            rendered,
+            r"barcodes_0_md = Metadata.load\(\<your metadata filepath\>\)")
+        print(rendered)
+        self.assertRegex(
+            rendered,
+            r"some_mdc = barcodes_0_md.get_column\('\<column_name\>'\)")

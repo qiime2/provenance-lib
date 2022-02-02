@@ -1,4 +1,5 @@
 import networkx as nx
+# import pandas as pd
 import pathlib
 import pytest
 import re
@@ -11,6 +12,7 @@ from .parse import ProvDAG, UUID
 from .yaml_constructors import MetadataInfo
 
 from q2cli.core.usage import CLIUsage
+# from qiime2 import Metadata
 from qiime2.plugins import ArtifactAPIUsage
 from qiime2.sdk import PluginManager
 from qiime2.sdk.usage import Usage, UsageVariable
@@ -412,18 +414,19 @@ def init_md_from_recorded_md(node: ProvNode, unique_md_id: str,
 
     Raises a ValueError if the node has no metadata
     """
-    from qiime2 import Metadata
     if node.metadata is None:
         raise ValueError(
             'This function should only be called if the node has metadata.')
     md_df = node.metadata[unique_md_id]
 
     def factory():
+        from qiime2 import Metadata
         return Metadata(md_df)
 
     return cfg.use.init_metadata(namespace[unique_md_id], factory)
 
 
+# TESTED BELOW THIS POINT
 def init_md_from_md_file(node: ProvNode, param_name: str, md_id: str,
                          namespace: UsageVarsDict, cfg: ReplayConfig) -> \
         UsageVariable:
@@ -439,7 +442,6 @@ def init_md_from_md_file(node: ProvNode, param_name: str, md_id: str,
     return md
 
 
-# TESTED BELOW THIS POINT
 def init_md_from_artifacts(md_inf: MetadataInfo, namespace: UsageVarsDict,
                            cfg: ReplayConfig) -> UsageVariable:
     """

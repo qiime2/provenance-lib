@@ -13,8 +13,9 @@ from qiime2.sdk.usage import Usage, UsageVariable
 from ..parse import ProvDAG
 from ..replay import (
     camel_to_snake, dump_recorded_md_file, group_by_action,
-    init_md_from_artifacts, init_md_from_md_file, param_is_metadata_column,
-    ReplayConfig, SUPPORTED_USAGE_DRIVERS, UsageVarsDict, uniquify_action_name)
+    init_md_from_artifacts, init_md_from_md_file, init_md_from_recorded_md,
+    param_is_metadata_column, ReplayConfig, SUPPORTED_USAGE_DRIVERS,
+    UsageVarsDict, uniquify_action_name)
 from .test_parse import DATA_DIR, TEST_DATA
 from ..yaml_constructors import MetadataInfo
 
@@ -276,6 +277,35 @@ class GroupByActionTests(unittest.TestCase):
 
 
 class InitializerTests(unittest.TestCase):
+    def test_init_md_from_recorded_md(self):
+        no_md_id = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
+        has_md_id = '99fa3670-aa1a-45f6-ba8e-803c976a1163'
+        dag = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
+        no_md_node = dag.get_node_data(no_md_id)
+        md_node = dag.get_node_data(has_md_id)
+        var_nm = 'per_sample_sequences_0_barcodes'
+        param_nm = 'barcodes'
+        # We expect the variable name has already been added to the namespace
+        ns = UsageVarsDict({var_nm: param_nm})
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
+                           use_recorded_metadata=False, pm=pm)
+
+        with self.assertRaisesRegex(ValueError, 'only.*call.*if.*metadata'):
+            init_md_from_recorded_md(no_md_node, var_nm, ns, cfg)
+
+        var = init_md_from_recorded_md(md_node, var_nm, ns, cfg)
+        self.assertIsInstance(var, UsageVariable)
+        self.assertEqual(var.var_type, 'metadata')
+
+        # NOTE: This tests against current expected behavior, which is pretty
+        # janky and will probably be updated per the comment in the docstring
+        rendered = cfg.use.render()
+        print(rendered)
+        self.assertRegex(rendered, 'from qiime2 import Metadata')
+        self.assertRegex(
+            rendered,
+            r"barcodes_0_md = Metadata.load\(\<your metadata filepath\>\)")
+
     def test_init_md_from_artifacts_no_artifacts(self):
         cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
                            use_recorded_metadata=False, pm=pm)

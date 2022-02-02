@@ -389,19 +389,29 @@ def build_action_usage(node: ProvNode,
         namespace[uuid_key] = res
 
 
+# TESTED BELOW THIS POINT
 def init_md_from_recorded_md(node: ProvNode, unique_md_id: str,
                              namespace: UsageVarsDict, cfg: ReplayConfig) -> \
                                  UsageVariable:
     """
-    initializes and returns a Metadata UsageVariable from a pd.df scraped from
-    provenance
+    initializes and returns a Metadata UsageVariable from a pandas.DataFrame
+    scraped from provenance
 
     Raises a ValueError if the node has no metadata
+
+    TODO: If we decide to "touchless" replay with recorded metadata, we needn't
+    render, but if replay with recorded metadat isn't touchless (i.e. if it
+    also writes a rendered executable), we we'll need to render Python
+    differently (e.g. with an actual filepath, not the current "you have
+    options" comment). This is probably easiest with another variant driver
     """
-    if node.metadata is None:
+    if not node.metadata:
         raise ValueError(
             'This function should only be called if the node has metadata.')
-    md_df = node.metadata[unique_md_id]
+    # TODO: If this convention is real, we should probably implement it as a
+    # method on the UsageVarsDict (for metadata at least)
+    parameter_name = namespace[unique_md_id][:-2]
+    md_df = node.metadata[parameter_name]
 
     def factory():
         from qiime2 import Metadata
@@ -410,7 +420,6 @@ def init_md_from_recorded_md(node: ProvNode, unique_md_id: str,
     return cfg.use.init_metadata(namespace[unique_md_id], factory)
 
 
-# TESTED BELOW THIS POINT
 def init_md_from_md_file(node: ProvNode, param_name: str, md_id: str,
                          namespace: UsageVarsDict, cfg: ReplayConfig) -> \
         UsageVariable:

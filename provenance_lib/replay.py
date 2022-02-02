@@ -1,5 +1,4 @@
 import networkx as nx
-# import pandas as pd
 import pathlib
 import pytest
 import re
@@ -12,7 +11,6 @@ from .parse import ProvDAG, UUID
 from .yaml_constructors import MetadataInfo
 
 from q2cli.core.usage import CLIUsage
-# from qiime2 import Metadata
 from qiime2.plugins import ArtifactAPIUsage
 from qiime2.sdk import PluginManager
 from qiime2.sdk.usage import Usage, UsageVariable
@@ -197,20 +195,6 @@ def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
     output = cfg.use.render()
     with open(out_fp, mode='w') as out_fh:
         out_fh.write(output)
-
-
-def camel_to_snake(name: str) -> str:
-    """
-    There are more comprehensive and faster ways of doing this (incl compiling)
-    but it handles acronyms in semantic types nicely
-    e.g. EMPSingleEndSequences -> emp_single_end_sequences
-    c/o https://stackoverflow.com/a/1176023/9872253
-    """
-    # this will frequently be called on QIIME type expressions, so drop [ and ]
-    name = re.sub(r'[\[\]]', '', name)
-    # camel to snake
-    name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
 
 
 def group_by_action(dag: ProvDAG, nodes: Iterator[UUID]) -> ActionCollections:
@@ -519,3 +503,17 @@ def uniquify_action_name(plugin: str, action: str, action_nmspace: set) -> str:
         plg_action_name = f'{plugin}_{action}_{counter}'
     action_nmspace.add(plg_action_name)
     return plg_action_name
+
+
+def camel_to_snake(name: str) -> str:
+    """
+    There are more comprehensive and faster ways of doing this (incl compiling)
+    but it handles acronyms in semantic types nicely
+    e.g. EMPSingleEndSequences -> emp_single_end_sequences
+    c/o https://stackoverflow.com/a/1176023/9872253
+    """
+    # this will frequently be called on QIIME type expressions, so drop [ and ]
+    name = re.sub(r'[\[\]]', '', name)
+    # camel to snake
+    name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()

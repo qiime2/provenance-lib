@@ -12,11 +12,14 @@ from qiime2.sdk.usage import Usage, UsageVariable
 
 from ..parse import ProvDAG
 from ..replay import (
+    build_no_provenance_node_usage,
+    # build_import_usage, build_action_usage,
     camel_to_snake, dump_recorded_md_file, group_by_action,
     init_md_from_artifacts, init_md_from_md_file, init_md_from_recorded_md,
     param_is_metadata_column, ReplayConfig, SUPPORTED_USAGE_DRIVERS,
     UsageVarsDict, uniquify_action_name)
 from .test_parse import DATA_DIR, TEST_DATA
+from .testing_utilities import CustomAssertions
 from ..yaml_constructors import MetadataInfo
 
 # Create a PM Instance once and use it throughout - expensive!
@@ -405,3 +408,108 @@ merged_artifacts_md = uuid1_md.merge(uuid2_md, uuid3_md)"""
         self.assertRegex(
             rendered,
             r"some_mdc = barcodes_0_md.get_column\('\<column_name\>'\)")
+
+
+class BuildXUsageTests(CustomAssertions):
+    def test_build_no_provenance_node_usage_w_complete_node(self):
+        ns = UsageVarsDict()
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
+                           use_recorded_metadata=False, pm=pm)
+        v0_uuid = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
+            single_no_prov = ProvDAG(os.path.join(DATA_DIR,
+                                     'v0_uu_emperor.qzv'))
+        v0 = single_no_prov.get_node_data(v0_uuid)
+        build_no_provenance_node_usage(v0, v0_uuid, ns, cfg)
+        print(cfg.use)
+        print(ns)
+        out_var_name = 'visualization_0'
+        self.assertEqual(ns, {v0_uuid: out_var_name})
+        rendered = cfg.use.render()
+        # Confirm the initial context comment is present once.
+        self.assertREAppearsOnlyOnce(rendered, 'nodes have no provenance')
+        header = '# Original Node ID                       String Description'
+        self.assertREAppearsOnlyOnce(rendered, header)
+
+        # Confirm expected values have been rendered
+        exp_v0 = f'# {v0_uuid}   {out_var_name}'
+        self.assertRegex(rendered, exp_v0)
+
+    def test_build_no_provenance_node_usage_uuid_only_node(self):
+        ns = UsageVarsDict()
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
+                           use_recorded_metadata=False, pm=pm)
+        v0_uuid = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
+            mixed = ProvDAG(os.path.join(DATA_DIR,
+                            'mixed_v0_v1_uu_emperor.qzv'))
+        # This node is only a parent UUID captured in the v1 node's action.yaml
+        node = mixed.get_node_data(v0_uuid)
+        self.assertEqual(node, None)
+        build_no_provenance_node_usage(node, v0_uuid, ns, cfg)
+
+        out_var_name = 'no-provenance-node_0'
+        self.assertEqual(ns, {v0_uuid: out_var_name})
+
+        rendered = cfg.use.render()
+        # Confirm the initial context comment is present once.
+        self.assertREAppearsOnlyOnce(rendered, 'nodes have no provenance')
+        header = '# Original Node ID                       String Description'
+        self.assertREAppearsOnlyOnce(rendered, header)
+
+        # Confirm expected values have been rendered
+        exp_v0 = f'# {v0_uuid}   {out_var_name}'
+        self.assertRegex(rendered, exp_v0)
+
+    def test_build_no_provenance_node_usage_many_x(self):
+        """
+        Context should only be logged once.
+        """
+        ns = UsageVarsDict()
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
+                           use_recorded_metadata=False, pm=pm)
+
+        # This function doesn't actually know about the DAG, so no need to join
+        v0_uuid = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
+            single_no_prov = ProvDAG(os.path.join(DATA_DIR,
+                                     'v0_uu_emperor.qzv'))
+        v0_viz = single_no_prov.get_node_data(v0_uuid)
+
+        dummy_viz_uuid = v0_uuid + '-dummy'
+        # Will return the same type as v0
+        dummy_viz = single_no_prov.get_node_data(v0_uuid)
+
+        tbl_uuid = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{tbl_uuid}.*prior.*incomplete'):
+            v0_tbl = ProvDAG(os.path.join(DATA_DIR, 'v0_table.qza'))
+        tbl = v0_tbl.get_node_data(tbl_uuid)
+        build_no_provenance_node_usage(v0_viz, v0_uuid, ns, cfg)
+        build_no_provenance_node_usage(tbl, tbl_uuid, ns, cfg)
+        build_no_provenance_node_usage(dummy_viz, dummy_viz_uuid, ns, cfg)
+        self.assertIn(v0_uuid, ns)
+        self.assertIn(tbl_uuid, ns)
+        self.assertIn(dummy_viz_uuid, ns)
+        self.assertEqual(ns[v0_uuid], 'visualization_0')
+        self.assertEqual(ns[tbl_uuid], 'feature_table_frequency_0')
+        self.assertEqual(ns[dummy_viz_uuid], 'visualization_1')
+        rendered = cfg.use.render()
+        # Confirm the initial context isn't repeated.
+        self.assertREAppearsOnlyOnce(rendered, 'nodes have no provenance')
+        header = '# Original Node ID                       String Description'
+        self.assertREAppearsOnlyOnce(rendered, header)
+
+        # Confirm expected values have been rendered
+        exp_v0 = '# 0b8b47bd-f2f8-4029-923c-0e37a68340c3   visualization_0'
+        exp_t = ('# 89af91c0-033d-4e30-8ac4-f29a3b407dc1   '
+                 'feature_table_frequency_0')
+        exp_v1 = ('# 0b8b47bd-f2f8-4029-923c-0e37a68340c3-dummy   '
+                  'visualization_1')
+        self.assertRegex(rendered, exp_v0)
+        self.assertRegex(rendered, exp_t)
+        self.assertRegex(rendered, exp_v1)
+

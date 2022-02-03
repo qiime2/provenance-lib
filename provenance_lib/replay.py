@@ -263,6 +263,13 @@ def build_no_provenance_node_usage(node: Optional[ProvNode],
     # Basically:
     use.comment("Some context")
     use.comment("no-provenance nodes and descriptions")
+
+    TODO: This function's signature is messy because it may receive a ProvNode
+    or None (the result of dag.get_node_data). None is used, because some dag
+    nodes don't actually have underlying ProvNodes. Consider refactoring
+    ProvNode so that the minimal node has only a UUID. This would probably
+    require properties with Optional returns and more if not None checks,
+    but the semantics feel pretty good. A node is, at least, a UUID, after all.
     """
     if not cfg.no_provenance_context_has_been_printed:
         cfg.no_provenance_context_has_been_printed = True
@@ -279,7 +286,7 @@ def build_no_provenance_node_usage(node: Optional[ProvNode],
         usg_var_namespace.update({uuid: 'no-provenance-node'})
     else:
         usg_var_namespace.update({uuid: camel_to_snake(node.type)})
-    cfg.use.comment(f"{uuid}   {usg_var_namespace[uuid]}\n")
+    cfg.use.comment(f"{uuid}   {usg_var_namespace[uuid]}")
 
 
 def build_import_usage(node: ProvNode,

@@ -12,8 +12,8 @@ from qiime2.sdk.usage import Usage, UsageVariable
 
 from ..parse import ProvDAG
 from ..replay import (
-    build_no_provenance_node_usage,
-    # build_import_usage, build_action_usage,
+    build_no_provenance_node_usage, build_import_usage,
+    # build_action_usage,
     camel_to_snake, dump_recorded_md_file, group_by_action,
     init_md_from_artifacts, init_md_from_md_file, init_md_from_recorded_md,
     param_is_metadata_column, ReplayConfig, SUPPORTED_USAGE_DRIVERS,
@@ -410,7 +410,7 @@ merged_artifacts_md = uuid1_md.merge(uuid2_md, uuid3_md)"""
             r"some_mdc = barcodes_0_md.get_column\('\<column_name\>'\)")
 
 
-class BuildXUsageTests(CustomAssertions):
+class BuildNoProvenanceUsageTests(CustomAssertions):
     def test_build_no_provenance_node_usage_w_complete_node(self):
         ns = UsageVarsDict()
         cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
@@ -513,3 +513,51 @@ class BuildXUsageTests(CustomAssertions):
         self.assertRegex(rendered, exp_t)
         self.assertRegex(rendered, exp_v1)
 
+
+class BuildImportUsageTests(CustomAssertions):
+    def test_build_import_usage_python(self):
+        ns = UsageVarsDict()
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
+                           use_recorded_metadata=False, pm=pm)
+        dag = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
+        n_id = 'a35830e1-4535-47c6-aa23-be295a57ee1c'
+        imp_node = dag.get_node_data(n_id)
+        c_to_s_type = camel_to_snake(imp_node.type)
+        unq_var_nm = c_to_s_type + '_0'
+        build_import_usage(imp_node, ns, cfg)
+        rendered = cfg.use.render()
+        out_name = ns[n_id].to_interface_name()
+
+        self.assertIsInstance(ns[n_id], UsageVariable)
+        self.assertEqual(ns[n_id].var_type, 'artifact')
+        self.assertEqual(ns[n_id].name, unq_var_nm)
+        self.assertRegex(rendered, 'from qiime2 import Artifact')
+        self.assertRegex(rendered, rf'{out_name} = Artifact.import_data\(')
+        self.assertRegex(rendered, imp_node.type)
+        self.assertRegex(rendered, '<your data here>')
+
+    def test_build_import_usage_cli(self):
+        ns = UsageVarsDict()
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['cli'](),
+                           use_recorded_metadata=False, pm=pm)
+        dag = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
+        n_id = 'a35830e1-4535-47c6-aa23-be295a57ee1c'
+        imp_node = dag.get_node_data(n_id)
+        c_to_s_type = camel_to_snake(imp_node.type)
+        unq_var_nm = c_to_s_type + '_0'
+        build_import_usage(imp_node, ns, cfg)
+        rendered = cfg.use.render()
+        out_name = ns[n_id].to_interface_name()
+
+        self.assertIsInstance(ns[n_id], UsageVariable)
+        self.assertEqual(ns[n_id].var_type, 'artifact')
+        self.assertEqual(ns[n_id].name, unq_var_nm)
+        self.assertRegex(rendered, r'qiime tools import \\')
+        self.assertRegex(rendered, f"  --type '{imp_node.type}'")
+        self.assertRegex(rendered, "  --input-path <your data here>")
+        self.assertRegex(rendered, f"  --output-path {out_name}")
+
+
+class BuildActionUsageTests(CustomAssertions):
+    def test_build_action_usage(self):
+        pass

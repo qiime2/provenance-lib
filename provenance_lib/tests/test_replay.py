@@ -2,22 +2,24 @@ import networkx as nx
 import os
 import pandas as pd
 import pathlib
+import re
 import tempfile
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from qiime2 import Artifact
 from qiime2.sdk import PluginManager
 from qiime2.sdk.usage import Usage, UsageVariable
+from q2cli.core.usage import CLIUsageVariable
+from qiime2.plugins import ArtifactAPIUsageVariable
 
 from ..parse import ProvDAG
 from ..replay import (
-    build_no_provenance_node_usage, build_import_usage,
-    # build_action_usage,
+    ActionCollections, ReplayConfig, UsageVarsDict, SUPPORTED_USAGE_DRIVERS,
+    build_no_provenance_node_usage, build_import_usage, build_action_usage,
     camel_to_snake, dump_recorded_md_file, group_by_action,
     init_md_from_artifacts, init_md_from_md_file, init_md_from_recorded_md,
-    param_is_metadata_column, ReplayConfig, SUPPORTED_USAGE_DRIVERS,
-    UsageVarsDict, uniquify_action_name)
+    param_is_metadata_column, uniquify_action_name)
 from .test_parse import DATA_DIR, TEST_DATA
 from .testing_utilities import CustomAssertions
 from ..yaml_constructors import MetadataInfo
@@ -109,7 +111,6 @@ class MiscHelperFnTests(unittest.TestCase):
             'list_feature_table_relative_frequency',  # made-up nested example
         ]
         for og_str, exp_str in zip(some_types_n_formats, exp):
-            print(og_str, exp_str)
             self.assertEqual(camel_to_snake(og_str), exp_str)
 
     def test_uniquify_action_name(self):
@@ -124,7 +125,6 @@ class MiscHelperFnTests(unittest.TestCase):
         self.assertEqual(unique2, 'dummy_plugin_missing_in_action_0')
         duplicate = uniquify_action_name(p1, a1, ns)
         self.assertEqual(duplicate, 'dummy_plugin_action_jackson_1')
-        print(unique1, unique2, duplicate)
 
     def test_param_is_metadata_col(self):
         """
@@ -303,7 +303,6 @@ class InitializerTests(unittest.TestCase):
         # NOTE: This tests against current expected behavior, which is pretty
         # janky and will probably be updated per the comment in the docstring
         rendered = cfg.use.render()
-        print(rendered)
         self.assertRegex(rendered, 'from qiime2 import Metadata')
         self.assertRegex(
             rendered,
@@ -404,7 +403,6 @@ merged_artifacts_md = thing1_md.merge(thing2_md, thing3_md)"""
         self.assertRegex(
             rendered,
             r"barcodes_0_md = Metadata.load\(\<your metadata filepath\>\)")
-        print(rendered)
         self.assertRegex(
             rendered,
             r"some_mdc = barcodes_0_md.get_column\('\<column_name\>'\)")
@@ -422,8 +420,6 @@ class BuildNoProvenanceUsageTests(CustomAssertions):
                                      'v0_uu_emperor.qzv'))
         v0 = single_no_prov.get_node_data(v0_uuid)
         build_no_provenance_node_usage(v0, v0_uuid, ns, cfg)
-        print(cfg.use)
-        print(ns)
         out_var_name = 'visualization_0'
         self.assertEqual(ns, {v0_uuid: out_var_name})
         rendered = cfg.use.render()
@@ -559,5 +555,152 @@ class BuildImportUsageTests(CustomAssertions):
 
 
 class BuildActionUsageTests(CustomAssertions):
-    def test_build_action_usage(self):
-        pass
+    def test_build_action_usage_cli(self):
+        plugin = 'demux'
+        action = 'emp-single'
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['cli'](),
+                           use_recorded_metadata=False, pm=pm)
+        import_var = CLIUsageVariable(
+            'imported_seqs_0', lambda: None, 'artifact', cfg.use)
+        ns = UsageVarsDict(
+            {'a35830e1-4535-47c6-aa23-be295a57ee1c': import_var})
+        a_ns = set()
+        dag = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
+        act_id = '3d69c8d1-a1fa-4ab3-ac88-3a98da15b2d5'
+        n_id = '99fa3670-aa1a-45f6-ba8e-803c976a1163'
+        node = dag.get_node_data(n_id)
+        acts = ActionCollections(std_actions={act_id:
+                                              {n_id: 'per_sample_sequences'}})
+        unq_var_nm = node.action.output_name + '_0'
+        build_action_usage(node, ns, a_ns, acts.std_actions, act_id, cfg)
+        rendered = cfg.use.render()
+        out_name = ns[n_id].to_interface_name()
+
+        self.assertIsInstance(ns[n_id], UsageVariable)
+        self.assertEqual(ns[n_id].var_type, 'artifact')
+        self.assertEqual(ns[n_id].name, unq_var_nm)
+        self.assertREAppearsOnlyOnce(rendered, "Replay attempts.*metadata")
+        self.assertREAppearsOnlyOnce(rendered, "command may have received")
+        act_undersc = re.sub('-', '_', action)
+        self.assertREAppearsOnlyOnce(
+            rendered,
+            fr"saved at 'recorded_metadata\/{plugin}_{act_undersc}_0\/'")
+        self.assertRegex(rendered, f"qiime {plugin} {action}")
+        self.assertRegex(rendered, "--i-seqs imported-seqs-0.qza")
+        self.assertRegex(rendered, "--m-barcodes-file barcodes-0.tsv")
+        self.assertRegex(rendered, "--m-barcodes-column <column_name>")
+        self.assertRegex(rendered, "--p-no-rev-comp-barcodes")
+        self.assertRegex(rendered, "--p-no-rev-comp-mapping-barcodes")
+        self.assertRegex(rendered, f"--o-per-sample-sequences {out_name}")
+
+    def test_build_action_usage_python(self):
+        plugin = 'demux'
+        action = 'emp_single'
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
+                           use_recorded_metadata=False, pm=pm)
+        import_var = ArtifactAPIUsageVariable(
+            'imported_seqs_0', lambda: None, 'artifact', cfg.use)
+        seqs_id = 'a35830e1-4535-47c6-aa23-be295a57ee1c'
+        ns = UsageVarsDict({seqs_id: import_var})
+        a_ns = set()
+        dag = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
+        act_id = '3d69c8d1-a1fa-4ab3-ac88-3a98da15b2d5'
+        n_id = '99fa3670-aa1a-45f6-ba8e-803c976a1163'
+        node = dag.get_node_data(n_id)
+        out_name_raw = node.action.output_name
+        acts = ActionCollections(std_actions={act_id:
+                                              {n_id: out_name_raw}})
+        unq_var_nm = out_name_raw + '_0'
+        build_action_usage(node, ns, a_ns, acts.std_actions, act_id, cfg)
+        rendered = cfg.use.render()
+        out_name = ns[n_id].to_interface_name()
+
+        self.assertIsInstance(ns[n_id], UsageVariable)
+        self.assertEqual(ns[n_id].var_type, 'artifact')
+        self.assertEqual(ns[n_id].name, unq_var_nm)
+
+        self.assertRegex(rendered, "from qiime2 import Metadata")
+        self.assertRegex(
+            rendered, f"import.*{plugin}.actions as {plugin}_actions")
+
+        self.assertREAppearsOnlyOnce(rendered, "Replay attempts.*metadata")
+        self.assertREAppearsOnlyOnce(rendered, "command may have received")
+        self.assertREAppearsOnlyOnce(
+            rendered,
+            fr"saved at 'recorded_metadata\/{plugin}_{action}_0\/'")
+        self.assertREAppearsOnlyOnce(rendered, "NOTE:.*substitute.*Metadata")
+
+        md_name = 'barcodes_0_md'
+        self.assertRegex(rendered, rf'{md_name} = Metadata.load\(<.*filepath>')
+        self.assertRegex(rendered, f'some_mdc = {md_name}.get_col.*<col')
+
+        self.assertRegex(rendered,
+                         rf'{out_name}, _ = {plugin}_actions.{action}\(')
+
+        self.assertRegex(rendered, f'seqs.*{ns[seqs_id].name}')
+        self.assertRegex(rendered, 'barcodes.*some_mdc')
+        self.assertRegex(rendered, 'rev_comp_barcodes.*False')
+        self.assertRegex(rendered, 'rev_comp_mapping_barcodes.*False')
+
+    def test_build_action_usage_recorded_md(self):
+        plugin = 'emperor'
+        action = 'plot'
+        md_param = 'metadata'
+        act_id = 'c147dfbc-139a-4db0-ac17-b11948247f93'
+        pcoa_id = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
+        n_id = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
+                           use_recorded_metadata=True, pm=pm)
+        import_var = ArtifactAPIUsageVariable(
+            'pcoa', lambda: None, 'artifact', cfg.use)
+        ns = UsageVarsDict({pcoa_id: import_var})
+        a_ns = set()
+        dag = ProvDAG(os.path.join(DATA_DIR, 'mixed_v0_v1_uu_emperor.qzv'))
+        node = dag.get_node_data(n_id)
+        # This is a v1 node, so we don't have an output name. use type.
+        out_name_raw = node.type.lower()
+        acts = ActionCollections(std_actions={act_id:
+                                              {n_id: out_name_raw}})
+        unq_var_nm = out_name_raw + '_0'
+        build_action_usage(node, ns, a_ns, acts.std_actions, act_id, cfg)
+        rendered = cfg.use.render()
+        out_name = ns[n_id].to_interface_name()
+
+        self.assertIsInstance(ns[n_id], UsageVariable)
+        self.assertEqual(ns[n_id].var_type, 'visualization')
+        self.assertEqual(ns[n_id].name, unq_var_nm)
+
+        self.assertRegex(rendered, "from qiime2 import Metadata")
+        self.assertRegex(
+            rendered, f"import.*{plugin}.actions as {plugin}_actions")
+
+        md_name = f'{md_param}_0_md'
+        self.assertRegex(rendered, rf'{md_name} = Metadata.load\(<.*filepath>')
+
+        self.assertRegex(rendered,
+                         rf'{out_name}, = {plugin}_actions.{action}\(')
+        self.assertRegex(rendered, f'pcoa.*{ns[pcoa_id].name}')
+        self.assertRegex(rendered, f'metadata.*{md_name}')
+        self.assertRegex(rendered, "custom_axis='DaysSinceExperimentStart'")
+
+    @patch('provenance_lib.replay.init_md_from_artifacts')
+    def test_build_action_usage_md_from_artifacts(self, patch):
+        act_id = '59798956-9261-40f3-b70f-fc5059e379f5'
+        n_id = '75f035ac-33fb-4d1c-bdcd-63ae1d564056'
+        sd_act_id = '7862c023-13d4-4cd5-a9db-c92507055d25'
+        sd_id = 'a42ea02f-8c40-432c-9b88-e602f6cd3787'
+        dag = ProvDAG(os.path.join(DATA_DIR, 'md_tabulated_from_art.qzv'))
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
+                           use_recorded_metadata=False, pm=pm)
+        sd_var = ArtifactAPIUsageVariable(
+            'sample_data_alpha_diversity_0', lambda: None, 'artifact', cfg.use)
+        ns = UsageVarsDict({sd_id: sd_var})
+        a_ns = set()
+        node = dag.get_node_data(n_id)
+        out_name_raw = node.action.output_name
+        acts = ActionCollections(std_actions={act_id: {n_id: out_name_raw},
+                                              sd_act_id: {sd_id: 'smpl_data'}})
+        build_action_usage(node, ns, a_ns, acts.std_actions, act_id, cfg)
+        # TODO: Do we want to assert something more interesting,
+        # like called_once_with?
+        patch.assert_called_once()

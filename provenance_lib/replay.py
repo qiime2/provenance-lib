@@ -252,6 +252,7 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
                                std_actions, action_id, cfg)
 
 
+# TESTED BELOW THIS POINT
 def build_no_provenance_node_usage(node: Optional[ProvNode],
                                    uuid: UUID,
                                    usg_var_namespace: UsageVarsDict,
@@ -317,7 +318,7 @@ def build_import_usage(node: ProvNode,
 def build_action_usage(node: ProvNode,
                        namespace: UsageVarsDict,
                        action_namespace: set,
-                       actions: Dict[UUID, Dict[UUID, str]],
+                       std_actions: Dict[UUID, Dict[UUID, str]],
                        action_id: UUID,
                        cfg: ReplayConfig):
     """
@@ -338,11 +339,13 @@ def build_action_usage(node: ProvNode,
 
     inputs = {}
     for k, v in node.action.inputs.items():
-        inputs.update({k: namespace[v]})
+        # Some optional params take None as a default
+        if v is not None:
+            inputs.update({k: namespace[v]})
 
     # Process outputs before params so we can access the unique output name
     # from the namespace when dumping metadata to files below
-    raw_outputs = actions[action_id].items()
+    raw_outputs = std_actions[action_id].items()
     outputs = {}
     for k, v in raw_outputs:
         namespace.update({k: v})
@@ -356,9 +359,9 @@ def build_action_usage(node: ProvNode,
             md_fn = namespace[unique_md_id] + '.tsv'
             dump_recorded_md_file(node, plg_action_name, k, md_fn)
 
-            # TODO: Is this even useful if users must pass in data anyway?
             if cfg.use_recorded_metadata:
-                init_md_from_recorded_md(node, unique_md_id, namespace, cfg)
+                md = init_md_from_recorded_md(
+                    node, unique_md_id, namespace, cfg)
             else:
                 if not cfg.md_context_has_been_printed:
                     cfg.md_context_has_been_printed = True
@@ -398,7 +401,6 @@ def build_action_usage(node: ProvNode,
         namespace[uuid_key] = res
 
 
-# TESTED BELOW THIS POINT
 def init_md_from_recorded_md(node: ProvNode, unique_md_id: str,
                              namespace: UsageVarsDict, cfg: ReplayConfig) -> \
                                  UsageVariable:

@@ -459,7 +459,7 @@ def init_md_from_artifacts(md_inf: MetadataInfo, namespace: UsageVarsDict,
                          "MetadataInfo.input_artifact_uuids is empty.")
     md_files_in = []
     for artif in md_inf.input_artifact_uuids:
-        art_as_md = cfg.use.view_as_metadata(artif,
+        art_as_md = cfg.use.view_as_metadata(namespace[artif].name,
                                              namespace[artif])
         md_files_in.append(art_as_md)
     if len(md_inf.input_artifact_uuids) > 1:

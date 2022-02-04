@@ -325,7 +325,7 @@ class InitializerTests(unittest.TestCase):
                            use_recorded_metadata=False, pm=pm)
 
         # We expect artifact vars have already been added to the namespace, so:
-        a1 = cfg.use.init_artifact(name='uuid1', factory=lambda: None)
+        a1 = cfg.use.init_artifact(name='thing1', factory=lambda: None)
         ns = UsageVarsDict({'uuid1': a1})
 
         md_info = MetadataInfo(['uuid1'], relative_fp='hmm.tsv')
@@ -335,7 +335,7 @@ class InitializerTests(unittest.TestCase):
         rendered = var.use.render()
         exp = """from qiime2 import Metadata
 
-uuid1_md = uuid1.view(Metadata)"""
+thing1_md = thing1.view(Metadata)"""
         self.assertEqual(rendered, exp)
 
     def test_init_md_from_artifacts_many(self):
@@ -345,9 +345,9 @@ uuid1_md = uuid1.view(Metadata)"""
                            use_recorded_metadata=False, pm=pm)
 
         # We expect artifact vars have already been added to the namespace, so:
-        a1 = cfg.use.init_artifact(name='uuid1', factory=lambda: None)
-        a2 = cfg.use.init_artifact(name='uuid2', factory=lambda: None)
-        a3 = cfg.use.init_artifact(name='uuid3', factory=lambda: None)
+        a1 = cfg.use.init_artifact(name='thing1', factory=lambda: None)
+        a2 = cfg.use.init_artifact(name='thing2', factory=lambda: None)
+        a3 = cfg.use.init_artifact(name='thing3', factory=lambda: None)
         ns = UsageVarsDict({'uuid1': a1, 'uuid2': a2, 'uuid3': a3})
 
         md_info = MetadataInfo(['uuid1', 'uuid2', 'uuid3'],
@@ -358,10 +358,10 @@ uuid1_md = uuid1.view(Metadata)"""
         rendered = var.use.render()
         exp = """from qiime2 import Metadata
 
-uuid1_md = uuid1.view(Metadata)
-uuid2_md = uuid2.view(Metadata)
-uuid3_md = uuid3.view(Metadata)
-merged_artifacts_md = uuid1_md.merge(uuid2_md, uuid3_md)"""
+thing1_md = thing1.view(Metadata)
+thing2_md = thing2.view(Metadata)
+thing3_md = thing3.view(Metadata)
+merged_artifacts_md = thing1_md.merge(thing2_md, thing3_md)"""
         self.assertEqual(rendered, exp)
 
     def test_init_md_from_md_file_not_mdc(self):

@@ -584,7 +584,7 @@ class ParserV1(ParserV0):
                     checksum_validator.ValidationCode.VALIDATION_OPTOUT, None)
 
             prov_data_fps = self._get_prov_data_fps(
-                zf, self.expected_files_in_all_nodes +
+                zf, self.expected_files_in_all_nodes,
                 self.expected_files_root_only)
             root_uuid = get_root_uuid(zf)
 
@@ -606,9 +606,14 @@ class ParserV1(ParserV0):
                     prefix = pathlib.Path(*fp.parts[0:4])
 
                 if node_uuid not in archv_contents:
-                    fps_for_this_result = [
-                        prefix / name for name
-                        in self.expected_files_in_all_nodes]
+                    # get version-specific expected_files_in_all_nodes
+                    v_fp = prefix / 'VERSION'
+                    result_vzn, _ = version_parser.parse_version(zf, v_fp)
+                    exp_files = \
+                        FORMAT_REGISTRY[result_vzn].expected_files_in_all_nodes
+
+                    fps_for_this_result.extend(
+                        [prefix / name for name in exp_files])
 
                     # Warn and reset provenance_is_valid if expected files are
                     # missing
@@ -654,14 +659,21 @@ class ParserV1(ParserV0):
         return (checksum_validator.ValidationCode.PREDATES_CHECKSUMS,
                 None)
 
-    def _get_prov_data_fps(
-        self, zf: zipfile.ZipFile, expected_files: Tuple['str', ...]) -> \
+    def _get_prov_data_fps(self, zf: zipfile.ZipFile,
+                           expected_files_all_nodes: Tuple['str', ...],
+                           expected_files_root_only: Tuple['str', ...]) -> \
             List[pathlib.Path]:
-        return [pathlib.Path(fp) for fp in zf.namelist()
-                if 'provenance' in fp
-                # and any of the filenames above show up in the filepath
-                and any(map(lambda x: x in fp, expected_files))
-                ]
+        fps = [pathlib.Path(fp) for fp in zf.namelist()
+               if 'provenance' in fp
+               # and any of the expected filenames show up in the filepath
+               and any(map(lambda x: x in fp, expected_files_all_nodes))
+               ]
+        # some files (checksums.md5) exist only at the root level, so we add em
+        root_uuid = get_root_uuid(zf)
+        fps.extend(
+            [pathlib.Path(root_uuid) / filename
+             for filename in expected_files_root_only])
+        return fps
 
 
 class ParserV2(ParserV1):

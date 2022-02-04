@@ -496,7 +496,14 @@ def param_is_metadata_column(
     """
     Returns True if the param name `param` is registered as a MetadataColumn
     """
-    plugin = cfg.pm.get_plugin(id=plg)
+    # TODO: A test for this. It's triggered by the empress art_as_md viz if
+    # that helps
+    try:
+        plugin = cfg.pm.get_plugin(id=plg)
+    except KeyError as e:
+        e = (re.sub("'", "", str(e)) +
+             ' Visit library.qiime2.org to find plugins.')
+        raise KeyError(e)
     try:
         action_f = plugin.actions[action]
     except KeyError:

@@ -637,7 +637,6 @@ class ProvDAGUnionTests(unittest.TestCase):
             # assert in test_setup_warnings
             with warnings.catch_warnings(record=True) as cls.w:
                 cls.bad_dag = ProvDAG(chopped_archive)
-                print(cls.w)
 
     def test_setup_warnings(self):
         self.assertEqual(len(self.w), 1)

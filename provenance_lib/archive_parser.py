@@ -14,7 +14,7 @@ import bibtexparser as bp
 
 from . import checksum_validator
 from . import version_parser
-from .util import get_root_uuid, UUID, FileName
+from .util import get_root_uuid, get_nonroot_uuid, UUID, FileName
 from .yaml_constructors import CONSTRUCTOR_REGISTRY, MetadataInfo
 
 for key in CONSTRUCTOR_REGISTRY:
@@ -602,7 +602,7 @@ class ParserV1(ParserV0):
                         self.expected_files_root_only]
                     fps_for_this_result += root_only_expected_fps
                 else:
-                    node_uuid = self._get_nonroot_uuid(fp)
+                    node_uuid = get_nonroot_uuid(fp)
                     prefix = pathlib.Path(*fp.parts[0:4])
 
                 if node_uuid not in archv_contents:
@@ -662,17 +662,6 @@ class ParserV1(ParserV0):
                 # and any of the filenames above show up in the filepath
                 and any(map(lambda x: x in fp, expected_files))
                 ]
-
-    def _get_nonroot_uuid(self, fp: pathlib.Path) -> UUID:
-        """
-        For non-root provenance files, get the Result's uuid from the path
-        (avoiding the root Result's UUID which is in all paths)
-        """
-        if fp.name == 'action.yaml':
-            uuid = fp.parts[-3]
-        else:
-            uuid = fp.parts[-2]
-        return uuid
 
 
 class ParserV2(ParserV1):

@@ -19,3 +19,15 @@ def get_root_uuid(zf: zipfile.ZipFile) -> UUID:
     filepath of any file in the zip archive.
     """
     return pathlib.Path(zf.namelist()[0]).parts[0]
+
+
+def get_nonroot_uuid(fp: pathlib.Path) -> UUID:
+    """
+    For non-root provenance files, get the Result's uuid from the path
+    (avoiding the root Result's UUID which is in all paths)
+    """
+    if fp.name == 'action.yaml':
+        uuid = fp.parts[-3]
+    else:
+        uuid = fp.parts[-2]
+    return uuid

@@ -77,21 +77,6 @@ class ParserVxTests(unittest.TestCase):
                     res.prov_digraph.nodes[root_uuid]['node_data'],
                     ProvNode)
 
-    def test_get_nonroot_uuid(self):
-        md_example = pathlib.Path(
-            'arch_root/provenance/artifacts/uuid123/metadata.yaml')
-        action_example = pathlib.Path(
-            'arch_root/provenance/artifacts/uuid123/action/action.yaml')
-        exp = 'uuid123'
-
-        # Only parsers from v1 forward have this method
-        parsers = [TEST_DATA[vrsn]['parser']() for vrsn in TEST_DATA
-                   if vrsn != '0']
-
-        for parser in parsers:
-            self.assertEqual(parser._get_nonroot_uuid(md_example), exp)
-            self.assertEqual(parser._get_nonroot_uuid(action_example), exp)
-
     def test_validate_checksums(self):
         for archive_version in TEST_DATA:
             with zipfile.ZipFile(TEST_DATA[archive_version]['qzv_fp']) as zf:

@@ -1,9 +1,10 @@
+import pathlib
 import unittest
 import zipfile
 
 from .test_parse import TEST_DATA
 from .testing_utilities import CustomAssertions
-from ..util import get_root_uuid
+from ..util import get_root_uuid, get_nonroot_uuid
 
 
 class GetRootUUIDTests(unittest.TestCase):
@@ -13,6 +14,18 @@ class GetRootUUIDTests(unittest.TestCase):
             exp = TEST_DATA[archive_version]['uuid']
             with zipfile.ZipFile(fp) as zf:
                 self.assertEqual(exp, get_root_uuid(zf))
+
+
+class GetNonRootUUIDTests(unittest.TestCase):
+    def test_get_nonroot_uuid(self):
+        md_example = pathlib.Path(
+            'arch_root/provenance/artifacts/uuid123/metadata.yaml')
+        action_example = pathlib.Path(
+            'arch_root/provenance/artifacts/uuid123/action/action.yaml')
+        exp = 'uuid123'
+
+        self.assertEqual(get_nonroot_uuid(md_example), exp)
+        self.assertEqual(get_nonroot_uuid(action_example), exp)
 
 
 class CustomAssertionsTests(CustomAssertions):

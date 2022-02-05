@@ -1,6 +1,5 @@
 import networkx as nx
 import pathlib
-import pytest
 import re
 from collections import UserDict
 from dataclasses import dataclass, field
@@ -17,8 +16,6 @@ from qiime2.sdk.usage import Usage, UsageVariable
 
 
 class ReplayPythonUsage(ArtifactAPIUsage):
-    # Ignoring coverage for now because these will hopefully get moved off repo
-    @pytest.mark.no_cover
     def _template_outputs(self, action, variables):
         """
         Monkeypatch allowing us to replay an action even when our provenance
@@ -60,8 +57,6 @@ class ReplayPythonUsage(ArtifactAPIUsage):
 
 
 class ReplayCLIUsage(CLIUsage):
-    # Ignoring coverage for now because these will hopefully get moved off repo
-    @pytest.mark.no_cover
     def _append_action_line(self, signature, param_name, value):
         """
         Monkeypatch allowing us to replay when recorded parameter names

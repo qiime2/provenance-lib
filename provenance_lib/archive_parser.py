@@ -14,17 +14,17 @@ import bibtexparser as bp
 
 from . import checksum_validator
 from . import version_parser
-from .util import get_root_uuid, UUID, FileName
+from .util import get_root_uuid, get_nonroot_uuid, UUID, FileName
 from .yaml_constructors import CONSTRUCTOR_REGISTRY, MetadataInfo
 
 for key in CONSTRUCTOR_REGISTRY:
     yaml.SafeLoader.add_constructor(key, CONSTRUCTOR_REGISTRY[key])
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=False)
 class Config():
     perform_checksum_validation: bool = True
-    parse_study_metadata: bool = False
+    parse_study_metadata: bool = True
 
 
 @dataclass
@@ -42,8 +42,18 @@ class ProvNode:
     """ One node of a provenance DAG, describing one QIIME 2 Result """
 
     @property
-    def uuid(self) -> UUID:
+    def _uuid(self) -> UUID:
         return self._result_md.uuid
+
+    @_uuid.setter
+    def _uuid(self, new_uuid: UUID):
+        """
+        ProvNode's UUID. Safe for use as getter, but prefer
+        ProvDAG.relabel_nodes to using this property as a setter.
+        That method preserves alignment between ids across the dag
+        and its ProvNodes.
+        """
+        self._result_md.uuid = new_uuid
 
     @property
     def type(self) -> str:
@@ -154,8 +164,7 @@ class ProvNode:
         associated with the correct parameters during replay.
 
         - it captures uuids for all artifacts passed to this action as
-        metadata, and associates them with a consistent/identifiable filler
-        type (see NOTE below), so they can be included as parents of this node.
+        metadata so they can be included as parents of this node.
 
         Returns a two-tuple (all_metadata, artifacts_as_metadata) where:
         - all-metadata conforms to {parameter_name: relative_filename}
@@ -187,11 +196,11 @@ class ProvNode:
         the other Artifacts. As a result, Semantic Type data is not captured.
         This function returns a hardcoded filler 'Type' for all UUIDs
         discovered here: 'artifact_passed_as_metadata'. This will not match the
-        actual Type of the parent Artifact, but should make it possible for a
-        ProvDAG to identify and relabel any artifacts passed as metadata with
-        their actual type if needed. Replay likely wouldn't be achievable
-        without these Artifact inputs, so our DAG must be able to track them as
-        parents to a given node.
+        actual Type of the parent Artifact, but the properties of provenance
+        DiGraphs make this irrelevant. Because Artifacts passed as Metadata
+        retain their provenance, downstream Artifacts are linked to their
+        "real" parent Artifact nodes, which have accurate Type information.
+        The filler type is moot.
         """
         all_metadata = dict()
         artifacts_as_metadata = []
@@ -224,10 +233,10 @@ class ProvNode:
         """
         root_uuid = get_root_uuid(zf)
         pfx = pathlib.Path(root_uuid) / 'provenance'
-        if root_uuid == self.uuid:
+        if root_uuid == self._uuid:
             pfx = pfx / 'action'
         else:
-            pfx = pfx / 'artifacts' / self.uuid / 'action'
+            pfx = pfx / 'artifacts' / self._uuid / 'action'
 
         all_md = dict()
         for param_name in metadata_fps:
@@ -244,11 +253,11 @@ class ProvNode:
     __str__ = __repr__
 
     def __hash__(self) -> int:
-        return hash(self.uuid)
+        return hash(self._uuid)
 
     def __eq__(self, other) -> bool:
         return (self.__class__ == other.__class__
-                and self.uuid == other.uuid
+                and self._uuid == other._uuid
                 )
 
 
@@ -305,6 +314,50 @@ class _Action:
         if self.action_type == 'import':
             plugin = 'framework'
         return plugin
+
+    @property
+    def inputs(self) -> dict:
+        """ returns a dict of artifact inputs to this action """
+        inputs = self._action_details.get('inputs')
+        results = {}
+        if inputs is not None:
+            for item in inputs:
+                results.update(item.items())
+        return results
+
+    @property
+    def parameters(self) -> dict:
+        """ returns a dict of parameters passed to this action """
+        params = self._action_details.get('parameters')
+        results = {}
+        if params is not None:
+            for item in params:
+                results.update(item.items())
+        return results
+
+    @property
+    def output_name(self) -> Optional[str]:
+        """
+        Returns the output name for the node that owns this action.yaml
+        note that a QIIME 2 action may have multiple outputs not represented
+        here.
+        """
+        return self._action_details.get('output-name')
+
+    @property
+    def format(self) -> Optional[str]:
+        """
+        Returns this action's format field if any.
+        Expected with actions of type import, maybe no others?
+        """
+        return self._action_details.get('format')
+
+    @property
+    def transformers(self) -> Optional[Dict]:
+        """
+        Returns this action's transformers dictionary if any.
+        """
+        return self._action_dict.get('transformers')
 
     def __init__(self, zf: zipfile.ZipFile, fp: str):
         self._action_dict = yaml.safe_load(zf.read(fp))
@@ -367,7 +420,6 @@ class Parser(metaclass=abc.ABCMeta):
 
 
 class ArtifactParser(Parser):
-    # TODO: Using strings here is kinda clumsy and limiting. Fix that.
     # description from (and more details available at)
     # https://docs.python.org/3/library/zipfile.html#zipfile-objects
     accepted_data_types = ("a path to a file (a string), "
@@ -377,14 +429,6 @@ class ArtifactParser(Parser):
     def get_parser(cls, artifact_data: Any) -> Parser:
         """
         Returns the correct archive format parser for a zip archive.
-
-        TODO: In future, this can decide whether it is dealing with a zip
-        archive or an Artifact in memory, and can get the appropriate interface
-        the Vx parsers should use when they interact with that artifact's data
-        representation. If we want, we could probably pass the interface
-        in when we return the instantiated parser object. This will slightly
-        complicate tests that currently assume a parser is always dealing
-        with a zip archive
         """
         try:
             # By trying to open artifact_data directly, we get more
@@ -393,9 +437,6 @@ class ArtifactParser(Parser):
                 archive_version, _ = \
                     version_parser.parse_version(zf)
             return FORMAT_REGISTRY[archive_version]()
-        # TODO: when non-file-like objects are passed, this raises an Attribute
-        # Error that's not super informative. (has no attribute 'seek')
-        # Maybe catch and raise a more informative error?
         except Exception as e:
             # Re-raise after appending the name of this parser to the error
             # message, so we can figure out which parser it's coming from
@@ -410,15 +451,7 @@ class ArtifactParser(Parser):
 class ParserV0(ArtifactParser):
     """
     Parser for V0 archives. These have no provenance, so we only parse metadata
-
-    TODO: Change the way _parsed_artifact_uuids is populated. Our parser can
-    only handle one Artifact at a time, which is not an io-efficient way to
-    deal with a directory of Artifacts. We should refactor ParserVx.parse_prov
-    in line with #29 so that we can parse multiple Artifacts efficiently and in
-    one go.
     """
-    version_string = 0
-
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames (like Metadata, which may or may
     # not be present in an archive) should not be included here.
@@ -444,7 +477,6 @@ class ParserV0(ArtifactParser):
                           UserWarning)
 
             root_md = self._parse_root_md(zf, uuid)
-            # TODO: Drop this line and make p_a_uuids accept many
             parsed_artifact_uuids = {root_md.uuid}
             expected_files = self.expected_files_in_all_nodes
             prov_data_fps = [pathlib.Path(uuid) / fp for fp in expected_files]
@@ -552,7 +584,7 @@ class ParserV1(ParserV0):
                     checksum_validator.ValidationCode.VALIDATION_OPTOUT, None)
 
             prov_data_fps = self._get_prov_data_fps(
-                zf, self.expected_files_in_all_nodes +
+                zf, self.expected_files_in_all_nodes,
                 self.expected_files_root_only)
             root_uuid = get_root_uuid(zf)
 
@@ -570,13 +602,18 @@ class ParserV1(ParserV0):
                         self.expected_files_root_only]
                     fps_for_this_result += root_only_expected_fps
                 else:
-                    node_uuid = self._get_nonroot_uuid(fp)
+                    node_uuid = get_nonroot_uuid(fp)
                     prefix = pathlib.Path(*fp.parts[0:4])
 
                 if node_uuid not in archv_contents:
-                    fps_for_this_result = [
-                        prefix / name for name
-                        in self.expected_files_in_all_nodes]
+                    # get version-specific expected_files_in_all_nodes
+                    v_fp = prefix / 'VERSION'
+                    result_vzn, _ = version_parser.parse_version(zf, v_fp)
+                    exp_files = \
+                        FORMAT_REGISTRY[result_vzn].expected_files_in_all_nodes
+
+                    fps_for_this_result.extend(
+                        [prefix / name for name in exp_files])
 
                     # Warn and reset provenance_is_valid if expected files are
                     # missing
@@ -602,7 +639,6 @@ class ParserV1(ParserV0):
 
         archv_contents = self._digraph_from_archive_contents(archv_contents)
 
-        # TODO: make p_a_uuids accept many
         parsed_artifact_uuids = {root_md.uuid}
         return ParserResults(
             parsed_artifact_uuids,
@@ -623,25 +659,21 @@ class ParserV1(ParserV0):
         return (checksum_validator.ValidationCode.PREDATES_CHECKSUMS,
                 None)
 
-    def _get_prov_data_fps(
-        self, zf: zipfile.ZipFile, expected_files: Tuple['str', ...]) -> \
+    def _get_prov_data_fps(self, zf: zipfile.ZipFile,
+                           expected_files_all_nodes: Tuple['str', ...],
+                           expected_files_root_only: Tuple['str', ...]) -> \
             List[pathlib.Path]:
-        return [pathlib.Path(fp) for fp in zf.namelist()
-                if 'provenance' in fp
-                # and any of the filenames above show up in the filepath
-                and any(map(lambda x: x in fp, expected_files))
-                ]
-
-    def _get_nonroot_uuid(self, fp: pathlib.Path) -> UUID:
-        """
-        For non-root provenance files, get the Result's uuid from the path
-        (avoiding the root Result's UUID which is in all paths)
-        """
-        if fp.name == 'action.yaml':
-            uuid = fp.parts[-3]
-        else:
-            uuid = fp.parts[-2]
-        return uuid
+        fps = [pathlib.Path(fp) for fp in zf.namelist()
+               if 'provenance' in fp
+               # and any of the expected filenames show up in the filepath
+               and any(map(lambda x: x in fp, expected_files_all_nodes))
+               ]
+        # some files (checksums.md5) exist only at the root level, so we add em
+        root_uuid = get_root_uuid(zf)
+        fps.extend(
+            [pathlib.Path(root_uuid) / filename
+             for filename in expected_files_root_only])
+        return fps
 
 
 class ParserV2(ParserV1):

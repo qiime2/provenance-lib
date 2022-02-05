@@ -77,21 +77,6 @@ class ParserVxTests(unittest.TestCase):
                     res.prov_digraph.nodes[root_uuid]['node_data'],
                     ProvNode)
 
-    def test_get_nonroot_uuid(self):
-        md_example = pathlib.Path(
-            'arch_root/provenance/artifacts/uuid123/metadata.yaml')
-        action_example = pathlib.Path(
-            'arch_root/provenance/artifacts/uuid123/action/action.yaml')
-        exp = 'uuid123'
-
-        # Only parsers from v1 forward have this method
-        parsers = [TEST_DATA[vrsn]['parser']() for vrsn in TEST_DATA
-                   if vrsn != '0']
-
-        for parser in parsers:
-            self.assertEqual(parser._get_nonroot_uuid(md_example), exp)
-            self.assertEqual(parser._get_nonroot_uuid(action_example), exp)
-
     def test_validate_checksums(self):
         for archive_version in TEST_DATA:
             with zipfile.ZipFile(TEST_DATA[archive_version]['qzv_fp']) as zf:
@@ -220,6 +205,41 @@ class ActionTests(unittest.TestCase):
         exp = 'diversity'
         self.assertEqual(self.act.plugin, exp)
 
+    def test_inputs(self):
+        action_exp = {'table': '706b6bce-8f19-4ae9-b8f5-21b14a814a1b',
+                      'phylogeny': 'ad7e5b50-065c-4fdd-8d9b-991e92caad22'}
+        import_exp = {}
+        self.assertEqual(self.act.inputs, action_exp)
+        self.assertEqual(self.imp_act.inputs, import_exp)
+
+    def test_parameters(self):
+        action_exp = {'sampling_depth': 1000,
+                      'metadata': MetadataInfo(input_artifact_uuids=[],
+                                               relative_fp='metadata.tsv'),
+                      'n_jobs_or_threads': 'auto'}
+        import_exp = {}
+        self.assertEqual(self.act.parameters, action_exp)
+        self.assertEqual(self.imp_act.parameters, import_exp)
+
+    def test_output_name(self):
+        action_exp = 'unweighted_unifrac_emperor'
+        import_exp = None
+        self.assertEqual(self.act.output_name, action_exp)
+        self.assertEqual(self.imp_act.output_name, import_exp)
+
+    def test_format(self):
+        action_exp = None
+        import_exp = 'EMPSingleEndDirFmt'
+        self.assertEqual(self.act.format, action_exp)
+        self.assertEqual(self.imp_act.format, import_exp)
+
+    def test_transformers(self):
+        action_exp = None
+        import_exp = {'output': [{'from': 'EMPSingleEndDirFmt',
+                                  'to': 'EMPSingleEndDirFmt'}]}
+        self.assertEqual(self.act.transformers, action_exp)
+        self.assertEqual(self.imp_act.transformers, import_exp)
+
     def test_repr(self):
         exp = ('_Action(action_id=5bc4b090-abbc-46b0-a219-346c8026f7d7, '
                'type=pipeline, plugin=diversity, '
@@ -342,7 +362,7 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
 
     def test_properties_with_viz(self):
         for node in self.nodes:
-            self.assertEqual(self.nodes[node].uuid, TEST_DATA[node]['uuid'])
+            self.assertEqual(self.nodes[node]._uuid, TEST_DATA[node]['uuid'])
             self.assertEqual(self.nodes[node].type, 'Visualization')
             self.assertEqual(self.nodes[node].format, None)
             self.assertEqual(self.nodes[node].archive_version,
@@ -361,11 +381,11 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
         self.assertNotEqual(self.nodes['5'], mock_node)
 
         # Mock has bad UUID
-        mock_node.uuid = 'gerbil'
+        mock_node._uuid = 'gerbil'
         self.assertReallyNotEqual(self.nodes['5'], mock_node)
 
         # Matching UUIDs insufficient if classes differ
-        mock_node.uuid = TEST_DATA['5']['uuid']
+        mock_node._uuid = TEST_DATA['5']['uuid']
         self.assertReallyNotEqual(self.nodes['5'], mock_node)
         mock_node.__class__ = ProvNode
         self.assertReallyEqual(self.nodes['5'], mock_node)
@@ -481,12 +501,12 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
         self.assertEqual(self.nodes['0'].metadata, None)
 
     def test_node_has_provenance_but_no_metadata(self):
-        self.assertIn('3b7d36ff', self.nonroot_non_md_node.uuid)
+        self.assertIn('3b7d36ff', self.nonroot_non_md_node._uuid)
         self.assertEqual(self.nonroot_non_md_node.has_provenance, True)
         self.assertEqual(self.nonroot_non_md_node.metadata, {})
 
     def test_parse_metadata_for_nonroot_node(self):
-        self.assertIn('0af08fa8', self.nonroot_md_node.uuid)
+        self.assertIn('0af08fa8', self.nonroot_md_node._uuid)
         self.assertEqual(self.nonroot_md_node.has_provenance, True)
         self.assertIn('metadata', self.nonroot_md_node.metadata)
 

@@ -3,7 +3,7 @@ import copy
 from typing import Any, List, Mapping, Optional, Set
 
 import networkx as nx
-from networkx.classes.reportviews import NodeView  # type: ignore
+from networkx.classes.reportviews import NodeView
 
 from . import checksum_validator
 from .archive_parser import (
@@ -27,7 +27,7 @@ class ProvDAG:
     terminal_nodes: Set[ProvNode] - the terminal ProvNodes present in the DAG,
         not including inner pipeline nodes.
     provenance_is_valid: checksum_validator.ValidationCode - the canonical
-        indicator of provenance validity, this contain the _poorest_
+        indicator of provenance validity for a dag, this contains the _poorest_
         ValidationCode from all parsed Artifacts unioned into a given ProvDAG.
     checksum_diff: checksum_validator.ChecksumDiff - a ChecksumDiff
         representing all added, removed, and changed filepaths from all parsed
@@ -67,14 +67,6 @@ class ProvDAG:
     node_data: Optional[ProvNode]
     has_provenance: bool
 
-    TODO: Now that we have outsourced the creation of ParserResults entirely,
-    should ProvDAG vet that every node has node_data and has_provenance?
-    Alternately, maybe we can enforce this in the Parser ABC. The only
-    machinery currently making ProvNodes is in archive_parser, so there's no
-    real risk right now, but because we can now write and plug in arbitrary
-    parsers here, the door is no longer closed to introduced breaches of that
-    guarantee.
-
     No-provenance nodes:
     When parsing v1+ archives, v0 ancestor nodes without tracked provenance
     (e.g. !no-provenance inputs) are discovered only as parents to the current
@@ -98,6 +90,7 @@ class ProvDAG:
         """
         parser_results = parse_provenance(cfg, artifact_data)
 
+        self.cfg = cfg
         self._parsed_artifact_uuids = parser_results.parsed_artifact_uuids
         self.dag = parser_results.prov_digraph
         self._provenance_is_valid = parser_results.provenance_is_valid
@@ -115,19 +108,15 @@ class ProvDAG:
     def __len__(self) -> int:
         return len(self.dag)
 
-    # TODO: Is this a reasonable way to define ProvDAG equality?
-    # It doesn't take into account the equality of some ProvDAG attributes, but
-    # leans on DiGraph isomorphism. Are two isomorphic ProvDAGs unequal if one
-    # was created without checksum validation? Or if one has a checksum diff
-    # because it's been tinkered with? If in the future we have a method that
-    # produces non-identical results from two identical DiGraphs based on
-    # _parsed_artifact_uuids, are those ProvDAGs still equal?
     def __eq__(self, other) -> bool:
         if (self.__class__ != other.__class__ or
                 not nx.is_isomorphic(self.dag, other.dag)):
             return False
         else:
             return True
+
+    def __iter__(self):
+        return iter(self.dag)
 
     @property
     def terminal_uuids(self) -> Set[UUID]:
@@ -168,6 +157,7 @@ class ProvDAG:
     @property
     # NOTE: This actually returns a graphview, which is a read-only DiGraph
     def collapsed_view(self) -> nx.DiGraph:
+        # TODO: Memoize this?
         outer_nodes = set()
         for terminal_uuid in self._parsed_artifact_uuids:
             outer_nodes |= self.get_outer_provenance_nodes(terminal_uuid)
@@ -188,35 +178,45 @@ class ProvDAG:
         return self.dag.nodes[uuid]['has_provenance']
 
     def get_node_data(self, uuid: UUID) -> ProvNode:
-        """Returns a ProvNode from this ProvDAG selected by UUID"""
+        """ Returns a ProvNode from this ProvDAG selected by UUID """
         return self.dag.nodes[uuid]['node_data']
+
+    def predecessors(self, node: UUID, dag: nx.DiGraph = None) \
+            -> Set[UUID]:
+        """ Returns the parent UUIDs of a given node """
+        dag = self.collapsed_view if dag is None else dag
+        return set(self.dag.predecessors(node))
 
     def relabel_nodes(self, mapping: Mapping, copy: bool = False) -> \
             Optional[ProvDAG]:
         """
-        Helper method for safe use of nx.relabel.relabel_nodes, this updates
-        the labels of self.dag in place.
+        Helper method for safe use of nx.relabel.relabel_nodes.
+        By default, this updates the labels of self.dag in place.
+        With copy=True, returns a copy of self with nodes relabeled.
 
-        Also updates the DAG's _parsed_artifact_uuids to match the new labels,
+        Also updates the DAG's _parsed_artifact_uuids to match the new labels
         to head off KeyErrors downstream, and clears the _terminal_uuids cache.
-
-        Users who need a copy of self.dag should use nx.relabel.relabel_nodes
-        directly, and proceed at their own risk.
         """
-        dag = self
+        mod_dag = self
         if copy:
-            dag = ProvDAG(self)
-        nx.relabel_nodes(dag.dag, mapping, copy=False)
+            mod_dag = ProvDAG(self)
 
-        dag._parsed_artifact_uuids = {mapping[uuid] for
-                                      uuid in self._parsed_artifact_uuids}
+        # rename node uuids in the provnode data payloads for consistency
+        for node_id in mod_dag:
+            mod_dag.get_node_data(node_id)._uuid = mapping[node_id]
+
+        # then update the dag itself
+        nx.relabel_nodes(mod_dag.dag, mapping, copy=False)
+
+        mod_dag._parsed_artifact_uuids = {mapping[uuid] for
+                                          uuid in self._parsed_artifact_uuids}
 
         # Clear the _terminal_uuids cache of the dag whose nodes we're changing
         # so that property returns correctly
-        dag._terminal_uuids = None
+        mod_dag._terminal_uuids = None
 
         if copy:
-            return dag
+            return mod_dag
         else:
             return None
 
@@ -245,6 +245,14 @@ class ProvDAG:
                                              .union(dag._parsed_artifact_uuids)
             new_dag._provenance_is_valid = min(new_dag.provenance_is_valid,
                                                dag.provenance_is_valid)
+            # TODO: test the following
+            # Min of a bool is False, so we can:
+            new_dag.cfg.parse_study_metadata = min(
+                new_dag.cfg.parse_study_metadata,
+                dag.cfg.parse_study_metadata)
+            new_dag.cfg.perform_checksum_validation = min(
+                new_dag.cfg.perform_checksum_validation,
+                dag.cfg.perform_checksum_validation)
             # Here we retain as much data as possible, preferencing any
             # ChecksumDiff over None. This might mean we keep a clean/empty
             # ChecksumDiff and drop None, used to indicate a missing
@@ -288,24 +296,7 @@ class ProvDAG:
 class EmptyParser(Parser):
     """
     Creates empty ProvDAGs.
-
     Disregards Config, because it's not meaningful in this context.
-
-    TODO: Empty ProvDAGs aren't very useful. Maybe we should refac this as a
-    ParserResults parser. This would mean tools like Union that are
-    constructing ParserResults "manually" don't need to create an empty ProvDAG
-    and then overwrite its fields. Instead, they create a ParserResults and
-    throw it at ProvDAG() once the data's there.
-
-    In favor: By requiring tools to actually write ParserResults, we ensure
-    they create all required data, and mypy can check it's correctly typed.
-    This approach may be slightly more efficient, too.
-
-    I also don't love that passing no args to ProvDAG is possible,
-    because it seems to encourage this somewhat useless behavior.
-
-    Against: The "create an empty object and populate it" idiom is common and
-    familiar.
     """
     accepted_data_types = "None"
 
@@ -332,7 +323,6 @@ class ProvDAGParser(Parser):
 
     Disregards Config, because it's not meaningful in this context.
     """
-    # Using strings here is kinda clumsy. Maybe fix that someday?
     accepted_data_types = 'ProvDAG'
 
     @classmethod

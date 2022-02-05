@@ -1,4 +1,5 @@
 # flake8: noqa
+import pathlib
 import sys
 import zipfile
 
@@ -10,6 +11,7 @@ if __name__ == "__main__" and __package__ is None:
     __package__ = "provenance_lib"
 
 from .parse import ProvDAG, Config
+from .replay import replay_provdag
 
 if __name__ == '__main__':
     # To begin, we'll read in exactly one fp
@@ -36,7 +38,39 @@ if __name__ == '__main__':
 
     print(f'\nIts prov DAG looks like\n{dummy_DAG}')
 
-    print('#########################################')
+    print(dummy_DAG.predecessors('ffb7cee3-2f1f-4988-90cc-efd5184ef003'))
+    # The following is not trustworthy bc _parents may not be updated
     print(
           dummy_DAG
           .get_node_data('ffb7cee3-2f1f-4988-90cc-efd5184ef003')._parents)
+    print('#########################################')
+
+    out_fp = pathlib.Path(
+        '/home/chris/src/provenance_py/provenance_lib/test_outputs/rendered.txt')
+    replay_provdag(dag=dummy_DAG, out_fp=out_fp, usage_driver='python3',
+                   use_recorded_metadata=False)
+
+    out_fp = pathlib.Path(
+        '/home/chris/src/provenance_py/provenance_lib/test_outputs/cli_rendered.txt')
+    replay_provdag(dag=dummy_DAG, out_fp=out_fp, usage_driver='cli',
+                   use_recorded_metadata=False)
+
+    mixed = ProvDAG('/home/chris/src/provenance_py/provenance_lib/tests/data/mixed_v0_v1_uu_emperor.qzv')
+    out_fp = pathlib.Path(
+        '/home/chris/src/provenance_py/provenance_lib/test_outputs/mixed.txt')
+    replay_provdag(dag=mixed, out_fp=out_fp, usage_driver='python3',
+                   use_recorded_metadata=False)
+    out_fp = pathlib.Path(
+        '/home/chris/src/provenance_py/provenance_lib/test_outputs/mixed_cli.txt')
+    replay_provdag(dag=mixed, out_fp=out_fp, usage_driver='cli',
+                   use_recorded_metadata=False)
+
+    out_fp = pathlib.Path(
+        '/home/chris/src/provenance_py/provenance_lib/test_outputs/joined.txt')
+    v0_uuid = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
+    tbl_uuid = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
+    tbl = ProvDAG('/home/chris/src/provenance_py/provenance_lib/tests/data/v0_table.qza')
+    qzv = ProvDAG('/home/chris/src/provenance_py/provenance_lib/tests/data/v0_uu_emperor.qzv')
+    joined = ProvDAG.union([tbl, qzv])
+    replay_provdag(dag=joined, out_fp=out_fp, usage_driver='cli',
+                   use_recorded_metadata=False)

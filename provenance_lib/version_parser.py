@@ -5,7 +5,7 @@ import warnings
 import zipfile
 from typing import Optional, Tuple
 
-from .util import get_root_uuid
+from .util import get_nonroot_uuid, get_root_uuid
 
 _VERSION_MATCHER = (
     r'QIIME 2\n'
@@ -32,17 +32,20 @@ def parse_version(zf: zipfile.ZipFile,
     root_uuid = get_root_uuid(zf)
     if fp is not None:
         version_fp = fp
+        node_uuid = get_nonroot_uuid(fp)
     else:
         # All files in zf start with root uuid, so we'll grab it from the first
         version_fp = pathlib.Path(root_uuid) / 'VERSION'
+        node_uuid = root_uuid
 
     try:
         with zf.open(str(version_fp)) as v_fp:
             version_contents = str(v_fp.read().strip(), 'utf-8')
     except KeyError:
         raise ValueError(
-            "Malformed Archive: VERSION file misplaced or nonexistent "
-            f"for archive {root_uuid}")
+            f"Malformed Archive: VERSION file for node {node_uuid} misplaced "
+            f" or nonexistent\nArchive {root_uuid} may be corrupt or "
+            "provenance may be false.")
 
     if not re.match(_VERSION_MATCHER, version_contents, re.MULTILINE):
         warnings.filterwarnings('ignore', 'invalid escape sequence',

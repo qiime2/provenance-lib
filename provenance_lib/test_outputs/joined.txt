@@ -1,0 +1,6 @@
+# One or more nodes have no provenance, so full replay is impossible. Any
+# commands we were able to reconstruct have been rendered, with the string
+# descriptions below replacing actual inputs.
+# Original Node ID                       String Description
+# 89af91c0-033d-4e30-8ac4-f29a3b407dc1   feature_table_frequency_0
+# 0b8b47bd-f2f8-4029-923c-0e37a68340c3   visualization_0

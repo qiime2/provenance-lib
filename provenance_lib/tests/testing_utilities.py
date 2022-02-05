@@ -2,9 +2,17 @@ from contextlib import contextmanager
 from typing import Generator
 import pathlib
 import tempfile
+import unittest
 import zipfile
 
 from ..util import UUID
+
+
+class CustomAssertions(unittest.TestCase):
+    def assertREAppearsOnlyOnce(self, text, only_once, msg=None):
+        appears_once_re = \
+            (f'(?s)^(?:(?!{only_once}).)*{only_once}(?!.*{only_once}).*$')
+        self.assertRegex(text, appears_once_re, msg)
 
 
 def is_root_provnode_data(fp):

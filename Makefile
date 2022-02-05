@@ -24,3 +24,6 @@ uml-full:
 
 dev:
 	pip install -e .
+
+clean:
+	rm -r recorded_metadata

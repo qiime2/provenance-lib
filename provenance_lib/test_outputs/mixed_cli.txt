@@ -1,0 +1,21 @@
+# One or more nodes have no provenance, so full replay is impossible. Any
+# commands we were able to reconstruct have been rendered, with the string
+# descriptions below replacing actual inputs.
+# Original Node ID                       String Description
+# 9f6a0f3e-22e6-4c39-8733-4e672919bbc7   no-provenance-node_0
+# Replay attempts to represent metadata inputs accurately, but metadata .tsv
+# files are merged automatically by some interfaces, rendering distinctions
+# between file inputs invisible in provenance. We output the recorded
+# metadata to disk to enable visual inspection.
+# The following command may have received additional metadata .tsv files. To
+# confirm you have covered your metadata needs adequately, review the
+# original metadata, saved at 'recorded_metadata/emperor_plot_0/'
+qiime emperor plot \
+  --i-pcoa no-provenance-node_0 \
+  --m-metadata-file metadata-0.tsv \
+  # TODO: The following parameter name was not found in your current
+  # QIIME 2 environment. This may occur when the plugin version you have
+  # installed does not match the version used in the original analysis.
+  # Please see the docs and correct the parameter name before running.
+  --?-custom_axis DaysSinceExperimentStart \
+  --o-visualization visualization-0.qzv

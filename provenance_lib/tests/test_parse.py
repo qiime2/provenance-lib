@@ -7,7 +7,7 @@ import warnings
 import zipfile
 
 from networkx import DiGraph
-from networkx.classes.reportviews import NodeView  # type: ignore
+from networkx.classes.reportviews import NodeView
 
 from ..checksum_validator import ChecksumDiff, ValidationCode
 from ..parse import (
@@ -193,7 +193,7 @@ class ProvDAGTests(unittest.TestCase):
                              TEST_DATA[vz]['uuid'])
             terminal_node, *_ = self.dags[vz].terminal_nodes
             self.assertEqual(type(terminal_node), ProvNode)
-            self.assertEqual(terminal_node.uuid, TEST_DATA[vz]['uuid'])
+            self.assertEqual(terminal_node._uuid, TEST_DATA[vz]['uuid'])
             self.assertEqual(self.dags[vz].provenance_is_valid,
                              TEST_DATA[vz]['prov_is_valid'])
             self.assertEqual(self.dags[vz].checksum_diff,
@@ -216,7 +216,7 @@ class ProvDAGTests(unittest.TestCase):
         self.assertEqual(type(root_node), ProvNode)
         # Smoke-test that this is actually the node we're looking for
         # Node attributes are tested properly in ProvNodeTests
-        self.assertEqual(root_node.uuid, root_uuid)
+        self.assertEqual(root_node._uuid, root_uuid)
 
     def test_V5_has_edges(self):
         self.assertTrue(self.dags['5'].has_edge(
@@ -260,6 +260,12 @@ class ProvDAGTests(unittest.TestCase):
         dag_5_copied.dag.add_node(
             'this_node_is_not_in_the_original_but_satisfies_len_requirement')
         self.assertNotEqual(self.dags['5'], dag_5_copied)
+
+    def test_iter(self):
+        # Just a smoke test
+        dag5 = self.dags['5']
+        iterable = iter(dag5)
+        self.assertEqual(next(iterable), TEST_DATA['5']['uuid'])
 
     def test_v5_captures_full_history(self):
         nodes = self.dags['5'].nodes
@@ -343,8 +349,12 @@ class ProvDAGTests(unittest.TestCase):
                      ]
         new_labels = {node: node[:8] for node in dag.nodes}
         dag.relabel_nodes(new_labels)
+        # Have all nodes been relabeled as expected?
         for node in exp_nodes:
             self.assertIn(node, dag.nodes)
+        # Are the UUIDs stored in the ProvNode payloads updated correctly?
+        for node in dag.nodes:
+            self.assertEqual(node, dag.get_node_data(node)._uuid)
         self.assertEqual(dag._terminal_uuids, None)
 
         # Confirm terminal_uuids state is consistent with the relabeled node
@@ -373,8 +383,12 @@ class ProvDAGTests(unittest.TestCase):
                      ]
         new_labels = {node: node[:8] for node in self.dags['5'].nodes}
         new_dag = self.dags['5'].relabel_nodes(new_labels, copy=True)
+        # Have all nodes been relabeled as expected?
         for node in exp_nodes:
             self.assertIn(node, new_dag.nodes)
+        # Are the UUIDs stored in the ProvNode payloads updated correctly?
+        for node in new_dag.nodes:
+            self.assertEqual(node, new_dag.get_node_data(node)._uuid)
         self.assertEqual(set(exp_nodes), set(new_dag.nodes))
         self.assertEqual(new_dag._terminal_uuids, None)
 
@@ -555,7 +569,7 @@ class ProvDAGTests(unittest.TestCase):
                 UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
             dag = ProvDAG(mixed_archive_fp)
             self.assertEqual(dag.node_has_provenance(v1_uuid), True)
-            self.assertEqual(dag.get_node_data(v1_uuid).uuid, v1_uuid)
+            self.assertEqual(dag.get_node_data(v1_uuid)._uuid, v1_uuid)
 
             self.assertEqual(dag.node_has_provenance(v0_uuid), False)
             self.assertEqual(dag.get_node_data(v0_uuid), None)
@@ -573,7 +587,7 @@ class ProvDAGTests(unittest.TestCase):
 
         dag = ProvDAG(a_as_md_fp)
         self.assertEqual(dag.node_has_provenance(a_as_md_uuid), True)
-        self.assertEqual(dag.get_node_data(a_as_md_uuid).uuid, a_as_md_uuid)
+        self.assertEqual(dag.get_node_data(a_as_md_uuid)._uuid, a_as_md_uuid)
         self.assertEqual(dag.get_node_data(a_as_md_uuid).type,
                          'FeatureData[Taxonomy]')
 
@@ -582,6 +596,19 @@ class ProvDAGTests(unittest.TestCase):
             copied = ProvDAG(dag)
             self.assertEqual(dag, copied)
             self.assertIsNot(dag, copied)
+
+    def test_predecessors(self):
+        exp = {'bce3d09b-e296-4f2b-9af4-834db6412429',
+               '89af91c0-033d-4e30-8ac4-f29a3b407dc1'}
+        act = self.dags['5'].predecessors(TEST_DATA['5']['uuid'])
+        self.assertSetEqual(exp, act)
+
+    def test_predecessors_not_collapsed(self):
+        inner_node = '83a80bfd-8954-4571-8fc7-ac9e8435156e'
+        exp = {'9cc3281a-fefb-408e-8cf0-10637a06d84a'}
+        this_dag = self.dags['5']
+        act = this_dag.predecessors(inner_node, this_dag)
+        self.assertSetEqual(exp, act)
 
 
 class ProvDAGUnionTests(unittest.TestCase):
@@ -610,7 +637,6 @@ class ProvDAGUnionTests(unittest.TestCase):
             # assert in test_setup_warnings
             with warnings.catch_warnings(record=True) as cls.w:
                 cls.bad_dag = ProvDAG(chopped_archive)
-                print(cls.w)
 
     def test_setup_warnings(self):
         self.assertEqual(len(self.w), 1)

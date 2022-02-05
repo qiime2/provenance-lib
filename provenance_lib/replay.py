@@ -176,7 +176,6 @@ class UsageVarsDict(UserDict):
         raise KeyError(f"passed value '{value}' does not exist in this dict.")
 
 
-# TESTED ABOVE THIS
 def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
                    usage_driver: DRIVER_CHOICES,
                    use_recorded_metadata: bool = False):
@@ -197,7 +196,6 @@ def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
         out_fh.write(output)
 
 
-# TESTED BELOW THIS POINT
 def group_by_action(dag: ProvDAG, nodes: Iterator[UUID]) -> ActionCollections:
     """
     Provenance is organized around outputs, but replay cares about actions.

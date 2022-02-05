@@ -17,9 +17,12 @@ from ..parse import ProvDAG
 from ..replay import (
     ActionCollections, ReplayConfig, UsageVarsDict, SUPPORTED_USAGE_DRIVERS,
     build_no_provenance_node_usage, build_import_usage, build_action_usage,
-    camel_to_snake, dump_recorded_md_file, group_by_action,
-    init_md_from_artifacts, init_md_from_md_file, init_md_from_recorded_md,
-    param_is_metadata_column, uniquify_action_name)
+    build_usage_examples, camel_to_snake, dump_recorded_md_file,
+    group_by_action, init_md_from_artifacts, init_md_from_md_file,
+    init_md_from_recorded_md, param_is_metadata_column,
+    # replay_provdag,
+    uniquify_action_name,
+    )
 from .test_parse import DATA_DIR, TEST_DATA
 from .testing_utilities import CustomAssertions
 from ..yaml_constructors import MetadataInfo
@@ -78,6 +81,94 @@ class UsageVarsDictTests(unittest.TestCase):
         with self.assertRaisesRegex(KeyError,
                                     "passed value 'fake_key' does not exist"):
             ns.get_key('fake_key')
+
+
+class ReplayProvDAGTests(unittest.TestCase):
+    pass
+
+
+class BuildUsageExamplesTests(unittest.TestCase):
+    @patch('provenance_lib.replay.build_action_usage')
+    @patch('provenance_lib.replay.build_import_usage')
+    @patch('provenance_lib.replay.build_no_provenance_node_usage')
+    def test_build_usage_examples(self, n_p_builder, imp_builder, act_builder):
+        v5_dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
+                           use_recorded_metadata=False, pm=pm)
+        build_usage_examples(v5_dag, cfg)
+        # This is an intact v5 dag, with one import and four following actions
+        n_p_builder.assert_not_called()
+        imp_builder.assert_called_once()
+        self.assertEqual(act_builder.call_count, 4)
+
+    @patch('provenance_lib.replay.build_action_usage')
+    @patch('provenance_lib.replay.build_import_usage')
+    @patch('provenance_lib.replay.build_no_provenance_node_usage')
+    def test_build_usage_examples_lone_v0(
+            self, n_p_builder, imp_builder, act_builder):
+        v0_dag = ProvDAG(TEST_DATA['0']['qzv_fp'])
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
+                           use_recorded_metadata=False, pm=pm)
+        build_usage_examples(v0_dag, cfg)
+        # This is a single v0 archive, so should have only one np node
+        n_p_builder.assert_called_once()
+        imp_builder.assert_not_called()
+        act_builder.assert_not_called()
+
+    @patch('provenance_lib.replay.build_action_usage')
+    @patch('provenance_lib.replay.build_import_usage')
+    @patch('provenance_lib.replay.build_no_provenance_node_usage')
+    def test_build_usage_examples_joined_v0s(
+            self, n_p_builder, imp_builder, act_builder):
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
+                           use_recorded_metadata=False, pm=pm)
+
+        # Multiple no-prov nodes glued together into a single DAG
+        v0_uuid = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
+            single_no_prov = ProvDAG(os.path.join(DATA_DIR,
+                                     'v0_uu_emperor.qzv'))
+
+        tbl_uuid = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{tbl_uuid}.*prior.*incomplete'):
+            v0_tbl = ProvDAG(os.path.join(DATA_DIR, 'v0_table.qza'))
+        joined = ProvDAG.union([single_no_prov, v0_tbl])
+
+        build_usage_examples(joined, cfg)
+        # This is a pair of v0 archives, so should have two np nodes
+        self.assertEqual(n_p_builder.call_count, 2)
+        imp_builder.assert_not_called()
+        act_builder.assert_not_called()
+
+    @patch('provenance_lib.replay.build_action_usage')
+    @patch('provenance_lib.replay.build_import_usage')
+    @patch('provenance_lib.replay.build_no_provenance_node_usage')
+    def test_build_usage_examples_mixed(
+            self, n_p_builder, imp_builder, act_builder):
+        mixed = ProvDAG(os.path.join(DATA_DIR, 'mixed_v0_v1_uu_emperor.qzv'))
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
+                           use_recorded_metadata=False, pm=pm)
+        build_usage_examples(mixed, cfg)
+        # This is a mixed v0, v1 archive, so no imports but np and action
+        n_p_builder.assert_called_once()
+        imp_builder.assert_not_called()
+        act_builder.assert_called_once()
+
+    @patch('provenance_lib.replay.build_action_usage')
+    @patch('provenance_lib.replay.build_import_usage')
+    @patch('provenance_lib.replay.build_no_provenance_node_usage')
+    def test_build_usage_examples_big(
+            self, n_p_builder, imp_builder, act_builder):
+        big = ProvDAG(os.path.join(DATA_DIR, 'artifact_as_md_v5.qzv'))
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
+                           use_recorded_metadata=False, pm=pm)
+        build_usage_examples(big, cfg)
+        # This is a fairly large empress plot with multiple imports
+        n_p_builder.assert_not_called()
+        self.assertEqual(imp_builder.call_count, 3)
+        self.assertEqual(act_builder.call_count, 7)
 
 
 class MiscHelperFnTests(unittest.TestCase):
@@ -701,6 +792,8 @@ class BuildActionUsageTests(CustomAssertions):
         acts = ActionCollections(std_actions={act_id: {n_id: out_name_raw},
                                               sd_act_id: {sd_id: 'smpl_data'}})
         build_action_usage(node, ns, a_ns, acts.std_actions, act_id, cfg)
-        # TODO: Do we want to assert something more interesting,
-        # like called_once_with?
-        patch.assert_called_once()
+        patch.assert_called_once_with(
+            MetadataInfo(
+                input_artifact_uuids=['a42ea02f-8c40-432c-9b88-e602f6cd3787'],
+                relative_fp='input.tsv'),
+            ns, cfg)

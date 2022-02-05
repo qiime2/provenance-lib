@@ -197,6 +197,7 @@ def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
         out_fh.write(output)
 
 
+# TESTED BELOW THIS POINT
 def group_by_action(dag: ProvDAG, nodes: Iterator[UUID]) -> ActionCollections:
     """
     Provenance is organized around outputs, but replay cares about actions.
@@ -252,7 +253,6 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
                                std_actions, action_id, cfg)
 
 
-# TESTED BELOW THIS POINT
 def build_no_provenance_node_usage(node: Optional[ProvNode],
                                    uuid: UUID,
                                    usg_var_namespace: UsageVarsDict,

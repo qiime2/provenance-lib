@@ -6,7 +6,6 @@ commands we were able to reconstruct have been rendered, with the string
 descriptions below replacing actual inputs.
 # Original Node ID                       String Description
 # 9f6a0f3e-22e6-4c39-8733-4e672919bbc7   no-provenance-node_0
-
 # Replay attempts to represent metadata inputs accurately, but metadata .tsv
 files are merged automatically by some interfaces, rendering distinctions
 between file inputs invisible in provenance. We output the recorded metadata

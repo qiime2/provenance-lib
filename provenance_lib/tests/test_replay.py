@@ -720,6 +720,43 @@ class BuildActionUsageTests(CustomAssertions):
         self.assertRegex(rendered, "--p-no-rev-comp-mapping-barcodes")
         self.assertRegex(rendered, f"--o-per-sample-sequences {out_name}")
 
+    def test_build_action_usage_cli_parameter_name_has_changed(self):
+        plugin = 'emperor'
+        action = 'plot'
+        act_id = 'c147dfbc-139a-4db0-ac17-b11948247f93'
+        pcoa_id = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
+        n_id = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['cli'](),
+                           use_recorded_metadata=True, pm=pm)
+        import_var = CLIUsageVariable(
+            'pcoa', lambda: None, 'artifact', cfg.use)
+        ns = UsageVarsDict({pcoa_id: import_var})
+        a_ns = set()
+        dag = ProvDAG(os.path.join(DATA_DIR, 'mixed_v0_v1_uu_emperor.qzv'))
+        node = dag.get_node_data(n_id)
+        # This is a v1 node, so we don't have an output name. use type.
+        out_name_raw = node.type.lower()
+        acts = ActionCollections(std_actions={act_id:
+                                              {n_id: out_name_raw}})
+        unq_var_nm = out_name_raw + '_0'
+        build_action_usage(node, ns, a_ns, acts.std_actions, act_id, cfg)
+        rendered = cfg.use.render()
+        print(rendered)
+        out_name = ns[n_id].to_interface_name()
+
+        self.assertIsInstance(ns[n_id], UsageVariable)
+        self.assertEqual(ns[n_id].var_type, 'visualization')
+        self.assertEqual(ns[n_id].name, unq_var_nm)
+
+        self.assertRegex(rendered, f"qiime {plugin} {action}")
+        self.assertRegex(rendered, "--i-pcoa pcoa.qza")
+        self.assertRegex(rendered, "--m-metadata-file metadata-0")
+        self.assertRegex(rendered,
+                         "(?s)parameter name was not found in your.*env")
+        # This has become "custom-axes" since the .qzv was first recorded
+        self.assertRegex(rendered, r"--\?-custom-axis DaysSinceExperimentSta")
+        self.assertRegex(rendered, f"--o-visualization {out_name}")
+
     def test_build_action_usage_python(self):
         plugin = 'demux'
         action = 'emp_single'

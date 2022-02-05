@@ -60,6 +60,10 @@ if __name__ == '__main__':
         '/home/chris/src/provenance_py/provenance_lib/test_outputs/mixed.txt')
     replay_provdag(dag=mixed, out_fp=out_fp, usage_driver='python3',
                    use_recorded_metadata=False)
+    out_fp = pathlib.Path(
+        '/home/chris/src/provenance_py/provenance_lib/test_outputs/mixed_cli.txt')
+    replay_provdag(dag=mixed, out_fp=out_fp, usage_driver='cli',
+                   use_recorded_metadata=False)
 
     out_fp = pathlib.Path(
         '/home/chris/src/provenance_py/provenance_lib/test_outputs/joined.txt')
@@ -67,6 +71,6 @@ if __name__ == '__main__':
     tbl_uuid = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
     tbl = ProvDAG('/home/chris/src/provenance_py/provenance_lib/tests/data/v0_table.qza')
     qzv = ProvDAG('/home/chris/src/provenance_py/provenance_lib/tests/data/v0_uu_emperor.qzv')
-    replay_provdag(dag=mixed, out_fp=out_fp, usage_driver='cli',
-                   use_recorded_metadata=False)
     joined = ProvDAG.union([tbl, qzv])
+    replay_provdag(dag=joined, out_fp=out_fp, usage_driver='cli',
+                   use_recorded_metadata=False)

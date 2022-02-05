@@ -84,7 +84,8 @@ class ReplayCLIUsage(CLIUsage):
                 "match the version used in the original analysis.\n  # "
                 "Please see the docs and correct the parameter name "
                 "before running.\n")
-            line += self.INDENT + '--?-' + param_name + ' ' + str(value)
+            cli_name = re.sub('_', '-', param_name)
+            line += self.INDENT + '--?-' + cli_name + ' ' + str(value)
             line += ' \\'
             self.recorder.append(line)
 

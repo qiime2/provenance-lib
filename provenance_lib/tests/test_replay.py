@@ -142,7 +142,10 @@ class BuildUsageExamplesTests(unittest.TestCase):
     @patch('provenance_lib.replay.build_no_provenance_node_usage')
     def test_build_usage_examples_lone_v0(
             self, n_p_builder, imp_builder, act_builder):
-        v0_dag = ProvDAG(TEST_DATA['0']['qzv_fp'])
+        v0_uuid = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
+            v0_dag = ProvDAG(TEST_DATA['0']['qzv_fp'])
         cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
                            use_recorded_metadata=False, pm=pm)
         build_usage_examples(v0_dag, cfg)
@@ -183,7 +186,11 @@ class BuildUsageExamplesTests(unittest.TestCase):
     @patch('provenance_lib.replay.build_no_provenance_node_usage')
     def test_build_usage_examples_mixed(
             self, n_p_builder, imp_builder, act_builder):
-        mixed = ProvDAG(os.path.join(DATA_DIR, 'mixed_v0_v1_uu_emperor.qzv'))
+        mixed_uuid = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{mixed_uuid}.*prior.*incomplete'):
+            mixed = ProvDAG(os.path.join(DATA_DIR,
+                            'mixed_v0_v1_uu_emperor.qzv'))
         cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
                            use_recorded_metadata=False, pm=pm)
         build_usage_examples(mixed, cfg)
@@ -286,7 +293,11 @@ class MiscHelperFnTests(unittest.TestCase):
                 cfg, 'custom_axes', 'princeling', 'plot')
 
     def test_dump_recorded_md_file(self):
-        mixed = ProvDAG(os.path.join(DATA_DIR, 'mixed_v0_v1_uu_emperor.qzv'))
+        mixed_uuid = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{mixed_uuid}.*prior.*incomplete'):
+            mixed = ProvDAG(os.path.join(DATA_DIR,
+                                         'mixed_v0_v1_uu_emperor.qzv'))
         root_uuid = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
         out_dir = 'recorded_metadata'
         provnode = mixed.get_node_data(root_uuid)
@@ -321,7 +332,10 @@ class MiscHelperFnTests(unittest.TestCase):
 
     def test_dump_recorded_md_file_no_md(self):
         # V0 archives never have metadata
-        v0 = ProvDAG(os.path.join(DATA_DIR, 'v0_uu_emperor.qzv'))
+        v0_uuid = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
+            v0 = ProvDAG(os.path.join(DATA_DIR, 'v0_uu_emperor.qzv'))
         root_uuid = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
         provnode = v0.get_node_data(root_uuid)
         act_nm = 'emperor_plot_0'
@@ -732,7 +746,10 @@ class BuildActionUsageTests(CustomAssertions):
             'pcoa', lambda: None, 'artifact', cfg.use)
         ns = UsageVarsDict({pcoa_id: import_var})
         a_ns = set()
-        dag = ProvDAG(os.path.join(DATA_DIR, 'mixed_v0_v1_uu_emperor.qzv'))
+        mixed_uuid = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{mixed_uuid}.*prior.*incomplete'):
+            dag = ProvDAG(os.path.join(DATA_DIR, 'mixed_v0_v1_uu_emperor.qzv'))
         node = dag.get_node_data(n_id)
         # This is a v1 node, so we don't have an output name. use type.
         out_name_raw = node.type.lower()
@@ -819,7 +836,10 @@ class BuildActionUsageTests(CustomAssertions):
             'pcoa', lambda: None, 'artifact', cfg.use)
         ns = UsageVarsDict({pcoa_id: import_var})
         a_ns = set()
-        dag = ProvDAG(os.path.join(DATA_DIR, 'mixed_v0_v1_uu_emperor.qzv'))
+        mixed_uuid = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{mixed_uuid}.*prior.*incomplete'):
+            dag = ProvDAG(os.path.join(DATA_DIR, 'mixed_v0_v1_uu_emperor.qzv'))
         node = dag.get_node_data(n_id)
         # This is a v1 node, so we don't have an output name. use type.
         out_name_raw = node.type.lower()

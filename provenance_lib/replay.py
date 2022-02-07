@@ -173,9 +173,19 @@ class UsageVarsDict(UserDict):
         raise KeyError(f"passed value '{value}' does not exist in this dict.")
 
 
-def replay_fp(fp: FileName, out_fp: FileName, usage_driver: DRIVER_CHOICES,
+def replay_fp(in_fp: FileName, out_fp: FileName, usage_driver: DRIVER_CHOICES,
+              validate_checksums: bool = True, parse_metadata: bool = True,
               use_recorded_metadata: bool = False):
-    pass
+    """
+    One-shot replay from a filepath string, through a ProvDAG to a written
+    executable
+    """
+    if use_recorded_metadata and not parse_metadata:
+        raise ValueError(
+            "Metadata not parsed for replay. Re-run with parse_metadata = "
+            "True or use_recorded_metadata = False")
+    dag = ProvDAG(in_fp, validate_checksums, parse_metadata)
+    replay_provdag(dag, out_fp, usage_driver, use_recorded_metadata)
 
 
 def replay_provdag(dag: ProvDAG, out_fp: FileName,

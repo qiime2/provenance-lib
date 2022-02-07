@@ -13,7 +13,6 @@ from qiime2.sdk.usage import Usage, UsageVariable
 from q2cli.core.usage import CLIUsageVariable
 from qiime2.plugins import ArtifactAPIUsageVariable
 
-from ..archive_parser import Config
 from ..parse import ProvDAG
 from ..replay import (
     ActionCollections, ReplayConfig, UsageVarsDict, SUPPORTED_USAGE_DRIVERS,
@@ -115,8 +114,8 @@ class ReplayProvDAGTests(unittest.TestCase):
 
     def test_replay_provdag_use_md_without_parse(self):
         v5_dag = ProvDAG(TEST_DATA['5']['qzv_fp'],
-                         cfg=Config(perform_checksum_validation=False,
-                                    parse_study_metadata=False))
+                         validate_checksums=False,
+                         parse_metadata=False)
         with self.assertRaisesRegex(
                 ValueError, "Metadata not captured for replay"):
             replay_provdag(v5_dag, 'unused', 'python3',

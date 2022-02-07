@@ -82,12 +82,16 @@ class ProvDAG:
     which feels much less intuitive than with e.g. the UUID string of the
     ProvNode you want to access, and would make testing a bit clunky.
     """
-    def __init__(self, artifact_data: Any = None, cfg: Config = Config()):
+    def __init__(self, artifact_data: Any = None,
+                 validate_checksums: bool = True,
+                 parse_metadata: bool = True,
+                 ):
         """
         Create a ProvDAG (digraph) by getting a parser from the parser
         dispatcher, using it to parse the incoming data into a ParserResults,
         and then loading those Results into key fields.
         """
+        cfg = Config(validate_checksums, parse_metadata)
         parser_results = parse_provenance(cfg, artifact_data)
 
         self.cfg = cfg
@@ -307,7 +311,7 @@ class EmptyParser(Parser):
         else:
             raise TypeError(f" in EmptyParser: {artifact_data} is not None")
 
-    def parse_prov(self, cfg: Config, nonetype: None):
+    def parse_prov(self, cfg: Config, data: None):
         return ParserResults(
             parsed_artifact_uuids=set(),
             prov_digraph=nx.DiGraph(),

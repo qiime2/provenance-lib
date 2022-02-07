@@ -84,14 +84,15 @@ class UsageVarsDictTests(unittest.TestCase):
 
 class ReplayFPTests(unittest.TestCase):
     def test_replay_fp(self):
-        in_fp = TEST_DATA['5']['qzv_fp']
+        in_fn = TEST_DATA['5']['qzv_fp']
         with tempfile.TemporaryDirectory() as tmpdir:
-            out_path = pathlib.Path(tmpdir) / 'rendered.txt'
-            replay_fp(in_fp, out_path, 'python3')
+            out_fp = pathlib.Path(tmpdir) / 'rendered.txt'
+            out_fn = str(out_fp)
+            replay_fp(in_fn, out_fn, 'python3')
 
-            self.assertTrue(out_path.is_file())
+            self.assertTrue(out_fp.is_file())
 
-            with open(out_path, 'r') as fp:
+            with open(out_fn, 'r') as fp:
                 rendered = fp.read()
                 print(rendered)
             self.assertIn('from qiime2 import Artifact', rendered)
@@ -112,7 +113,7 @@ class ReplayFPTests(unittest.TestCase):
             self.assertIn('diversity_actions.core_metrics_phylogenetic',
                           rendered)
 
-    def test_replay_provdag_use_md_without_parse(self):
+    def test_replay_fp_use_md_without_parse(self):
         in_fp = TEST_DATA['5']['qzv_fp']
         with self.assertRaisesRegex(
                 ValueError, "Metadata not parsed for replay. Re-run"):

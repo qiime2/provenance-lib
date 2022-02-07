@@ -91,6 +91,7 @@ SUPPORTED_USAGE_DRIVERS = {
     'python3': ReplayPythonUsage,
     'cli': ReplayCLIUsage,
 }
+DRIVER_NAMES = list(SUPPORTED_USAGE_DRIVERS.keys())
 
 
 @dataclass(frozen=False)
@@ -173,8 +174,10 @@ class UsageVarsDict(UserDict):
         raise KeyError(f"passed value '{value}' does not exist in this dict.")
 
 
-def replay_fp(in_fp: FileName, out_fp: FileName, usage_driver: DRIVER_CHOICES,
-              validate_checksums: bool = True, parse_metadata: bool = True,
+def replay_fp(in_fp: FileName, out_fp: FileName,
+              usage_driver_name: DRIVER_CHOICES,
+              validate_checksums: bool = True,
+              parse_metadata: bool = True,
               use_recorded_metadata: bool = False):
     """
     One-shot replay from a filepath string, through a ProvDAG to a written
@@ -185,7 +188,7 @@ def replay_fp(in_fp: FileName, out_fp: FileName, usage_driver: DRIVER_CHOICES,
             "Metadata not parsed for replay. Re-run with parse_metadata = "
             "True or use_recorded_metadata = False")
     dag = ProvDAG(in_fp, validate_checksums, parse_metadata)
-    replay_provdag(dag, out_fp, usage_driver, use_recorded_metadata)
+    replay_provdag(dag, out_fp, usage_driver_name, use_recorded_metadata)
 
 
 def replay_provdag(dag: ProvDAG, out_fp: FileName,

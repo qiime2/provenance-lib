@@ -7,6 +7,7 @@ from typing import Dict, Iterator, List, Literal, Optional, Set, Union
 
 from .archive_parser import ProvNode
 from .parse import ProvDAG, UUID
+from .util import FileName
 from .yaml_constructors import MetadataInfo
 
 from q2cli.core.usage import CLIUsage
@@ -172,7 +173,12 @@ class UsageVarsDict(UserDict):
         raise KeyError(f"passed value '{value}' does not exist in this dict.")
 
 
-def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
+def replay_fp(fp: FileName, out_fp: FileName, usage_driver: DRIVER_CHOICES,
+              use_recorded_metadata: bool = False):
+    pass
+
+
+def replay_provdag(dag: ProvDAG, out_fp: FileName,
                    usage_driver: DRIVER_CHOICES,
                    use_recorded_metadata: bool = False):
     """
@@ -493,9 +499,9 @@ def param_is_metadata_column(
     try:
         plugin = cfg.pm.get_plugin(id=plg)
     except KeyError as e:
-        e = (re.sub("'", "", str(e)) +
-             ' Visit library.qiime2.org to find plugins.')
-        raise KeyError(e)
+        msg = (re.sub("'", "", str(e)) +
+               ' Visit library.qiime2.org to find plugins.')
+        raise KeyError(msg)
 
     try:
         action_f = plugin.actions[action]

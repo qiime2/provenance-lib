@@ -7,6 +7,7 @@ from typing import Dict, Iterator, List, Literal, Optional, Set, Union
 
 from .archive_parser import ProvNode
 from .parse import ProvDAG, UUID
+from .util import FileName
 from .yaml_constructors import MetadataInfo
 
 from q2cli.core.usage import CLIUsage
@@ -90,6 +91,7 @@ SUPPORTED_USAGE_DRIVERS = {
     'python3': ReplayPythonUsage,
     'cli': ReplayCLIUsage,
 }
+DRIVER_NAMES = list(SUPPORTED_USAGE_DRIVERS.keys())
 
 
 @dataclass(frozen=False)
@@ -172,7 +174,24 @@ class UsageVarsDict(UserDict):
         raise KeyError(f"passed value '{value}' does not exist in this dict.")
 
 
-def replay_provdag(dag: ProvDAG, out_fp: pathlib.Path,
+def replay_fp(in_fp: FileName, out_fp: FileName,
+              usage_driver_name: DRIVER_CHOICES,
+              validate_checksums: bool = True,
+              parse_metadata: bool = True,
+              use_recorded_metadata: bool = False):
+    """
+    One-shot replay from a filepath string, through a ProvDAG to a written
+    executable
+    """
+    if use_recorded_metadata and not parse_metadata:
+        raise ValueError(
+            "Metadata not parsed for replay. Re-run with parse_metadata = "
+            "True or use_recorded_metadata = False")
+    dag = ProvDAG(in_fp, validate_checksums, parse_metadata)
+    replay_provdag(dag, out_fp, usage_driver_name, use_recorded_metadata)
+
+
+def replay_provdag(dag: ProvDAG, out_fp: FileName,
                    usage_driver: DRIVER_CHOICES,
                    use_recorded_metadata: bool = False):
     """
@@ -493,9 +512,9 @@ def param_is_metadata_column(
     try:
         plugin = cfg.pm.get_plugin(id=plg)
     except KeyError as e:
-        e = (re.sub("'", "", str(e)) +
-             ' Visit library.qiime2.org to find plugins.')
-        raise KeyError(e)
+        msg = (re.sub("'", "", str(e)) +
+               ' Visit library.qiime2.org to find plugins.')
+        raise KeyError(msg)
 
     try:
         action_f = plugin.actions[action]

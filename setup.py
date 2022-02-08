@@ -17,8 +17,13 @@ setup(
    author_email='crk239@nau.edu',
    license='BSD-3-clause',
    packages=find_packages(),
-   install_requires=['pyyaml>=5.3', 'bibtexparser>=1.0', 'pytest>=6',
-                     'pytest-cov>=2.0', 'flake8', 'pandas', 'networkx',
-                     'mypy',
+   install_requires=['bibtexparser>=1.0', 'Click', 'flake8', 'mypy',
+                     'networkx', 'pandas', 'pytest>=6', 'pytest-cov>=2.0',
+                     'pyyaml>=5.3',
                      ],
+   entry_points={
+       'console_scripts': [
+           'replay-provenance = provenance_lib.click_commands:replay',
+       ]
+   }
 )

@@ -13,15 +13,14 @@ from qiime2.sdk.usage import Usage, UsageVariable
 from q2cli.core.usage import CLIUsageVariable
 from qiime2.plugins import ArtifactAPIUsageVariable
 
-from ..archive_parser import Config
 from ..parse import ProvDAG
 from ..replay import (
     ActionCollections, ReplayConfig, UsageVarsDict, SUPPORTED_USAGE_DRIVERS,
     build_no_provenance_node_usage, build_import_usage, build_action_usage,
     build_usage_examples, camel_to_snake, dump_recorded_md_file,
     group_by_action, init_md_from_artifacts, init_md_from_md_file,
-    init_md_from_recorded_md, param_is_metadata_column, replay_provdag,
-    uniquify_action_name,
+    init_md_from_recorded_md, param_is_metadata_column, replay_fp,
+    replay_provdag, uniquify_action_name,
     )
 from .test_parse import DATA_DIR, TEST_DATA
 from .testing_utilities import CustomAssertions
@@ -83,6 +82,45 @@ class UsageVarsDictTests(unittest.TestCase):
             ns.get_key('fake_key')
 
 
+class ReplayFPTests(unittest.TestCase):
+    def test_replay_fp(self):
+        in_fn = TEST_DATA['5']['qzv_fp']
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_fp = pathlib.Path(tmpdir) / 'rendered.txt'
+            out_fn = str(out_fp)
+            replay_fp(in_fn, out_fn, 'python3')
+
+            self.assertTrue(out_fp.is_file())
+
+            with open(out_fn, 'r') as fp:
+                rendered = fp.read()
+                print(rendered)
+            self.assertIn('from qiime2 import Artifact', rendered)
+            self.assertIn('from qiime2 import Metadata', rendered)
+            self.assertIn(
+                'import qiime2.plugins.dada2.actions as dada2_actions',
+                rendered)
+            self.assertIn('emp_single_end_sequences_0 = Artifact.import_data(',
+                          rendered)
+
+            self.assertRegex(rendered,
+                             'The following command.*additional metadata')
+            self.assertIn('barcodes_0_md = Metadata.load', rendered)
+            self.assertIn('barcodes_0_md.get_column(', rendered)
+            self.assertIn('dada2_actions.denoise_single', rendered)
+            self.assertIn('phylogeny_actions.align_to_tree_mafft_fasttree',
+                          rendered)
+            self.assertIn('diversity_actions.core_metrics_phylogenetic',
+                          rendered)
+
+    def test_replay_fp_use_md_without_parse(self):
+        in_fp = TEST_DATA['5']['qzv_fp']
+        with self.assertRaisesRegex(
+                ValueError, "Metadata not parsed for replay. Re-run"):
+            replay_fp(in_fp, 'unused_fp', 'python3',
+                      parse_metadata=False, use_recorded_metadata=True)
+
+
 class ReplayProvDAGTests(unittest.TestCase):
     def test_replay_provdag(self):
         v5_dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
@@ -115,8 +153,8 @@ class ReplayProvDAGTests(unittest.TestCase):
 
     def test_replay_provdag_use_md_without_parse(self):
         v5_dag = ProvDAG(TEST_DATA['5']['qzv_fp'],
-                         cfg=Config(perform_checksum_validation=False,
-                                    parse_study_metadata=False))
+                         validate_checksums=False,
+                         parse_metadata=False)
         with self.assertRaisesRegex(
                 ValueError, "Metadata not captured for replay"):
             replay_provdag(v5_dag, 'unused', 'python3',

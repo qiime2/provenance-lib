@@ -863,7 +863,7 @@ class ProvDAGTestsNoChecksumValidation(unittest.TestCase):
                 warnings.filterwarnings('ignore',  f'Art.*{uuid}.*prior')
                 cls.no_checksum_dags[archive_version] = ProvDAG(
                     str(TEST_DATA[archive_version]['qzv_fp']),
-                    cfg=Config(perform_checksum_validation=False))
+                    validate_checksums=False)
 
     # This should only trigger if something fails in setup or above
     # e.g. if a ProvDag fails to initialize
@@ -892,8 +892,7 @@ class ProvDAGTestsNoChecksumValidation(unittest.TestCase):
             root_uuid=TEST_DATA['5']['uuid'],
                 file_to_drop=drop_file) as chopped_archive:
 
-            a_dag = ProvDAG(chopped_archive,
-                            cfg=Config(perform_checksum_validation=False))
+            a_dag = ProvDAG(chopped_archive, validate_checksums=False)
 
             # Have we set provenance_is_valid correctly?
             self.assertEqual(
@@ -928,8 +927,7 @@ class ProvDAGTestsNoChecksumValidation(unittest.TestCase):
                         f"{root_uuid}.*corrupt"
                     )
                     with self.assertRaisesRegex(ValueError, expected):
-                        ProvDAG(chopped_archive,
-                                cfg=Config(perform_checksum_validation=False))
+                        ProvDAG(chopped_archive, validate_checksums=False)
 
 
 class EmptyParserTests(unittest.TestCase):

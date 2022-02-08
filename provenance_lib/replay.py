@@ -564,7 +564,28 @@ def camel_to_snake(name: str) -> str:
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
 
 
+def copy_aliased_action_citations_to_alias_node(dag: ProvDAG):
+    """
+    Pipeline nodes don't capture citations for the actions they alias, so
+    this populates pipeline citation dictionaries with aliased node data to
+    allow simple handling of collapsed-view provenance.
+
+    Not handled during parsing to reduce unnecessary overhead. E.g. union will
+    deduplicate nodes before this happens.
+    """
+    # TODO: TESTS
+    for node in dag:
+        p_n = dag.get_node_data(node)
+        if (aliases := p_n.action._action_details.get('alias-of')) is not None:
+            a_p_n = dag.get_node_data(aliases)
+        p_n.citations.citations.update(a_p_n.citations.citations)
+
+
 def collect_citations(dag: ProvDAG):
+    """
+    TODO
+    """
+    copy_aliased_action_citations_to_alias_node(dag)
     action_namespace = set()
     citation_keys = set()
     citations = dict()

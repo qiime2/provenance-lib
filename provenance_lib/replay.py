@@ -1,3 +1,5 @@
+import bibtexparser as bp
+from bibtexparser.bwriter import BibTexWriter
 import networkx as nx
 import pathlib
 import re
@@ -581,33 +583,51 @@ def copy_aliased_action_citations_to_alias_node(dag: ProvDAG):
         p_n.citations.citations.update(a_p_n.citations.citations)
 
 
-def collect_citations(dag: ProvDAG):
+def collect_citations(dag: ProvDAG) -> bp.bibdatabase.BibDatabase:
+    """
+    TODO
+    TODO: Warn if replay with no-prov nodes?
+    """
+    bdb = bp.bibdatabase.BibDatabase()
+    cits = {}
+    for n_id in dag:
+        cit = dag.get_node_data(n_id).citations.citations
+        cits.update(cit)
+    bdb.entries = list(cits.values())
+    return bdb
+
+
+def write_citations(dag: ProvDAG, out_fp: FileName):
     """
     TODO
     """
-    copy_aliased_action_citations_to_alias_node(dag)
-    action_namespace = set()
-    citation_keys = set()
-    citations = dict()
-    per_action_keys = dict()
-    sorted_nodes = nx.topological_sort(dag.collapsed_view)
-    actions = group_by_action(dag, sorted_nodes)
-    # TODO: Warn if replay with no-prov nodes?
-    for action_id in (std_actions := actions.std_actions):
-        a_node_from_this_action = next(iter(std_actions[action_id]))
-        node = dag.get_node_data(a_node_from_this_action)
-        plugin = node.action.plugin
-        action = node.action.action_name
-        # TODO: Consider whether we want action names or action ids here
-        action_name = uniquify_action_name(plugin, action, action_namespace)
-        node_citations = dag.get_node_data(a_node_from_this_action).citations
-        local_per_action_keys = set(node_citations.citations.keys())
-        citation_keys.update(local_per_action_keys)
-        citations.update(node_citations.citations)
-        # {action_id: {key1, key2}, ....}
-        try:
-            per_action_keys[action_name].update(local_per_action_keys)
-        except KeyError:
-            per_action_keys[action_name] = local_per_action_keys
+    bib_db = collect_citations(dag)
+    with open(out_fp, 'w') as bibfile:
+        bibfile.write(BibTexWriter().write(bib_db))
 
-    return (citation_keys, per_action_keys, citations)
+# def collect_citations_by_action(dag: ProvDAG):
+#     """
+#     TODO
+#     """
+#     # TODO: THIS NEEDS WORK
+#     # Load inner node citations into alias nodes
+#     copy_aliased_action_citations_to_alias_node(dag)
+#     action_namespace = set()
+#     per_action_keys = dict()
+#     sorted_nodes = nx.topological_sort(dag.collapsed_view)
+#     actions = group_by_action(dag, sorted_nodes)
+#     # TODO: Warn if replay with no-prov nodes?
+#     for action_id in (std_actions := actions.std_actions):
+#         a_node_from_this_action = next(iter(std_actions[action_id]))
+#         node = dag.get_node_data(a_node_from_this_action)
+#         plugin = node.action.plugin
+#         action = node.action.action_name
+#         # TODO: Consider whether we want action names or action ids here
+#         action_name = uniquify_action_name(plugin, action, action_namespace)
+#         node_citations = dag.get_node_data(a_node_from_this_action).citations
+#         local_per_action_keys = set(node_citations.citations.keys())
+#         # {action_id: {key1, key2}, ....}
+#         try:
+#             per_action_keys[action_name].update(local_per_action_keys)
+#         except KeyError:
+#             per_action_keys[action_name] = local_per_action_keys

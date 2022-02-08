@@ -377,10 +377,10 @@ class _Citations:
     """
     def __init__(self, zf: zipfile.ZipFile, fp: str):
         bib_db = bp.loads(zf.read(fp))
-        self.citations = {entry['ID']: entry for entry in bib_db.entries}
+        self.citations = bib_db.get_entry_dict()
 
     def __repr__(self):
-        keys = [entry for entry in self.citations]
+        keys = list(self.citations.keys())
         return (f"Citations({keys})")
 
 

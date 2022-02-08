@@ -20,7 +20,7 @@ from ..replay import (
     build_usage_examples, camel_to_snake, collect_citations,
     dump_recorded_md_file, group_by_action, init_md_from_artifacts,
     init_md_from_md_file, init_md_from_recorded_md, param_is_metadata_column,
-    replay_fp, replay_provdag, uniquify_action_name,
+    replay_fp, replay_provdag, uniquify_action_name, write_citations,
     )
 from .test_parse import DATA_DIR, TEST_DATA
 from .testing_utilities import CustomAssertions
@@ -94,7 +94,6 @@ class ReplayFPTests(unittest.TestCase):
 
             with open(out_fn, 'r') as fp:
                 rendered = fp.read()
-                print(rendered)
             self.assertIn('from qiime2 import Artifact', rendered)
             self.assertIn('from qiime2 import Metadata', rendered)
             self.assertIn(
@@ -931,14 +930,85 @@ class BuildActionUsageTests(CustomAssertions):
 
 
 class CitationsTests(unittest.TestCase):
+    def test_copy_aliased_action_citations(self):
+        # dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
+        # # TODO: check alias node citations before
+        # print(dag)
+        # # Run copier
+        # # Check alias node citations after
+        # self.assertTrue(False)
+        pass
+
     def test_collect_citations(self):
         dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
-        keys_set, per_action_keys, citations = collect_citations(dag)
-        # exp_keys = {}
+        exp_keys = {'framework|qiime2:2018.11.0|0',
+                    'action|feature-table:2018.11.0|method:rarefy|0',
+                    'view|types:2018.11.0|BIOMV210DirFmt|0',
+                    'view|types:2018.11.0|biom.table:Table|0',
+                    'plugin|dada2:2018.11.0|0',
+                    'action|alignment:2018.11.0|method:mafft|0',
+                    'action|diversity:2018.11.0|method:beta_phylogenetic|0',
+                    'action|diversity:2018.11.0|method:beta_phylogenetic|1',
+                    'action|diversity:2018.11.0|method:beta_phylogenetic|2',
+                    'action|diversity:2018.11.0|method:beta_phylogenetic|3',
+                    'action|diversity:2018.11.0|method:beta_phylogenetic|4',
+                    'view|types:2018.11.0|BIOMV210Format|0',
+                    'plugin|emperor:2018.11.0|0',
+                    'plugin|emperor:2018.11.0|1',
+                    'action|phylogeny:2018.11.0|method:fasttree|0',
+                    'action|alignment:2018.11.0|method:mask|0',
+                    }
+        citations = collect_citations(dag)
+        keys = set(citations.entries_dict.keys())
+        self.assertEqual(len(keys), len(exp_keys))
+        self.assertEqual(keys, exp_keys)
 
-        # TODO NEXT: Update citation parser so that it captures alias citations
-        # and brings them into citations.citations
-        print(keys_set)
-        print(per_action_keys)
-        print(citations.keys())
-        self.assertTrue(False)
+    def test_collect_citations_no_prov(self):
+        mixed = ProvDAG(os.path.join(DATA_DIR, 'mixed_v0_v1_uu_emperor.qzv'))
+        exp_keys = set()
+        citations = collect_citations(mixed)
+        keys = set(citations.entries_dict.keys())
+        self.assertEqual(len(keys), 0)
+        self.assertEqual(keys, exp_keys)
+
+    def test_write_citations(self):
+        dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
+        exp_keys = ['framework|qiime2:2018.11.0|0',
+                    'action|feature-table:2018.11.0|method:rarefy|0',
+                    'view|types:2018.11.0|BIOMV210DirFmt|0',
+                    'view|types:2018.11.0|biom.table:Table|0',
+                    'plugin|dada2:2018.11.0|0',
+                    'action|alignment:2018.11.0|method:mafft|0',
+                    'action|diversity:2018.11.0|method:beta_phylogenetic|0',
+                    'action|diversity:2018.11.0|method:beta_phylogenetic|1',
+                    'action|diversity:2018.11.0|method:beta_phylogenetic|2',
+                    'action|diversity:2018.11.0|method:beta_phylogenetic|3',
+                    'action|diversity:2018.11.0|method:beta_phylogenetic|4',
+                    'view|types:2018.11.0|BIOMV210Format|0',
+                    'plugin|emperor:2018.11.0|0',
+                    'plugin|emperor:2018.11.0|1',
+                    'action|phylogeny:2018.11.0|method:fasttree|0',
+                    'action|alignment:2018.11.0|method:mask|0',
+                    ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_fp = pathlib.Path(tmpdir) / 'citations.bib'
+            out_fn = str(out_fp)
+            write_citations(dag, out_fn)
+            self.assertTrue(out_fp.is_file())
+            with open(out_fn, 'r') as fp:
+                written = fp.read()
+                print(written)
+                for key in exp_keys:
+                    self.assertIn(key, written)
+
+    def test_collect_citations_no_prov(self):
+        mixed = ProvDAG(os.path.join(DATA_DIR, 'mixed_v0_v1_uu_emperor.qzv'))
+        exp = "No citations were recorded for this file."
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_fp = pathlib.Path(tmpdir) / 'citations.bib'
+            out_fn = str(out_fp)
+            write_citations(mixed, out_fn)
+            self.assertTrue(out_fp.is_file())
+            with open(out_fn, 'r') as fp:
+                written = fp.read()
+                self.assertEqual(exp, written)

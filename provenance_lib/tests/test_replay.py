@@ -17,10 +17,10 @@ from ..parse import ProvDAG
 from ..replay import (
     ActionCollections, ReplayConfig, UsageVarsDict, SUPPORTED_USAGE_DRIVERS,
     build_no_provenance_node_usage, build_import_usage, build_action_usage,
-    build_usage_examples, camel_to_snake, dump_recorded_md_file,
-    group_by_action, init_md_from_artifacts, init_md_from_md_file,
-    init_md_from_recorded_md, param_is_metadata_column, replay_fp,
-    replay_provdag, uniquify_action_name,
+    build_usage_examples, camel_to_snake, collect_citations,
+    dump_recorded_md_file, group_by_action, init_md_from_artifacts,
+    init_md_from_md_file, init_md_from_recorded_md, param_is_metadata_column,
+    replay_fp, replay_provdag, uniquify_action_name,
     )
 from .test_parse import DATA_DIR, TEST_DATA
 from .testing_utilities import CustomAssertions
@@ -928,3 +928,17 @@ class BuildActionUsageTests(CustomAssertions):
                 input_artifact_uuids=['a42ea02f-8c40-432c-9b88-e602f6cd3787'],
                 relative_fp='input.tsv'),
             ns, cfg)
+
+
+class CitationsTests(unittest.TestCase):
+    def test_collect_citations(self):
+        dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
+        keys_set, per_action_keys, citations = collect_citations(dag)
+        # exp_keys = {}
+
+        # TODO NEXT: Update citation parser so that it captures alias citations
+        # and brings them into citations.citations
+        print(keys_set)
+        print(per_action_keys)
+        print(citations.keys())
+        self.assertTrue(False)

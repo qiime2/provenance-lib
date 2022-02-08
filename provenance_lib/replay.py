@@ -214,8 +214,11 @@ def replay_provdag(dag: ProvDAG, out_fp: FileName,
 def group_by_action(dag: ProvDAG, nodes: Iterator[UUID]) -> ActionCollections:
     """
     Provenance is organized around outputs, but replay cares about actions.
-    This groups the nodes from a DAG by action, returning a dict of dicts
-    aggregating the outputs related to each action:
+    This groups the nodes from a DAG by action, returning an ActionCollections
+    aggregating the outputs related to each action.
+
+    Takes an iterator of UUIDs, allowing us to influence the ordering of the
+    grouping. TODO: We should probably just lock in the topological sort here?
 
     In cases where a captured output_name is unavailable, we substitute the
     output data's Semantic Type, snake-cased because it will be used as
@@ -248,6 +251,9 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
     actions_namespace = set()  # type: Set[str]
     usg_var_namespace = UsageVarsDict()
 
+    # TODO: This could probably be added to the dag as a property or method
+    # to enable memoization. Possible inside group_by_action? The only shift
+    # will be that group_by_action would have to take the collapsed view as arg
     sorted_nodes = nx.topological_sort(dag.collapsed_view)
     actions = group_by_action(dag, sorted_nodes)
 
@@ -556,3 +562,31 @@ def camel_to_snake(name: str) -> str:
     # camel to snake
     name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
+
+
+def collect_citations(dag: ProvDAG):
+    action_namespace = set()
+    citation_keys = set()
+    citations = dict()
+    per_action_keys = dict()
+    sorted_nodes = nx.topological_sort(dag.collapsed_view)
+    actions = group_by_action(dag, sorted_nodes)
+    # TODO: Warn if replay with no-prov nodes?
+    for action_id in (std_actions := actions.std_actions):
+        a_node_from_this_action = next(iter(std_actions[action_id]))
+        node = dag.get_node_data(a_node_from_this_action)
+        plugin = node.action.plugin
+        action = node.action.action_name
+        # TODO: Consider whether we want action names or action ids here
+        action_name = uniquify_action_name(plugin, action, action_namespace)
+        node_citations = dag.get_node_data(a_node_from_this_action).citations
+        local_per_action_keys = set(node_citations.citations.keys())
+        citation_keys.update(local_per_action_keys)
+        citations.update(node_citations.citations)
+        # {action_id: {key1, key2}, ....}
+        try:
+            per_action_keys[action_name].update(local_per_action_keys)
+        except KeyError:
+            per_action_keys[action_name] = local_per_action_keys
+
+    return (citation_keys, per_action_keys, citations)

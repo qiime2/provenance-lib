@@ -1,4 +1,4 @@
-name: lint-test
+name: lint-build-test
 
 on:
   pull_request:
@@ -31,7 +31,7 @@ jobs:
     steps:
     - name: deps
       run: |
-        $CONDA install -y wget 
+        conda install -y wget 
         wget https://data.qiime2.org/distro/core/qiime2-2021.11-py38-osx-conda.yml
         conda env create -n prov --file qiime2-2021.11-py38-osx-conda.yml
         conda activate prov

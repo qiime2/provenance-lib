@@ -36,7 +36,12 @@ jobs:
         wget https://data.qiime2.org/distro/core/qiime2-2021.11-py38-osx-conda.yml
         conda env create -n prov --file qiime2-2021.11-py38-osx-conda.yml
         conda init zsh
+        echo "These are the files modified by conda init zsh"
+        source /usr/local/miniconda/shell/condabin/conda-hook.ps1
+        source /Users/runner/.zshrc
         conda activate prov
+        echo $CWD
+        ls -l
         pip install -e .
     - name: checkout source
       uses: actions/checkout@v2

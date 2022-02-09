@@ -38,10 +38,14 @@ jobs:
         echo $SHELL
         source ${CONDA}/etc/profile.d/conda.sh
         conda activate prov
-        pip install -e .
     - name: checkout source
       uses: actions/checkout@v2
       with:
         fetch-depth: 0
+    - name: dev package install
+      run: |
+        echo $CWD
+        ls -l
+        pip install -e .
     - name: test
       run: make test

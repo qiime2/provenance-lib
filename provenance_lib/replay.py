@@ -1,7 +1,9 @@
 import bibtexparser as bp
 from bibtexparser.bwriter import BibTexWriter
 import networkx as nx
+import os
 import pathlib
+import pkg_resources
 import re
 from collections import UserDict
 from dataclasses import dataclass, field
@@ -566,44 +568,77 @@ def camel_to_snake(name: str) -> str:
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
 
 
-def copy_aliased_action_citations_to_alias_node(dag: ProvDAG):
+def collect_citations(dag: ProvDAG, deduped: bool = False) -> \
+        bp.bibdatabase.BibDatabase:
     """
-    Pipeline nodes don't capture citations for the actions they alias, so
-    this populates pipeline citation dictionaries with aliased node data to
-    allow simple handling of collapsed-view provenance.
+    Returns a BibDatabase of all unique citations from a ProvDAG.
 
-    Not handled during parsing to reduce unnecessary overhead. E.g. union will
-    deduplicate nodes before this happens.
-    """
-    # TODO: TESTS
-    for node in dag:
-        p_n = dag.get_node_data(node)
-        if (aliases := p_n.action._action_details.get('alias-of')) is not None:
-            a_p_n = dag.get_node_data(aliases)
-        p_n.citations.citations.update(a_p_n.citations.citations)
-
-
-def collect_citations(dag: ProvDAG) -> bp.bibdatabase.BibDatabase:
-    """
-    TODO
-    TODO: Warn if replay with no-prov nodes?
+    If deduped, collect_citations will attempt more extensive deduplication
+    of documents, e.g. by comparing DOI fields.
     """
     bdb = bp.bibdatabase.BibDatabase()
-    cits = {}
+    cits = []
     for n_id in dag:
-        cit = dag.get_node_data(n_id).citations.citations
-        cits.update(cit)
-    bdb.entries = list(cits.values())
+        p_node = dag.get_node_data(n_id)
+        # Skip no-prov nodes, which never have citations anyway
+        if p_node is not None:
+            cit = list(p_node.citations.values())
+            cits.extend(cit)
+    if deduped:
+        cits = dedupe_citations(cits)
+    bdb.entries = cits
     return bdb
 
 
-def write_citations(dag: ProvDAG, out_fp: FileName):
+def dedupe_citations(citations: List[Dict]) -> List[Dict]:
     """
-    TODO
+    Heuristic attempts to reduce duplication in citations lists.
+    E.g. capturing only one citation per DOI, ensuring one framework citation
     """
-    bib_db = collect_citations(dag)
-    with open(out_fp, 'w') as bibfile:
-        bibfile.write(BibTexWriter().write(bib_db))
+    dd_cits = []
+    fw_cited = False
+    doi_set = set()
+    for entry in citations:
+        # Write a single hardcoded framework citation
+        if 'framework|qiime2' in (id := entry['ID']):
+            if not fw_cited:
+                root = pkg_resources.resource_filename('provenance_lib', '.')
+                root = os.path.abspath(root)
+                path = os.path.join(root, 'q2_citation.bib')
+                with open(path) as bibtex_file:
+                    q2_entry = bp.load(bibtex_file).entries.pop()
+
+                q2_entry['ID'] = id
+                dd_cits.append(q2_entry)
+                fw_cited = True
+            continue
+
+        # Keep one entry per non-framework doi
+        if (doi := entry.get('doi')) is not None:
+            if doi not in doi_set:
+                dd_cits.append(entry)
+                doi_set.add(doi)
+
+    return dd_cits
+
+
+def write_citations(dag: ProvDAG, out_fp: FileName, deduped: bool = False):
+    """
+    Writes a .bib file representing all unique citations from a ProvDAG to disk
+
+    If deduped, collect_citations will attempt some heuristic deduplication
+    of documents, e.g. by comparing DOI fields, which may reduce manual
+    curation of reference lists.
+    """
+    bib_db = collect_citations(dag, deduped=deduped)
+    if bib_db.entries_dict == {}:
+        bib_db = "No citations were recorded for this file."
+        with open(out_fp, 'w') as bibfile:
+            bibfile.write(bib_db)
+    else:
+        with open(out_fp, 'w') as bibfile:
+            bibfile.write(BibTexWriter().write(bib_db))
+
 
 # def collect_citations_by_action(dag: ProvDAG):
 #     """

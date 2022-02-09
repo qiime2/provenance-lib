@@ -76,6 +76,13 @@ class ProvNode:
         return self.archive_version != '0'
 
     @property
+    def citations(self) -> Dict:
+        citations = {}
+        if hasattr(self, '_citations'):
+            citations = self._citations.citations
+        return citations
+
+    @property
     def metadata(self) -> Optional[Dict[str, pd.DataFrame]]:
         """
         A dict containing {parameter_name: metadata_dataframe} pairs, where
@@ -139,7 +146,7 @@ class ProvNode:
             elif fp.name == 'action.yaml':
                 self.action = _Action(zf, str(fp))
             elif fp.name == 'citations.bib':
-                self.citations = _Citations(zf, str(fp))
+                self._citations = _Citations(zf, str(fp))
             elif fp.name == 'checksums.md5':
                 # Handled in ProvDAG
                 pass
@@ -372,8 +379,11 @@ class _Action:
 
 class _Citations:
     """
-    citations for a single QIIME 2 Result, as a dict of dicts where each
-    inner dictionary represents one citation keyed on the citation's bibtex ID
+    citations for a single QIIME 2 Result, as a dict of citation dicts keyed
+    on the citation's bibtex ID.
+
+    This ID is also stored in the value dicts, making it straightforward to
+    convert these back to BibDatabase objects e.g. list(self.citations.values()
     """
     def __init__(self, zf: zipfile.ZipFile, fp: str):
         bib_db = bp.loads(zf.read(fp))

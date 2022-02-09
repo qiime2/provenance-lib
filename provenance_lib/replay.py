@@ -568,7 +568,7 @@ def camel_to_snake(name: str) -> str:
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
 
 
-def collect_citations(dag: ProvDAG, deduped: bool = False) -> \
+def collect_citations(dag: ProvDAG, deduped: bool = True) -> \
         bp.bibdatabase.BibDatabase:
     """
     Returns a BibDatabase of all unique citations from a ProvDAG.
@@ -613,8 +613,11 @@ def dedupe_citations(citations: List[Dict]) -> List[Dict]:
                 fw_cited = True
             continue
 
+        # Keep every entry without a doi
+        if (doi := entry.get('doi')) is None:
+            dd_cits.append(entry)
         # Keep one entry per non-framework doi
-        if (doi := entry.get('doi')) is not None:
+        else:
             if doi not in doi_set:
                 dd_cits.append(entry)
                 doi_set.add(doi)
@@ -622,7 +625,7 @@ def dedupe_citations(citations: List[Dict]) -> List[Dict]:
     return dd_cits
 
 
-def write_citations(dag: ProvDAG, out_fp: FileName, deduped: bool = False):
+def write_citations(dag: ProvDAG, out_fp: FileName, deduped: bool = True):
     """
     Writes a .bib file representing all unique citations from a ProvDAG to disk
 

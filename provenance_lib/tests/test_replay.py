@@ -929,7 +929,19 @@ class BuildActionUsageTests(CustomAssertions):
 
 
 class CitationsTests(unittest.TestCase):
-    def test_collect_citations(self):
+    def test_dedupe_citations(self):
+        fn = os.path.join(DATA_DIR, 'dupes.bib')
+        with open(fn) as bibtex_file:
+            bib_db = bp.load(bibtex_file)
+        deduped = dedupe_citations(bib_db.entries)
+        # Dedupe by DOI will preserve only one of the biom.table entries
+        self.assertEqual(len(deduped), 2)
+        # Confirm each paper is present. The len assertion ensures one-to-one
+        lower_keys = [entry['ID'].lower() for entry in deduped]
+        self.assertTrue(any('framework' in key for key in lower_keys))
+        self.assertTrue(any('biom' in key for key in lower_keys))
+
+    def test_collect_citations_no_deduped(self):
         dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
         exp_keys = {'framework|qiime2:2018.11.0|0',
                     'action|feature-table:2018.11.0|method:rarefy|0',
@@ -948,7 +960,7 @@ class CitationsTests(unittest.TestCase):
                     'action|phylogeny:2018.11.0|method:fasttree|0',
                     'action|alignment:2018.11.0|method:mask|0',
                     }
-        citations = collect_citations(dag)
+        citations = collect_citations(dag, deduped=False)
         keys = set(citations.entries_dict.keys())
         self.assertEqual(len(keys), len(exp_keys))
         self.assertEqual(keys, exp_keys)
@@ -975,18 +987,6 @@ class CitationsTests(unittest.TestCase):
         self.assertTrue(any('dada2' in key for key in lower_keys))
         self.assertTrue(any('biom' in key for key in lower_keys))
 
-    def test_dedupe_citations(self):
-        fn = os.path.join(DATA_DIR, 'dupes.bib')
-        with open(fn) as bibtex_file:
-            bib_db = bp.load(bibtex_file)
-        deduped = dedupe_citations(bib_db.entries)
-        # Dedupe by DOI will preserve only one of the biom.table entries
-        self.assertEqual(len(deduped), 2)
-        # Confirm each paper is present. The len assertion ensures one-to-one
-        lower_keys = [entry['ID'].lower() for entry in deduped]
-        self.assertTrue(any('framework' in key for key in lower_keys))
-        self.assertTrue(any('biom' in key for key in lower_keys))
-
     def test_collect_citations_no_prov(self):
         v0_uuid = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
         with self.assertWarnsRegex(
@@ -1004,7 +1004,6 @@ class CitationsTests(unittest.TestCase):
         exp_keys = ['framework|qiime2:2018.11.0|0',
                     'action|feature-table:2018.11.0|method:rarefy|0',
                     'view|types:2018.11.0|BIOMV210DirFmt|0',
-                    'view|types:2018.11.0|biom.table:Table|0',
                     'plugin|dada2:2018.11.0|0',
                     'action|alignment:2018.11.0|method:mafft|0',
                     'action|diversity:2018.11.0|method:beta_phylogenetic|0',
@@ -1012,7 +1011,6 @@ class CitationsTests(unittest.TestCase):
                     'action|diversity:2018.11.0|method:beta_phylogenetic|2',
                     'action|diversity:2018.11.0|method:beta_phylogenetic|3',
                     'action|diversity:2018.11.0|method:beta_phylogenetic|4',
-                    'view|types:2018.11.0|BIOMV210Format|0',
                     'plugin|emperor:2018.11.0|0',
                     'plugin|emperor:2018.11.0|1',
                     'action|phylogeny:2018.11.0|method:fasttree|0',

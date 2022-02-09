@@ -1035,13 +1035,3 @@ class CitationsTests(unittest.TestCase):
             with open(out_fn, 'r') as fp:
                 written = fp.read()
                 self.assertEqual(exp, written)
-
-# class ActionsReportTests(unittest.TestCase):
-    # def test_copy_aliased_action_citations(self):
-    #     dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
-    #     # TODO: check alias node citations before
-    #     print(dag)
-    #     # Run copier
-    #     # Check alias node citations after
-    #     self.assertTrue(False)
-    #     pass

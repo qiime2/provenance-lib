@@ -640,6 +640,25 @@ def write_citations(dag: ProvDAG, out_fp: FileName, deduped: bool = False):
             bibfile.write(BibTexWriter().write(bib_db))
 
 
+# TODO: Report software versions by action
+
+# def copy_aliased_action_citations_to_alias_node(dag: ProvDAG):
+#     """
+#     Pipeline nodes don't capture citations for the actions they alias, so
+#     this populates pipeline citation dictionaries with aliased node data to
+#     allow simple handling of collapsed-view provenance.
+
+#     Not handled during parsing to reduce unnecessary overhead. E.g. union
+#     will deduplicate nodes before this happens.
+#     """
+#     # TODO: TESTS
+#     for node in dag:
+#         p_n = dag.get_node_data(node)
+#         if (aliases := p_n.action._action_details.get('alias-of')) \
+#             is not None:
+#             a_p_n = dag.get_node_data(aliases)
+#         p_n.citations.citations.update(a_p_n.citations.citations)
+
 # def collect_citations_by_action(dag: ProvDAG):
 #     """
 #     TODO

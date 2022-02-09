@@ -988,7 +988,11 @@ class CitationsTests(unittest.TestCase):
         self.assertTrue(any('biom' in key for key in lower_keys))
 
     def test_collect_citations_no_prov(self):
-        mixed = ProvDAG(os.path.join(DATA_DIR, 'mixed_v0_v1_uu_emperor.qzv'))
+        v0_uuid = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
+            mixed = ProvDAG(os.path.join(DATA_DIR,
+                            'mixed_v0_v1_uu_emperor.qzv'))
         exp_keys = set()
         citations = collect_citations(mixed)
         keys = set(citations.entries_dict.keys())
@@ -1025,7 +1029,11 @@ class CitationsTests(unittest.TestCase):
                     self.assertIn(key, written)
 
     def test_write_citations_no_prov(self):
-        mixed = ProvDAG(os.path.join(DATA_DIR, 'mixed_v0_v1_uu_emperor.qzv'))
+        v0_uuid = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
+            mixed = ProvDAG(os.path.join(DATA_DIR,
+                            'mixed_v0_v1_uu_emperor.qzv'))
         exp = "No citations were recorded for this file."
         with tempfile.TemporaryDirectory() as tmpdir:
             out_fp = pathlib.Path(tmpdir) / 'citations.bib'

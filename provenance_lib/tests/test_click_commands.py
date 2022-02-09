@@ -92,11 +92,8 @@ class ReportCitationsTests(CustomAssertions):
                 bib_database = bp.load(bibtex_file)
                 self.assertEqual(len(exp), len(bib_database.entries))
 
-            with open(out_fn, 'r') as fp:
-                written = fp.read()
-
             for record in set(exp):
-                self.assertIn(record, written)
+                self.assertIn(record, bib_database.entries_dict.keys())
 
     def test_write_citations_from_artifact_no_deduped(self):
         in_fp = TEST_DATA['5']['qzv_fp']
@@ -111,9 +108,6 @@ class ReportCitationsTests(CustomAssertions):
 
             self.assertEqual(res.exit_code, 0)
             self.assertTrue(out_fp.is_file())
-
-            with open(out_fn, 'r') as fp:
-                written = fp.read()
 
             exp = ['action|alignment:2018.11.0|method:mafft|0',
                    'action|alignment:2018.11.0|method:mask|0',
@@ -151,9 +145,9 @@ class ReportCitationsTests(CustomAssertions):
                    'view|types:2018.11.0|BIOMV210Format|0',
                    ]
 
-            for record in set(exp):
-                self.assertIn(record, written)
-
             with open(out_fn) as bibtex_file:
                 bib_database = bp.load(bibtex_file)
                 self.assertEqual(len(exp), len(bib_database.entries))
+
+            for record in set(exp):
+                self.assertIn(record, bib_database.entries_dict.keys())

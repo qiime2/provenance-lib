@@ -1,5 +1,9 @@
+import bibtexparser as bp
+from bibtexparser.bwriter import BibTexWriter
 import networkx as nx
+import os
 import pathlib
+import pkg_resources
 import re
 from collections import UserDict
 from dataclasses import dataclass, field
@@ -214,8 +218,11 @@ def replay_provdag(dag: ProvDAG, out_fp: FileName,
 def group_by_action(dag: ProvDAG, nodes: Iterator[UUID]) -> ActionCollections:
     """
     Provenance is organized around outputs, but replay cares about actions.
-    This groups the nodes from a DAG by action, returning a dict of dicts
-    aggregating the outputs related to each action:
+    This groups the nodes from a DAG by action, returning an ActionCollections
+    aggregating the outputs related to each action.
+
+    Takes an iterator of UUIDs, allowing us to influence the ordering of the
+    grouping. TODO: We should probably just lock in the topological sort here?
 
     In cases where a captured output_name is unavailable, we substitute the
     output data's Semantic Type, snake-cased because it will be used as
@@ -248,6 +255,9 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
     actions_namespace = set()  # type: Set[str]
     usg_var_namespace = UsageVarsDict()
 
+    # TODO: This could probably be added to the dag as a property or method
+    # to enable memoization. Possible inside group_by_action? The only shift
+    # will be that group_by_action would have to take the collapsed view as arg
     sorted_nodes = nx.topological_sort(dag.collapsed_view)
     actions = group_by_action(dag, sorted_nodes)
 
@@ -556,3 +566,78 @@ def camel_to_snake(name: str) -> str:
     # camel to snake
     name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
+
+
+def collect_citations(dag: ProvDAG, deduped: bool = True) -> \
+        bp.bibdatabase.BibDatabase:
+    """
+    Returns a BibDatabase of all unique citations from a ProvDAG.
+
+    If deduped, collect_citations will attempt more extensive deduplication
+    of documents, e.g. by comparing DOI fields.
+    """
+    bdb = bp.bibdatabase.BibDatabase()
+    cits = []
+    for n_id in dag:
+        p_node = dag.get_node_data(n_id)
+        # Skip no-prov nodes, which never have citations anyway
+        if p_node is not None:
+            cit = list(p_node.citations.values())
+            cits.extend(cit)
+    if deduped:
+        cits = dedupe_citations(cits)
+    bdb.entries = cits
+    return bdb
+
+
+def dedupe_citations(citations: List[Dict]) -> List[Dict]:
+    """
+    Heuristic attempts to reduce duplication in citations lists.
+    E.g. capturing only one citation per DOI, ensuring one framework citation
+    """
+    dd_cits = []
+    fw_cited = False
+    doi_set = set()
+    for entry in citations:
+        # Write a single hardcoded framework citation
+        if 'framework|qiime2' in (id := entry['ID']):
+            if not fw_cited:
+                root = pkg_resources.resource_filename('provenance_lib', '.')
+                root = os.path.abspath(root)
+                path = os.path.join(root, 'q2_citation.bib')
+                with open(path) as bibtex_file:
+                    q2_entry = bp.load(bibtex_file).entries.pop()
+
+                q2_entry['ID'] = id
+                dd_cits.append(q2_entry)
+                fw_cited = True
+            continue
+
+        # Keep every entry without a doi
+        if (doi := entry.get('doi')) is None:
+            dd_cits.append(entry)
+        # Keep one entry per non-framework doi
+        else:
+            if doi not in doi_set:
+                dd_cits.append(entry)
+                doi_set.add(doi)
+
+    return dd_cits
+
+
+def write_citations(dag: ProvDAG, out_fp: FileName, deduped: bool = True):
+    """
+    Writes a .bib file representing all unique citations from a ProvDAG to disk
+
+    If deduped, collect_citations will attempt some heuristic deduplication
+    of documents, e.g. by comparing DOI fields, which may reduce manual
+    curation of reference lists.
+    """
+    bib_db = collect_citations(dag, deduped=deduped)
+    if bib_db.entries_dict == {}:
+        bib_db = "No citations were recorded for this file."
+        with open(out_fp, 'w') as bibfile:
+            bibfile.write(bib_db)
+    else:
+        with open(out_fp, 'w') as bibfile:
+            bibfile.write(BibTexWriter().write(bib_db))

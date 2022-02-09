@@ -1,7 +1,8 @@
 import click
 import os
 
-from .replay import DRIVER_CHOICES, DRIVER_NAMES, replay_fp
+from .parse import ProvDAG
+from .replay import DRIVER_CHOICES, DRIVER_NAMES, replay_fp, write_citations
 from .util import FileName
 
 
@@ -43,3 +44,24 @@ def replay(i_in_fp: FileName, o_out_fp: FileName,
               use_recorded_metadata=p_use_recorded_metadata)
     filename = os.path.realpath(o_out_fp)
     click.echo(f'Replay script written to {filename}')
+
+
+@click.command()
+@click.option('--i-in-fp', help='The filepath to a QIIME 2 Artifact')
+@click.option('--p-deduped/--p-no-deduped',
+              default=True,
+              show_default=True,
+              help=('If deduped, collect_citations will attempt some heuristic'
+                    'deduplication of documents, e.g. by comparing DOI fields,'
+                    ' which may reduce manual curation of reference lists.'))
+@click.option('--o-out-fp',
+              help='the filepath where your bibtex file should be written.')
+def write_citations_from_artifact(i_in_fp: FileName, o_out_fp: FileName,
+                                  p_deduped: bool = True):
+    """
+    Convenience method to parse a ProvDAG and write a citations.bib to disk
+    """
+    dag = ProvDAG(i_in_fp)
+    write_citations(dag, out_fp=o_out_fp, deduped=p_deduped)
+    filename = os.path.realpath(o_out_fp)
+    click.echo(f'Citations bibtex file written to {filename}')

@@ -19,7 +19,7 @@ setup(
    packages=find_packages(),
    install_requires=['bibtexparser>=1.0', 'Click', 'flake8', 'mypy',
                      'networkx', 'pandas', 'pytest>=6', 'pytest-cov>=2.0',
-                     'pyyaml>=5.3',
+                     'pyyaml>=5.3', 'types-setuptools',
                      ],
    entry_points={
        'console_scripts': [

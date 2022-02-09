@@ -1,3 +1,4 @@
+import bibtexparser as bp
 import networkx as nx
 import os
 import pandas as pd
@@ -17,10 +18,10 @@ from ..parse import ProvDAG
 from ..replay import (
     ActionCollections, ReplayConfig, UsageVarsDict, SUPPORTED_USAGE_DRIVERS,
     build_no_provenance_node_usage, build_import_usage, build_action_usage,
-    build_usage_examples, camel_to_snake, dump_recorded_md_file,
-    group_by_action, init_md_from_artifacts, init_md_from_md_file,
-    init_md_from_recorded_md, param_is_metadata_column, replay_fp,
-    replay_provdag, uniquify_action_name,
+    build_usage_examples, camel_to_snake, collect_citations, dedupe_citations,
+    dump_recorded_md_file, group_by_action, init_md_from_artifacts,
+    init_md_from_md_file, init_md_from_recorded_md, param_is_metadata_column,
+    replay_fp, replay_provdag, uniquify_action_name, write_citations,
     )
 from .test_parse import DATA_DIR, TEST_DATA
 from .testing_utilities import CustomAssertions
@@ -94,7 +95,6 @@ class ReplayFPTests(unittest.TestCase):
 
             with open(out_fn, 'r') as fp:
                 rendered = fp.read()
-                print(rendered)
             self.assertIn('from qiime2 import Artifact', rendered)
             self.assertIn('from qiime2 import Metadata', rendered)
             self.assertIn(
@@ -132,7 +132,6 @@ class ReplayProvDAGTests(unittest.TestCase):
 
             with open(out_path, 'r') as fp:
                 rendered = fp.read()
-                print(rendered)
             self.assertIn('from qiime2 import Artifact', rendered)
             self.assertIn('from qiime2 import Metadata', rendered)
             self.assertIn(
@@ -796,7 +795,6 @@ class BuildActionUsageTests(CustomAssertions):
         unq_var_nm = out_name_raw + '_0'
         build_action_usage(node, ns, a_ns, acts.std_actions, act_id, cfg)
         rendered = cfg.use.render()
-        print(rendered)
         out_name = ns[n_id].to_interface_name()
 
         self.assertIsInstance(ns[n_id], UsageVariable)
@@ -928,3 +926,118 @@ class BuildActionUsageTests(CustomAssertions):
                 input_artifact_uuids=['a42ea02f-8c40-432c-9b88-e602f6cd3787'],
                 relative_fp='input.tsv'),
             ns, cfg)
+
+
+class CitationsTests(unittest.TestCase):
+    def test_dedupe_citations(self):
+        fn = os.path.join(DATA_DIR, 'dupes.bib')
+        with open(fn) as bibtex_file:
+            bib_db = bp.load(bibtex_file)
+        deduped = dedupe_citations(bib_db.entries)
+        # Dedupe by DOI will preserve only one of the biom.table entries
+        self.assertEqual(len(deduped), 2)
+        # Confirm each paper is present. The len assertion ensures one-to-one
+        lower_keys = [entry['ID'].lower() for entry in deduped]
+        self.assertTrue(any('framework' in key for key in lower_keys))
+        self.assertTrue(any('biom' in key for key in lower_keys))
+
+    def test_collect_citations_no_deduped(self):
+        dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
+        exp_keys = {'framework|qiime2:2018.11.0|0',
+                    'action|feature-table:2018.11.0|method:rarefy|0',
+                    'view|types:2018.11.0|BIOMV210DirFmt|0',
+                    'view|types:2018.11.0|biom.table:Table|0',
+                    'plugin|dada2:2018.11.0|0',
+                    'action|alignment:2018.11.0|method:mafft|0',
+                    'action|diversity:2018.11.0|method:beta_phylogenetic|0',
+                    'action|diversity:2018.11.0|method:beta_phylogenetic|1',
+                    'action|diversity:2018.11.0|method:beta_phylogenetic|2',
+                    'action|diversity:2018.11.0|method:beta_phylogenetic|3',
+                    'action|diversity:2018.11.0|method:beta_phylogenetic|4',
+                    'view|types:2018.11.0|BIOMV210Format|0',
+                    'plugin|emperor:2018.11.0|0',
+                    'plugin|emperor:2018.11.0|1',
+                    'action|phylogeny:2018.11.0|method:fasttree|0',
+                    'action|alignment:2018.11.0|method:mask|0',
+                    }
+        citations = collect_citations(dag, deduped=False)
+        keys = set(citations.entries_dict.keys())
+        self.assertEqual(len(keys), len(exp_keys))
+        self.assertEqual(keys, exp_keys)
+
+    def test_collect_deduped(self):
+        v5_tbl = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
+        std_keys = {'framework|qiime2:2018.11.0|0',
+                    'view|types:2018.11.0|BIOMV210DirFmt|0',
+                    'view|types:2018.11.0|biom.table:Table|0',
+                    'plugin|dada2:2018.11.0|0'}
+        citations = collect_citations(v5_tbl, deduped=False)
+        keys = set(citations.entries_dict.keys())
+        self.assertEqual(len(keys), len(std_keys))
+        self.assertEqual(keys, std_keys)
+
+        citations = collect_citations(v5_tbl, deduped=True)
+        keys = set(citations.entries_dict.keys())
+        # Dedupe by DOI will drop one of the biom.table entries
+        self.assertEqual(len(keys), 3)
+        # We want to confirm each paper is present - it doesn't matter which
+        # biom entry is dropped.
+        lower_keys = [key.lower() for key in keys]
+        self.assertTrue(any('framework' in key for key in lower_keys))
+        self.assertTrue(any('dada2' in key for key in lower_keys))
+        self.assertTrue(any('biom' in key for key in lower_keys))
+
+    def test_collect_citations_no_prov(self):
+        v0_uuid = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
+            mixed = ProvDAG(os.path.join(DATA_DIR,
+                            'mixed_v0_v1_uu_emperor.qzv'))
+        exp_keys = set()
+        citations = collect_citations(mixed)
+        keys = set(citations.entries_dict.keys())
+        self.assertEqual(len(keys), 0)
+        self.assertEqual(keys, exp_keys)
+
+    def test_write_citations(self):
+        dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
+        exp_keys = ['framework|qiime2:2018.11.0|0',
+                    'action|feature-table:2018.11.0|method:rarefy|0',
+                    'view|types:2018.11.0|BIOMV210DirFmt|0',
+                    'plugin|dada2:2018.11.0|0',
+                    'action|alignment:2018.11.0|method:mafft|0',
+                    'action|diversity:2018.11.0|method:beta_phylogenetic|0',
+                    'action|diversity:2018.11.0|method:beta_phylogenetic|1',
+                    'action|diversity:2018.11.0|method:beta_phylogenetic|2',
+                    'action|diversity:2018.11.0|method:beta_phylogenetic|3',
+                    'action|diversity:2018.11.0|method:beta_phylogenetic|4',
+                    'plugin|emperor:2018.11.0|0',
+                    'plugin|emperor:2018.11.0|1',
+                    'action|phylogeny:2018.11.0|method:fasttree|0',
+                    'action|alignment:2018.11.0|method:mask|0',
+                    ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_fp = pathlib.Path(tmpdir) / 'citations.bib'
+            out_fn = str(out_fp)
+            write_citations(dag, out_fn)
+            self.assertTrue(out_fp.is_file())
+            with open(out_fn, 'r') as fp:
+                written = fp.read()
+                for key in exp_keys:
+                    self.assertIn(key, written)
+
+    def test_write_citations_no_prov(self):
+        v0_uuid = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
+            mixed = ProvDAG(os.path.join(DATA_DIR,
+                            'mixed_v0_v1_uu_emperor.qzv'))
+        exp = "No citations were recorded for this file."
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_fp = pathlib.Path(tmpdir) / 'citations.bib'
+            out_fn = str(out_fp)
+            write_citations(mixed, out_fn)
+            self.assertTrue(out_fp.is_file())
+            with open(out_fn, 'r') as fp:
+                written = fp.read()
+                self.assertEqual(exp, written)

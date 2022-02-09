@@ -3,20 +3,20 @@ from click.testing import CliRunner
 import pathlib
 import tempfile
 
-from ..click_commands import replay, write_citations_from_artifact
+from ..click_commands import citations, provenance
 from .test_parse import TEST_DATA
 from .testing_utilities import CustomAssertions
 
 
 class ReplayTests(CustomAssertions):
-    def test_replay(self):
+    def test_provenance(self):
         in_fp = TEST_DATA['5']['qzv_fp']
         in_fn = str(in_fp)
         with tempfile.TemporaryDirectory() as tmpdir:
             out_fp = pathlib.Path(tmpdir) / 'rendered.txt'
             out_fn = str(out_fp)
             res = CliRunner().invoke(
-                cli=replay,
+                cli=provenance,
                 args=(f"--i-in-fp {in_fn} --o-out-fp {out_fn}"))
 
             self.assertEqual(res.exit_code, 0)
@@ -45,12 +45,12 @@ class ReplayTests(CustomAssertions):
             self.assertIn('parameter name was not found', rendered)
             self.assertIn('--?-n-jobs 1', rendered)
 
-    def test_replay_use_md_without_parse(self):
+    def test_provenance_use_md_without_parse(self):
         in_fp = TEST_DATA['5']['qzv_fp']
         in_fn = str(in_fp)
         out_fn = 'unused_fp'
         res = CliRunner().invoke(
-            cli=replay,
+            cli=provenance,
             args=(f"--i-in-fp {in_fn} --o-out-fp {out_fn} "
                   "--p-no-parse-metadata --p-use-recorded-metadata"))
         self.assertEqual(res.exit_code, 1)
@@ -59,14 +59,14 @@ class ReplayTests(CustomAssertions):
 
 
 class ReportCitationsTests(CustomAssertions):
-    def test_write_citations_from_artifact(self):
+    def test_citations(self):
         in_fp = TEST_DATA['5']['qzv_fp']
         in_fn = str(in_fp)
         with tempfile.TemporaryDirectory() as tmpdir:
             out_fp = pathlib.Path(tmpdir) / 'citations.bib'
             out_fn = str(out_fp)
             res = CliRunner().invoke(
-                cli=write_citations_from_artifact,
+                cli=citations,
                 args=(f"--i-in-fp {in_fn} --o-out-fp {out_fn}"))
 
             self.assertEqual(res.exit_code, 0)
@@ -95,14 +95,14 @@ class ReportCitationsTests(CustomAssertions):
             for record in set(exp):
                 self.assertIn(record, bib_database.entries_dict.keys())
 
-    def test_write_citations_from_artifact_no_deduped(self):
+    def test_citations_no_deduped(self):
         in_fp = TEST_DATA['5']['qzv_fp']
         in_fn = str(in_fp)
         with tempfile.TemporaryDirectory() as tmpdir:
             out_fp = pathlib.Path(tmpdir) / 'citations.bib'
             out_fn = str(out_fp)
             res = CliRunner().invoke(
-                cli=write_citations_from_artifact,
+                cli=citations,
                 args=(f"--i-in-fp {in_fn} --o-out-fp {out_fn} "
                       "--p-no-deduped"))
 

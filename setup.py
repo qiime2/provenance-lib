@@ -22,8 +22,6 @@ setup(
                      'pyyaml>=5.3', 'types-setuptools',
                      ],
    entry_points={
-       'console_scripts': [
-           'replay-provenance = provenance_lib.click_commands:replay',
-       ]
+       'console_scripts': ['replay = provenance_lib.click_commands:replay']
    }
 )

@@ -6,7 +6,12 @@ from .replay import DRIVER_CHOICES, DRIVER_NAMES, replay_fp, write_citations
 from .util import FileName
 
 
-@click.command()
+@click.group()
+def replay():
+    pass  # pragma: no cover
+
+
+@replay.command()
 @click.option('--i-in-fp', help='The filepath to a QIIME 2 Artifact')
 @click.option('--p-usage-driver-name',
               default='cli',
@@ -28,14 +33,13 @@ from .util import FileName
               help='re-use the original metadata captured by provenance')
 @click.option('--o-out-fp',
               help='the filepath where your replay script should be written.')
-def replay(i_in_fp: FileName, o_out_fp: FileName,
-           p_usage_driver_name: DRIVER_CHOICES,
-           p_validate_checksums: bool = True,
-           p_parse_metadata: bool = True,
-           p_use_recorded_metadata: bool = False):
+def provenance(i_in_fp: FileName, o_out_fp: FileName,
+               p_usage_driver_name: DRIVER_CHOICES,
+               p_validate_checksums: bool = True,
+               p_parse_metadata: bool = True,
+               p_use_recorded_metadata: bool = False):
     """
-    One-shot replay from a filepath string, through a ProvDAG to a written
-    executable
+    Replay provenance from a QIIME 2 Artifact filepath to a written executable
     """
     replay_fp(in_fp=i_in_fp, out_fp=o_out_fp,
               usage_driver_name=p_usage_driver_name,
@@ -46,7 +50,7 @@ def replay(i_in_fp: FileName, o_out_fp: FileName,
     click.echo(f'Replay script written to {filename}')
 
 
-@click.command()
+@replay.command()
 @click.option('--i-in-fp', help='The filepath to a QIIME 2 Artifact')
 @click.option('--p-deduped/--p-no-deduped',
               default=True,
@@ -56,10 +60,9 @@ def replay(i_in_fp: FileName, o_out_fp: FileName,
                     ' which may reduce manual curation of reference lists.'))
 @click.option('--o-out-fp',
               help='the filepath where your bibtex file should be written.')
-def write_citations_from_artifact(i_in_fp: FileName, o_out_fp: FileName,
-                                  p_deduped: bool = True):
+def citations(i_in_fp: FileName, o_out_fp: FileName, p_deduped: bool = True):
     """
-    Convenience method to parse a ProvDAG and write a citations.bib to disk
+    Report all citations from a QIIME 2 Artifact.
     """
     dag = ProvDAG(i_in_fp)
     write_citations(dag, out_fp=o_out_fp, deduped=p_deduped)

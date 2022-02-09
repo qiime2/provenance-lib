@@ -61,8 +61,7 @@ class UsageVarsDictTests(unittest.TestCase):
         ns = UsageVarsDict({uuid: base_name})
         self.assertEqual(ns[uuid], exp_name)
 
-        def factory():
-            # TODO: Pytest-cov thinks this lil dude is not executed. ???
+        def factory():  # pragma: no cover
             return Artifact.load(os.path.join(DATA_DIR, 'v5_table.qza'))
         u_var = use.init_artifact(ns[uuid], factory)
         self.assertEqual(u_var.name, exp_name)

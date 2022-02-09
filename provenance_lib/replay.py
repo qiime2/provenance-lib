@@ -447,7 +447,7 @@ def init_md_from_recorded_md(node: ProvNode, unique_md_id: str,
     parameter_name = namespace[unique_md_id][:-2]
     md_df = node.metadata[parameter_name]
 
-    def factory():
+    def factory():  # pragma: no cover
         from qiime2 import Metadata
         return Metadata(md_df)
 

@@ -31,21 +31,13 @@ jobs:
     steps:
     - name: checkout source
       uses: actions/checkout@v2
-    - name: install qiime2
+    - name: install deps and pkg
       run: |
-        set -x
         conda install -y wget 
         wget https://data.qiime2.org/distro/core/qiime2-2021.11-py38-osx-conda.yml
         conda env create -n prov --file qiime2-2021.11-py38-osx-conda.yml
-        rm qiime2-2021.11-py38-osx-conda.yml
-    - name: dev package install
-      run: |
-        echo $CWD
-        ls -l
-        python --version
         source ${CONDA}/etc/profile.d/conda.sh
         conda activate prov
-        python --version
         pip install -e .
     - name: test
       run: |

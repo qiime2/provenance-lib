@@ -34,7 +34,8 @@ jobs:
         conda install -y wget 
         wget https://data.qiime2.org/distro/core/qiime2-2021.11-py38-osx-conda.yml
         conda env create -n prov --file qiime2-2021.11-py38-osx-conda.yml
-        conda init bash
+        echo $SHELL
+        source ${CONDA}/etc/profile.d/conda.sh
         conda activate prov
         pip install -e .
     - name: checkout source

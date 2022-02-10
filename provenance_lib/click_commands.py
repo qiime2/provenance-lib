@@ -11,8 +11,9 @@ def replay():
     pass  # pragma: no cover
 
 
-@replay.command()
-@click.option('--i-in-fp', help='The filepath to a QIIME 2 Artifact')
+@replay.command(no_args_is_help=True)
+@click.option('--i-in-fp', required=True,
+              help='The filepath to a QIIME 2 Artifact')
 @click.option('--p-usage-driver-name',
               default='cli',
               show_default=True,
@@ -32,6 +33,7 @@ def replay():
               show_default=True,
               help='re-use the original metadata captured by provenance')
 @click.option('--o-out-fp',
+              required=True,
               help='the filepath where your replay script should be written.')
 def provenance(i_in_fp: FileName, o_out_fp: FileName,
                p_usage_driver_name: DRIVER_CHOICES,
@@ -50,8 +52,9 @@ def provenance(i_in_fp: FileName, o_out_fp: FileName,
     click.echo(f'Replay script written to {filename}')
 
 
-@replay.command()
-@click.option('--i-in-fp', help='The filepath to a QIIME 2 Artifact')
+@replay.command(no_args_is_help=True)
+@click.option('--i-in-fp', required=True,
+              help='The filepath to a QIIME 2 Artifact')
 @click.option('--p-deduped/--p-no-deduped',
               default=True,
               show_default=True,
@@ -59,6 +62,7 @@ def provenance(i_in_fp: FileName, o_out_fp: FileName,
                     'deduplication of documents, e.g. by comparing DOI fields,'
                     ' which may reduce manual curation of reference lists.'))
 @click.option('--o-out-fp',
+              required=True,
               help='the filepath where your bibtex file should be written.')
 def citations(i_in_fp: FileName, o_out_fp: FileName, p_deduped: bool = True):
     """

@@ -42,6 +42,7 @@ def provenance(i_in_fp: FileName, o_out_fp: FileName,
                p_use_recorded_metadata: bool = False):
     """
     Replay provenance from a QIIME 2 Artifact filepath to a written executable
+    TODO: accept fp argument for recorded_metadata folder
     """
     replay_fp(in_fp=i_in_fp, out_fp=o_out_fp,
               usage_driver_name=p_usage_driver_name,

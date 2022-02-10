@@ -2,7 +2,7 @@
 Software to support scientific reproducibility, attribution,
 and collaboration on the QIIME 2 platform.
 
-# About
+## About
 provenance_lib parses the computational history ( or "provenance") of QIIME 2
 results into a directed graph structure, enabling study validation and automation,
 and improving collaboration on and reporting of QIIME 2 analyses.
@@ -14,13 +14,13 @@ provenance_lib lets you:
 - report the citations, computational actions, and software versions used
   during an analysis for publication
 
-# Installation
+## Installation
 - `git clone` or otherwise download this repo
 - [Install QIIME 2](https://docs.qiime2.org/2021.11/install/) in a conda environment
 - `conda activate` your QIIME 2 environment
 - `pip install -e .` from the repo root directory
 
-# Use - CLI
+## Use - CLI
 provenance_lib offers tools for the command line under the name `replay`.
 
 `replay --help` renders a list of available commands.
@@ -42,7 +42,7 @@ replay citations \
 See the helptext for complete details, including information on which commands
 are required and which are optional and/or have default values.
 
-# Use - Python API
+## Use - Python API
 More power and flexibility are available to users of the Python API.
 The basic workflow proceeds as follows:
 - `import provenance_lib`
@@ -53,7 +53,7 @@ The basic workflow proceeds as follows:
 
 Full API documentation pending. Thanks for your patience!
 
-# Questions/User Support?
+## Questions/User Support?
 Please raise user support questions in the [Community Plugin Support category
 of the QIIME 2 Forum](https://forum.qiime2.org/c/community-plugin-support/).
 Mentioning me in your post, @ChrisKeefe,
@@ -62,6 +62,6 @@ will help me respond to your questions quickly.
 Please *do not* raise user support questions as issues on the Github repository.
 They may be closed without response as off topic.
 
-# Contributing
+## Contributing
 I look forward to accepting developer contributions in the near future.
 In the meantime, bug reports and feature request issues will be warmly welcomed.

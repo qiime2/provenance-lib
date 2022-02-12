@@ -56,26 +56,30 @@ class GetVersionTests(unittest.TestCase):
 
     def test_parse_version_no_VERSION_file(self):
         with zipfile.ZipFile(self.v5_no_version) as zf:
+            fn = 'VERSION_missing.qzv'
             with self.assertRaisesRegex(
-                    ValueError, f'(?s)VERSION.*nonexistent.*{self.uuid}'):
+                    ValueError, f'(?s)VERSION.*nonexistent.*{fn}'):
                 parse_version(zf)
 
     def test_parse_version_VERSION_bad(self):
         with zipfile.ZipFile(self.v5_qzv_version_bad) as zf:
+            fn = 'VERSION_bad.qzv'
             with self.assertRaisesRegex(
-                    ValueError, f'VERSION.*out of spec.*{self.uuid}'):
+                    ValueError, f'VERSION.*out of spec.*{fn}'):
                 parse_version(zf)
 
     def test_short_VERSION(self):
         with zipfile.ZipFile(self.v5_qzv_version_short) as zf:
+            fn = 'VERSION_short.qzv'
             with self.assertRaisesRegex(
-                    ValueError, f'VERSION.*out of spec.*{self.uuid}'):
+                    ValueError, f'VERSION.*out of spec.*{fn}'):
                 parse_version(zf)
 
     def test_long_VERSION(self):
+        fn = 'VERSION_long.qzv'
         with zipfile.ZipFile(self.v5_qzv_version_long) as zf:
             with self.assertRaisesRegex(
-                    ValueError, f'VERSION.*out of spec.*{self.uuid}'):
+                    ValueError, f'VERSION.*out of spec.*{fn}'):
                 parse_version(zf)
 
     def test_version_nums(self):

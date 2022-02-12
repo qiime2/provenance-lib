@@ -508,7 +508,7 @@ class ParserV0(ArtifactParser):
         root_md_fp = root_uuid + '/metadata.yaml'
         if root_md_fp not in zf.namelist():
             raise ValueError("Malformed Archive: root metadata.yaml file "
-                             "misplaced or nonexistent")
+                             f"misplaced or nonexistent in {zf.filename}")
         return _ResultMetadata(zf, root_md_fp)
 
     def _validate_checksums(self, zf: zipfile.ZipFile) -> \
@@ -636,7 +636,8 @@ class ParserV1(ParserV0):
                                 checksum_validator.ValidationCode.INVALID
                             error_contents += (
                                 f"{fp.name} file for node {node_uuid} "
-                                "misplaced or nonexistent.\n")
+                                f"misplaced or nonexistent in {zf.filename}.\n"
+                                )
 
                     if(files_are_missing):
                         error_contents += (

@@ -547,9 +547,10 @@ class ProvDAGTests(unittest.TestCase):
                     # Fudging this to match what the user sees - 'action.yaml'
                     if name == 'action/action.yaml':
                         name = 'action.yaml'
+                    fn = 'mangled.qzv'
                     expected = (
                         f"(?s)Malformed.*{name}.*{node_uuid}.*"
-                        f"{root_uuid}.*corrupt"
+                        f"{fn}.*corrupt"
                     )
                     with self.assertRaisesRegex(ValueError, expected):
                         # Only v5 warns on this, so an assert would be clunky
@@ -922,9 +923,10 @@ class ProvDAGTestsNoChecksumValidation(unittest.TestCase):
                     # Fudging this to match what the user sees - 'action.yaml'
                     if name == 'action/action.yaml':
                         name = 'action.yaml'
+                    fn = 'mangled.qzv'
                     expected = (
                         f"(?s)Malformed.*{name}.*{node_uuid}.*"
-                        f"{root_uuid}.*corrupt"
+                        f"{fn}.*corrupt"
                     )
                     with self.assertRaisesRegex(ValueError, expected):
                         ProvDAG(chopped_archive, validate_checksums=False)

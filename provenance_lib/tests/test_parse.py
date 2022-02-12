@@ -1067,6 +1067,10 @@ class ParseProvenanceTests(unittest.TestCase):
         self.assertEqual(res.provenance_is_valid, ValidationCode.VALID)
         self.assertEqual(res.checksum_diff, None)
 
+    def test_parse_with_directory_parser(self):
+        # TODO
+        pass
+
     def test_no_correct_parser_found_error(self):
         """
         Nothing blows up here, it's just not the right kind of filepath
@@ -1077,7 +1081,25 @@ class ParseProvenanceTests(unittest.TestCase):
             UnparseableDataError,
             f"(?s)Input data {input_data}.*not supported.*"
             "AttributeError.*ArtifactParser.*dict.*no attribute.*seek.*"
+            "DirectoryParser.*expects a directory.*"
             "ProvDAGParser.*is not a ProvDAG.*"
             "EmptyParser.*is not None"
                 ):
             select_parser(input_data)
+
+
+class DirectoryParserTests(unittest.TestCase):
+    def test_smoke(self):
+        dag = ProvDAG(DATA_DIR + '/parse_dir_test/')
+        print(dag)
+        # TODO: ProvDAG should be called twice with this test set
+        # (v5_table is a parent of v5_uu_emperor so already represented in dag)
+
+        # TODO: the resulting dag should repr all three artifacts even though
+        # we skipped v5_table (89af, I think)
+        self.assertTrue(True)
+
+    # TEST: multiple levels of folder recursion
+    # TEST: Dir has no .qza/v
+    # TEST: is .qza fp, not dir
+    # TEST: is ProvDAG or NoneType

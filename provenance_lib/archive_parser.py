@@ -2,6 +2,7 @@ import abc
 from dataclasses import dataclass
 from io import BytesIO
 import networkx as nx
+import os
 import pandas as pd
 import pathlib
 from datetime import timedelta
@@ -423,7 +424,7 @@ class Parser(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def parse_prov(cls, cfg: Config, data: Any) -> ParserResults:
+    def parse_prov(self, cfg: Config, data: Any) -> ParserResults:
         """
         Parse provenance returning a ParserResults
         """
@@ -432,14 +433,21 @@ class Parser(metaclass=abc.ABCMeta):
 class ArtifactParser(Parser):
     # description from (and more details available at)
     # https://docs.python.org/3/library/zipfile.html#zipfile-objects
-    accepted_data_types = ("a path to a file (a string), "
-                           "a file-like object or a path-like object")
+    accepted_data_types = ("a path to a file (a string) or a file-like object")
 
     @classmethod
     def get_parser(cls, artifact_data: Any) -> Parser:
         """
         Returns the correct archive format parser for a zip archive.
         """
+        try:
+            is_dir = os.path.isdir(artifact_data)
+        except TypeError:
+            is_dir = False
+
+        if is_dir:
+            raise ValueError("ArtifactParser expects a file, not a directory")
+
         try:
             # By trying to open artifact_data directly, we get more
             # informative errors than with `if zipfile.is_zipfile():`

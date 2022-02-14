@@ -593,6 +593,18 @@ class ProvDAGTests(unittest.TestCase):
         self.assertEqual(dag.get_node_data(a_as_md_uuid).type,
                          'FeatureData[Taxonomy]')
 
+    def test_artifact_with_collection_of_inputs(self):
+        fp = os.path.join(DATA_DIR, 'merged_tbls.qza')
+        root_uuid = '2a045e27-7f3a-4d83-b358-8d39373708cb'
+        dag = ProvDAG(fp)
+        root_node = dag.get_node_data(root_uuid)
+        self.assertEqual(root_node.type, 'FeatureTable[Frequency]')
+        exp_parents = {
+            '84898e39-f6e0-44bb-8fa1-6df2f330af68',
+            '0be6c7be-ad84-4417-9f1c-cade0a8a9b58'
+        }
+        self.assertEqual(dag.predecessors(root_uuid), exp_parents)
+
     def test_provdag_initialized_from_a_provdag(self):
         for dag in self.dags.values():
             copied = ProvDAG(dag)

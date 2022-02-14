@@ -355,6 +355,21 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
             cfg = Config(parse_study_metadata=False)
             cls.dont_parse_md_files_node = ProvNode(cfg, zf, root_md_fps)
 
+        # build a node with a collection as input
+        with zipfile.ZipFile(os.path.join(DATA_DIR, 'merged_tbls.qza')) as zf:
+            all_filenames = zf.namelist()
+            root_md_fnames = filter(is_root_provnode_data, all_filenames)
+            root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
+            cls.input_collection_node = ProvNode(cfg, zf, root_md_fps)
+
+        # build a node with an optional input that defaults to None
+        with zipfile.ZipFile(
+                os.path.join(DATA_DIR, 'optional_input_none.qzv')) as zf:
+            all_filenames = zf.namelist()
+            root_md_fnames = filter(is_root_provnode_data, all_filenames)
+            root_md_fps = [pathlib.Path(fp) for fp in root_md_fnames]
+            cls.optional_input_node = ProvNode(cfg, zf, root_md_fps)
+
     def test_smoke(self):
         self.assertTrue(True)
         for node_vzn in self.nodes:
@@ -542,3 +557,16 @@ class ProvNodeTests(unittest.TestCase, ReallyEqualMixin):
             import_node = ProvNode(Config(), zf, import_node_fps)
 
         self.assertEqual(import_node._parents, [])
+
+    def test_parents_for_table_with_collection_of_inputs(self):
+        exp = [{'tables_0': "84898e39-f6e0-44bb-8fa1-6df2f330af68"},
+               {'tables_1': "0be6c7be-ad84-4417-9f1c-cade0a8a9b58"}]
+        parents = self.input_collection_node._parents
+        self.assertEqual(parents, exp)
+
+    def test_parents_for_table_with_optional_input(self):
+        # NOTE: The None-type input is not captured
+        exp = [{'artifact_passed_as_metadata':
+                "1cc80a0b-1415-49b1-9d58-bd9394e5f613"}]
+        parents = self.optional_input_node._parents
+        self.assertEqual(parents, exp)

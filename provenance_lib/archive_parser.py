@@ -110,6 +110,8 @@ class ProvNode:
 
         Returns [] if this "action" is an Import
 
+        # TODO: I think this is no longer true, so long as the user
+        # sticks with the provided relabel method. Are there otheres?
         NOTE: This property is "private" because it is unsafe,
         reporting original node IDs that are not updated if the user renames
         nodes using the ProvDAG/networkx API (e.g. nx.relabel_nodes).
@@ -122,11 +124,26 @@ class ProvNode:
             return None
 
         inputs = self.action._action_details.get('inputs')
-        parents = [] if inputs is None else inputs
-        # Remove Nonetype optional inputs
-        parents = [parent for parent in parents
-                   if next(iter(parent.values())) is not None]
-
+        parents = []
+        if inputs is not None:
+            # Inputs are a list of single-item dicts, so we have to
+            for input in inputs:
+                name, value = next(iter(input.items()))
+                # value is usually a uuid, but may be a collection of uuids.
+                # the following are specced in qiime2/core/type/collection
+                if type(value) in (set, list, tuple):
+                    for i in range(len(value)):
+                        # Make these unique in case the single-item dicts get
+                        # merged into a single dict downstream.
+                        unq_name = f'{name}_{i}'
+                        parents.append({unq_name: value[i]})
+                elif value is not None:
+                    parents.append({name: value})
+                else:
+                    # skip None-by-default optional inputs
+                    # covered by test_parents_for_table_with_optional_input
+                    pass  # pragma: no cover
+        print(parents)
         return parents + self._artifacts_passed_as_md
 
     def __init__(self, cfg: Config, zf: zipfile.ZipFile,

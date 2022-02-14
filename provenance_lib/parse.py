@@ -361,18 +361,16 @@ class DirectoryParser(Parser):
         This behavior assumes that the ArchiveParsers capture all nodes
         within the archives they parse by default.
         """
-        search_exp = data.rstrip('/') + '/**/*.qz[av]'
+        search_exp = str(data).rstrip('/') + '/**/*.qz[av]'
         artifacts_to_parse = glob.glob(search_exp, recursive=True)
         if not artifacts_to_parse:
             raise ValueError(f"No .qza or .qzv files present in {data}")
 
-        # This empty dag lets us check whether UUIDs are present and union
         dag = ProvDAG()
         for archive in artifacts_to_parse:
             with zipfile.ZipFile(archive) as zf:
                 root_id = get_root_uuid(zf)
-            if (root_id in dag.dag and dag.get_node_data(root_id) is None) \
-                    or root_id not in dag.dag:
+            if archive_not_parsed(root_id, dag):
                 dag = ProvDAG.union(
                     [dag,
                      ProvDAG(archive,
@@ -389,6 +387,15 @@ class DirectoryParser(Parser):
             dag.provenance_is_valid,
             dag.checksum_diff,
             )
+
+
+def archive_not_parsed(root_id: UUID, dag: ProvDAG) -> bool:
+    """
+    returns True if the archive with root_uuid has not been parsed into dag
+    (not in the dag at all, or added only as a !no-provenance parent id)
+    """
+    return (root_id in dag.dag and dag.get_node_data(root_id) is None) \
+        or root_id not in dag.dag
 
 
 class ProvDAGParser(Parser):

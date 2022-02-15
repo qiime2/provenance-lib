@@ -1176,3 +1176,22 @@ class DirectoryParserTests(unittest.TestCase):
         viz = ProvDAG(os.path.join(base_dir, 'v5_uu_emperor.qzv'))
         union_dag = ProvDAG.union([tbl, tree, viz])
         self.assertEqual(dir_dag, union_dag)
+
+    def test_directory_parser_multiple_imports(self):
+        base_dir = os.path.join(DATA_DIR, 'multiple_imports_test')
+        inner_dir = os.path.join(base_dir, 'duplicated_inner')
+        inner_dir_dag = ProvDAG(inner_dir)
+        s1_id = '4f6794e7-0e34-46d9-9a48-3fbc7900430e'
+        s2_id = 'b4fd43fb-91c3-45f6-9672-7cf8fd90bc0b'
+        self.assertEqual(len(inner_dir_dag), 2)
+        self.assertIn(s1_id, inner_dir_dag.dag)
+        self.assertIn(s2_id, inner_dir_dag.dag)
+
+        # Despite the two pairs of duplicate files with different names,
+        # this DAG should be identical to the inner.
+        dir_dag = ProvDAG(base_dir)
+        self.assertEqual(len(inner_dir_dag), 2)
+        self.assertIn(s1_id, inner_dir_dag.dag)
+        self.assertIn(s2_id, inner_dir_dag.dag)
+
+        self.assertEqual(dir_dag, inner_dir_dag)

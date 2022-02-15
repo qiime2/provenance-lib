@@ -17,5 +17,5 @@ qiime emperor plot \
   # QIIME 2 environment. This may occur when the plugin version you have
   # installed does not match the version used in the original analysis.
   # Please see the docs and correct the parameter name before running.
-  --?-custom_axis DaysSinceExperimentStart \
+  --?-custom-axis DaysSinceExperimentStart \
   --o-visualization visualization-0.qzv

@@ -60,6 +60,51 @@ class ReplayPythonUsage(ArtifactAPIUsage):
         self._add(lines)
         return var
 
+    def import_from_format(self, name, semantic_type, variable,
+                           view_type=None):
+        """
+        Identical to super.import_from_format, but writes <your data here>
+        instead of import_fp
+        """
+        imported_var = Usage.import_from_format(
+            self, name, semantic_type, variable, view_type=view_type)
+
+        interface_name = imported_var.to_interface_name()
+        # import_fp = variable.to_interface_name()
+        import_fp = "<your data here>"
+
+        lines = [
+            '%s = Artifact.import_data(' % (interface_name,),
+            self.INDENT + '%r,' % (semantic_type,),
+            self.INDENT + '%r,' % (import_fp,),
+        ]
+
+        if view_type is not None:
+            if type(view_type) is not str:
+                # Show users where these formats come from when used in the
+                # Python API to make things less "magical".
+                import_path = super()._canonical_module(view_type)
+                view_type = view_type.__name__
+                if import_path is not None:
+                    self._update_imports(from_=import_path,
+                                         import_=view_type)
+                else:
+                    # May be in scope already, but something is quite wrong at
+                    # this point, so assume the plugin_manager is sufficiently
+                    # informed.
+                    view_type = repr(view_type)
+            else:
+                view_type = repr(view_type)
+
+            lines.append(self.INDENT + '%s,' % (view_type,))
+
+        lines.append(')')
+
+        self._update_imports(from_='qiime2', import_='Artifact')
+        self._add(lines)
+
+        return imported_var
+
 
 class ReplayCLIUsage(CLIUsage):
     def _append_action_line(self, signature, param_name, value):
@@ -88,6 +133,37 @@ class ReplayCLIUsage(CLIUsage):
             line += self.INDENT + '--?-' + cli_name + ' ' + str(value)
             line += ' \\'
             self.recorder.append(line)
+
+    def import_from_format(self, name, semantic_type, variable,
+                           view_type=None):
+        """
+        Identical to super.import_from_format, but writes --input-path <your
+        data here>
+        """
+        # We need the super().super() here, so pass self to Usage.import_fr...
+        imported_var = Usage.import_from_format(
+            self, name, semantic_type, variable, view_type=view_type)
+
+        # in_fp = variable.to_interface_name()
+        out_fp = imported_var.to_interface_name()
+
+        lines = [
+            'qiime tools import \\',
+            self.INDENT + '--type %r \\' % (semantic_type,)
+        ]
+
+        if view_type is not None:
+            lines.append(
+                self.INDENT + '--input-format %s \\' % (view_type,))
+
+        lines += [
+            self.INDENT + '--input-path <your data here> \\',
+            self.INDENT + '--output-path %s' % (out_fp,),
+        ]
+
+        self.recorder.extend(lines)
+
+        return imported_var
 
 
 DRIVER_CHOICES = Literal['python3', 'cli']

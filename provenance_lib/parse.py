@@ -95,13 +95,14 @@ class ProvDAG:
     def __init__(self, artifact_data: Any = None,
                  validate_checksums: bool = True,
                  parse_metadata: bool = True,
+                 verbose: bool = False,
                  ):
         """
         Create a ProvDAG (digraph) by getting a parser from the parser
         dispatcher, using it to parse the incoming data into a ParserResults,
         and then loading those Results into key fields.
         """
-        cfg = Config(validate_checksums, parse_metadata)
+        cfg = Config(validate_checksums, parse_metadata, verbose)
         parser_results = parse_provenance(cfg, artifact_data)
 
         self.cfg = cfg
@@ -368,6 +369,8 @@ class DirectoryParser(Parser):
 
         dag = ProvDAG()
         for archive in artifacts_to_parse:
+            if cfg.verbose:
+                print("Parsing", archive)
             with zipfile.ZipFile(archive) as zf:
                 root_id = get_root_uuid(zf)
             if archive_not_parsed(root_id, dag):

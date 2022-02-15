@@ -26,6 +26,7 @@ for key in CONSTRUCTOR_REGISTRY:
 class Config():
     perform_checksum_validation: bool = True
     parse_study_metadata: bool = True
+    verbose: bool = False
 
 
 @dataclass
@@ -143,7 +144,6 @@ class ProvNode:
                     # skip None-by-default optional inputs
                     # covered by test_parents_for_table_with_optional_input
                     pass  # pragma: no cover
-        print(parents)
         return parents + self._artifacts_passed_as_md
 
     def __init__(self, cfg: Config, zf: zipfile.ZipFile,

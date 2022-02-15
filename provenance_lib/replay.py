@@ -105,6 +105,7 @@ class ReplayConfig():
     pm: PluginManager = PluginManager()
     md_context_has_been_printed: bool = False
     no_provenance_context_has_been_printed: bool = False
+    verbose: bool = False
 
 
 @dataclass(frozen=False)
@@ -182,7 +183,8 @@ def replay_fp(in_fp: FileName, out_fp: FileName,
               usage_driver_name: DRIVER_CHOICES,
               validate_checksums: bool = True,
               parse_metadata: bool = True,
-              use_recorded_metadata: bool = False):
+              use_recorded_metadata: bool = False,
+              verbose: bool = False):
     """
     One-shot replay from a filepath string, through a ProvDAG to a written
     executable
@@ -191,13 +193,15 @@ def replay_fp(in_fp: FileName, out_fp: FileName,
         raise ValueError(
             "Metadata not parsed for replay. Re-run with parse_metadata = "
             "True or use_recorded_metadata = False")
-    dag = ProvDAG(in_fp, validate_checksums, parse_metadata)
-    replay_provdag(dag, out_fp, usage_driver_name, use_recorded_metadata)
+    dag = ProvDAG(in_fp, validate_checksums, parse_metadata, verbose)
+    replay_provdag(dag, out_fp, usage_driver_name, use_recorded_metadata,
+                   verbose)
 
 
 def replay_provdag(dag: ProvDAG, out_fp: FileName,
                    usage_driver: DRIVER_CHOICES,
-                   use_recorded_metadata: bool = False):
+                   use_recorded_metadata: bool = False,
+                   verbose: bool = False):
     """
     Renders usage examples describing a ProvDAG, producing an interface-
     specific executable.
@@ -208,7 +212,8 @@ def replay_provdag(dag: ProvDAG, out_fp: FileName,
             "use_recorded_metadata to False")
 
     cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS[usage_driver](),
-                       use_recorded_metadata=use_recorded_metadata)
+                       use_recorded_metadata=use_recorded_metadata,
+                       verbose=verbose)
     build_usage_examples(dag, cfg)
     output = cfg.use.render()
     with open(out_fp, mode='w') as out_fh:
@@ -434,8 +439,8 @@ def init_md_from_recorded_md(node: ProvNode, unique_md_id: str,
     Raises a ValueError if the node has no metadata
 
     TODO: If we decide to "touchless" replay with recorded metadata, we needn't
-    render, but if replay with recorded metadat isn't touchless (i.e. if it
-    also writes a rendered executable), we we'll need to render Python
+    render, but if replay with recorded metadata isn't touchless (i.e. if it
+    also writes a rendered executable), we'll need to render Python
     differently (e.g. with an actual filepath, not the current "you have
     options" comment). This is probably easiest with another variant driver
     """

@@ -158,6 +158,58 @@ class ReplayProvDAGTests(unittest.TestCase):
             replay_provdag(v5_dag, 'unused', 'python3',
                            use_recorded_metadata=True)
 
+    def test_replay_provdag_ns_collision(self):
+        # This artifact's dag contains a few results with the output-name
+        # filtered-table, so is a good check for namespace collisions if
+        # we're not uniquifying variable names properly.
+        dag = ProvDAG(os.path.join(DATA_DIR, 'ns_collision.qza'))
+        drivers = ['python3', 'cli']
+        for driver in drivers:
+            print(driver)
+            with tempfile.TemporaryDirectory() as tmpdir:
+                out_path = pathlib.Path(tmpdir) / 'ns_coll.txt'
+                # replay_provdag(dag, out_path, 'python3')
+                replay_provdag(dag, out_path, driver)
+
+                with open(out_path, 'r') as fp:
+                    rendered = fp.read()
+                    # print(rendered)
+        self.assertTrue(False)
+
+
+class ReplayProvDAGDirectoryTests(unittest.TestCase):
+    def test_directory_replay_multiple_imports(self):
+        """
+        The multiple_imports dir being parsed here contains two duplicates,
+        and should replay as only two import statements.
+        """
+        s1_id = '4f6794e7-0e34-46d9-9a48-3fbc7900430e'
+        s2_id = 'b4fd43fb-91c3-45f6-9672-7cf8fd90bc0b'
+        base_dir = os.path.join(DATA_DIR, 'multiple_imports_test')
+        dir_dag = ProvDAG(base_dir)
+        self.assertEqual(len(dir_dag._parsed_artifact_uuids), 2)
+        self.assertIn(s1_id, dir_dag.dag)
+        self.assertIn(s2_id, dir_dag.dag)
+
+        exp = (
+            '(?s)from qiime2 import Artifact.*'
+            'emp_single_end_sequences_0 = Artifact.import_data.*'
+            'EMPSingleEndSequences.*'
+            '<your data here>.*'
+            'multiplexed_single_end_barcode_in_sequence_0 = Artifact.import.*'
+            'MultiplexedSingleEndBarcodeInSequence.*'
+            '<your data here>.*'
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_path = pathlib.Path(tmpdir) / 'rendered.txt'
+            replay_provdag(dir_dag, out_path, 'python3')
+            self.assertTrue(out_path.is_file())
+
+            with open(out_path, 'r') as fp:
+                rendered = fp.read()
+                print(rendered)
+                self.assertRegex(rendered, exp)
+
 
 class BuildUsageExamplesTests(unittest.TestCase):
     @patch('provenance_lib.replay.build_action_usage')

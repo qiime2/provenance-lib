@@ -338,6 +338,8 @@ class _Action:
         plugin = self._action_details.get('plugin')
         if self.action_type == 'import':
             plugin = 'framework'
+        # This plugin id will be sent to the PM during replay, so python-style
+        plugin = plugin.replace('-', '_')
         return plugin
 
     @property

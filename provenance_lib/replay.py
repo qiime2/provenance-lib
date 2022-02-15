@@ -442,26 +442,26 @@ def build_action_usage(node: ProvNode,
     plg_action_name = uniquify_action_name(plugin, action, action_namespace)
 
     inputs = {}
-    for k, v in node.action.inputs.items():
+    for input_name, uuid in node.action.inputs.items():
         # Some optional params take None as a default
-        if v is not None:
-            inputs.update({k: namespace[v]})
+        if uuid is not None:
+            inputs.update({input_name: namespace[uuid]})
 
     # Process outputs before params so we can access the unique output name
     # from the namespace when dumping metadata to files below
     raw_outputs = std_actions[action_id].items()
     outputs = {}
-    for k, v in raw_outputs:
-        namespace.update({k: v})
-        uniquified_v = namespace[k]
-        outputs.update({v: uniquified_v})
+    for uuid, output_name in raw_outputs:
+        namespace.update({uuid: output_name})
+        uniquified_output_name = namespace[uuid]
+        outputs.update({output_name: uniquified_output_name})
 
-    for k, v in node.action.parameters.items():
-        if isinstance(v, MetadataInfo):
-            unique_md_id = namespace[node._uuid] + '_' + k
-            namespace.update({unique_md_id: camel_to_snake(k)})
+    for param_name, param_val in node.action.parameters.items():
+        if isinstance(param_val, MetadataInfo):
+            unique_md_id = namespace[node._uuid] + '_' + param_name
+            namespace.update({unique_md_id: camel_to_snake(param_name)})
             md_fn = namespace[unique_md_id] + '.tsv'
-            dump_recorded_md_file(node, plg_action_name, k, md_fn)
+            dump_recorded_md_file(node, plg_action_name, param_name, md_fn)
 
             if cfg.use_recorded_metadata:
                 md = init_md_from_recorded_md(
@@ -485,14 +485,14 @@ def build_action_usage(node: ProvNode,
                         "your metadata needs adequately, review the original\n"
                         f"metadata, saved at '{fp}'\n")
 
-                if not v.input_artifact_uuids:
+                if not param_val.input_artifact_uuids:
                     md = init_md_from_md_file(
-                        node, k, unique_md_id, namespace, cfg)
+                        node, param_name, unique_md_id, namespace, cfg)
                 else:
-                    md = init_md_from_artifacts(v, namespace, cfg)
+                    md = init_md_from_artifacts(param_val, namespace, cfg)
 
-            v = md
-        inputs.update({k: v})
+            param_val = md
+        inputs.update({param_name: param_val})
 
     usg_var = cfg.use.action(
         cfg.use.UsageAction(plugin_id=plugin, action_id=action),

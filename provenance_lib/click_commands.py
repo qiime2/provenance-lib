@@ -2,7 +2,8 @@ import click
 import os
 
 from .parse import ProvDAG
-from .replay import DRIVER_CHOICES, DRIVER_NAMES, replay_fp, write_citations
+from .replay import replay_fp, write_citations
+from .usage_drivers import DRIVER_CHOICES, DRIVER_NAMES
 from .util import FileName
 
 

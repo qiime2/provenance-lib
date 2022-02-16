@@ -15,9 +15,31 @@ from .util import FileName
 from .yaml_constructors import MetadataInfo
 
 from q2cli.core.usage import CLIUsage
-from qiime2.plugins import ArtifactAPIUsage
+from qiime2.plugins import ArtifactAPIUsage, ArtifactAPIUsageVariable
 from qiime2.sdk import PluginManager
 from qiime2.sdk.usage import Usage, UsageVariable
+
+
+# TODO: Move these drivers off module
+class ReplayPythonUsageVariable(ArtifactAPIUsageVariable):
+    def to_interface_name(self):
+        if self.var_type == 'format':
+            return self.name
+
+        parts = {
+            'artifact': [self.name],
+            'visualization': [self.name, 'viz'],
+            'metadata': [self.name, 'md'],
+            'column': [self.name],
+            # No format here - it shouldn't be possible to make it this far
+        }[self.var_type]
+        var_name = '_'.join(parts)
+        # NOTE: This will no longer guarantee valid python identifiers,
+        # because it allows <>. We get more human-readable no-prov node names.
+        # Alternately, we could replace < and > with e.g. ___, which is
+        # unlikely to occur and is still a valid python identifier
+        var_name = re.sub(r'[^a-zA-Z0-9_<>]|^(?=\d)', '_', var_name)
+        return self.repr_raw_variable_name(var_name)
 
 
 class ReplayPythonUsage(ArtifactAPIUsage):
@@ -104,6 +126,9 @@ class ReplayPythonUsage(ArtifactAPIUsage):
         self._add(lines)
 
         return imported_var
+
+    def usage_variable(self, name, factory, var_type):
+        return ReplayPythonUsageVariable(name, factory, var_type, self)
 
 
 class ReplayCLIUsage(CLIUsage):
@@ -228,7 +253,10 @@ class UsageVarsDict(UserDict):
         """
         some_int = 0
         unique_name = f"{var_name}_{some_int}"
-        while unique_name in self.data.values():
+        values = self.data.values()
+        # no-prov nodes are stored with angle brackets around them, but
+        # those brackets shouldn't be considered on uniqueness check
+        while unique_name in values or f'<{unique_name}>' in values:
             some_int += 1
             unique_name = f"{var_name}_{some_int}"
         return unique_name
@@ -247,6 +275,12 @@ class UsageVarsDict(UserDict):
             if value == val:
                 return key
         raise KeyError(f"passed value '{value}' does not exist in this dict.")
+
+    def wrap_val_in_angle_brackets(self, key: UUID):
+        super().__setitem__(key, f'<{self.data[key]}>')
+
+    def align_value_with_usage_var_name(self, key: UUID, var: UsageVariable):
+        super().__setitem__(key, str(var.to_interface_name()))
 
 
 @dataclass(frozen=False)
@@ -344,8 +378,7 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
 
     for node_id in actions.no_provenance_nodes:
         n_data = dag.get_node_data(node_id)
-        build_no_provenance_node_usage(
-            n_data, node_id, usg_ns.usg_var_namespace, cfg)
+        build_no_provenance_node_usage(n_data, node_id, usg_ns, cfg)
 
     for action_id in (std_actions := actions.std_actions):
         some_node_id_from_this_action = next(iter(std_actions[action_id]))
@@ -358,7 +391,7 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
 
 def build_no_provenance_node_usage(node: Optional[ProvNode],
                                    uuid: UUID,
-                                   usg_var_namespace: UsageVarsDict,
+                                   ns: NamespaceCollections,
                                    cfg: ReplayConfig):
     """
     Given a ProvNode (with no provenance), does something useful with it.
@@ -385,12 +418,23 @@ def build_no_provenance_node_usage(node: Optional[ProvNode],
         cfg.use.comment(
             "Original Node ID                       String Description")
     if node is None:
-        # This occurs when the node is known only from a child node's prov,
-        # and we have no information beyond UUID
-        usg_var_namespace.update({uuid: 'no-provenance-node'})
+        # the node is a !no-provenance input and we have only UUID
+        var_name = 'no-provenance-node'
     else:
-        usg_var_namespace.update({uuid: camel_to_snake(node.type)})
-    cfg.use.comment(f"{uuid}   {usg_var_namespace[uuid]}")
+        var_name = camel_to_snake(node.type)
+    ns.usg_var_namespace.update({uuid: var_name})
+    ns.usg_var_namespace.wrap_val_in_angle_brackets(uuid)
+
+    # Make a usage variable for downstream consumption
+    empty_var = cfg.use.usage_variable(
+        ns.usg_var_namespace[uuid], lambda: None, 'artifact')
+    ns.usg_vars.update({uuid: empty_var})
+
+    # Align the namespace name with the usage var name
+    ns.usg_var_namespace.align_value_with_usage_var_name(uuid, empty_var)
+
+    # Log the no-prov node
+    cfg.use.comment(f"{uuid}   {ns.usg_vars[uuid].to_interface_name()}")
 
 
 def build_import_usage(node: ProvNode,
@@ -539,7 +583,7 @@ def init_md_from_recorded_md(node: ProvNode, unique_md_id: str,
 
 
 def init_md_from_md_file(node: ProvNode, param_name: str, md_id: str,
-                         namespace: UsageVarsDict, cfg: ReplayConfig) -> \
+                         ns: UsageVarsDict, cfg: ReplayConfig) -> \
         UsageVariable:
     """
     initializes and returns a Metadata UsageVariable with no real data,
@@ -547,10 +591,12 @@ def init_md_from_md_file(node: ProvNode, param_name: str, md_id: str,
     """
     plugin = node.action.plugin
     action = node.action.action_name
-    md = cfg.use.init_metadata(namespace[md_id], lambda: None)
-    # TODO: Uniqueness is enforced for 'some' here, so fix this.
+    md = cfg.use.init_metadata(ns[md_id], lambda: None)
     if param_is_metadata_column(cfg, param_name, plugin, action):
-        md = cfg.use.get_metadata_column('some', '<column_name>', md)
+        mdc_id = node._uuid + '_mdc'
+        mdc_name = ns[md_id] + '_mdc'
+        ns.update({mdc_id: mdc_name})
+        md = cfg.use.get_metadata_column(ns[mdc_id], '<column_name>', md)
     return md
 
 

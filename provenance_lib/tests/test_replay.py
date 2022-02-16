@@ -213,7 +213,6 @@ class ReplayProvDAGDirectoryTests(unittest.TestCase):
 
             with open(out_path, 'r') as fp:
                 rendered = fp.read()
-                print(rendered)
                 self.assertRegex(rendered, exp)
 
 
@@ -634,18 +633,20 @@ merged_artifacts_md = thing1_md.merge(thing2_md, thing3_md)"""
         self.assertIsInstance(var, UsageVariable)
         self.assertEqual(var.var_type, 'column')
         rendered = var.use.render()
+        mdc_name = 'barcodes_0_mdc_0'
         self.assertRegex(rendered, 'from qiime2 import Metadata')
         self.assertRegex(
             rendered,
             r"barcodes_0_md = Metadata.load\(\<your metadata filepath\>\)")
         self.assertRegex(
             rendered,
-            r"some_mdc = barcodes_0_md.get_column\('\<column_name\>'\)")
+            rf"{mdc_name} = barcodes_0_md."
+            r"get_column\('\<column_name\>'\)")
 
 
 class BuildNoProvenanceUsageTests(CustomAssertions):
     def test_build_no_provenance_node_usage_w_complete_node(self):
-        ns = UsageVarsDict()
+        ns = NamespaceCollections()
         cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
                            use_recorded_metadata=False, pm=pm)
         v0_uuid = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
@@ -655,8 +656,8 @@ class BuildNoProvenanceUsageTests(CustomAssertions):
                                      'v0_uu_emperor.qzv'))
         v0 = single_no_prov.get_node_data(v0_uuid)
         build_no_provenance_node_usage(v0, v0_uuid, ns, cfg)
-        out_var_name = 'visualization_0'
-        self.assertEqual(ns, {v0_uuid: out_var_name})
+        out_var_name = '<visualization_0>'
+        self.assertEqual(ns.usg_var_namespace, {v0_uuid: out_var_name})
         rendered = cfg.use.render()
         # Confirm the initial context comment is present once.
         self.assertREAppearsOnlyOnce(rendered, 'nodes have no provenance')
@@ -668,7 +669,7 @@ class BuildNoProvenanceUsageTests(CustomAssertions):
         self.assertRegex(rendered, exp_v0)
 
     def test_build_no_provenance_node_usage_uuid_only_node(self):
-        ns = UsageVarsDict()
+        ns = NamespaceCollections()
         cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
                            use_recorded_metadata=False, pm=pm)
         v0_uuid = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
@@ -681,8 +682,8 @@ class BuildNoProvenanceUsageTests(CustomAssertions):
         self.assertEqual(node, None)
         build_no_provenance_node_usage(node, v0_uuid, ns, cfg)
 
-        out_var_name = 'no-provenance-node_0'
-        self.assertEqual(ns, {v0_uuid: out_var_name})
+        out_var_name = '<no_provenance_node_0>'
+        self.assertEqual(ns.usg_var_namespace, {v0_uuid: out_var_name})
 
         rendered = cfg.use.render()
         # Confirm the initial context comment is present once.
@@ -698,7 +699,7 @@ class BuildNoProvenanceUsageTests(CustomAssertions):
         """
         Context should only be logged once.
         """
-        ns = UsageVarsDict()
+        ns = NamespaceCollections()
         cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
                            use_recorded_metadata=False, pm=pm)
 
@@ -711,7 +712,7 @@ class BuildNoProvenanceUsageTests(CustomAssertions):
         v0_viz = single_no_prov.get_node_data(v0_uuid)
 
         dummy_viz_uuid = v0_uuid + '-dummy'
-        # Will return the same type as v0
+        # Will return the same type as v0, so will catch failure to deduplicate
         dummy_viz = single_no_prov.get_node_data(v0_uuid)
 
         tbl_uuid = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
@@ -722,12 +723,14 @@ class BuildNoProvenanceUsageTests(CustomAssertions):
         build_no_provenance_node_usage(v0_viz, v0_uuid, ns, cfg)
         build_no_provenance_node_usage(tbl, tbl_uuid, ns, cfg)
         build_no_provenance_node_usage(dummy_viz, dummy_viz_uuid, ns, cfg)
-        self.assertIn(v0_uuid, ns)
-        self.assertIn(tbl_uuid, ns)
-        self.assertIn(dummy_viz_uuid, ns)
-        self.assertEqual(ns[v0_uuid], 'visualization_0')
-        self.assertEqual(ns[tbl_uuid], 'feature_table_frequency_0')
-        self.assertEqual(ns[dummy_viz_uuid], 'visualization_1')
+        self.assertIn(v0_uuid, ns.usg_var_namespace)
+        self.assertIn(tbl_uuid, ns.usg_var_namespace)
+        self.assertIn(dummy_viz_uuid, ns.usg_var_namespace)
+        self.assertEqual(ns.usg_var_namespace[v0_uuid], '<visualization_0>')
+        self.assertEqual(ns.usg_var_namespace[tbl_uuid],
+                         '<feature_table_frequency_0>')
+        self.assertEqual(ns.usg_var_namespace[dummy_viz_uuid],
+                         '<visualization_1>')
         rendered = cfg.use.render()
         # Confirm the initial context isn't repeated.
         self.assertREAppearsOnlyOnce(rendered, 'nodes have no provenance')
@@ -735,11 +738,11 @@ class BuildNoProvenanceUsageTests(CustomAssertions):
         self.assertREAppearsOnlyOnce(rendered, header)
 
         # Confirm expected values have been rendered
-        exp_v0 = '# 0b8b47bd-f2f8-4029-923c-0e37a68340c3   visualization_0'
+        exp_v0 = '# 0b8b47bd-f2f8-4029-923c-0e37a68340c3   <visualization_0>'
         exp_t = ('# 89af91c0-033d-4e30-8ac4-f29a3b407dc1   '
-                 'feature_table_frequency_0')
+                 '<feature_table_frequency_0>')
         exp_v1 = ('# 0b8b47bd-f2f8-4029-923c-0e37a68340c3-dummy   '
-                  'visualization_1')
+                  '<visualization_1>')
         self.assertRegex(rendered, exp_v0)
         self.assertRegex(rendered, exp_t)
         self.assertRegex(rendered, exp_v1)
@@ -906,12 +909,14 @@ class BuildActionUsageTests(CustomAssertions):
             fr"saved at 'recorded_metadata\/{plugin}_{action}_0\/'")
         self.assertREAppearsOnlyOnce(rendered, "NOTE:.*substitute.*Metadata")
         md_name = 'barcodes_0_md'
+        mdc_name = 'barcodes_0_mdc_0'
         self.assertRegex(rendered, rf'{md_name} = Metadata.load\(<.*filepath>')
-        self.assertRegex(rendered, f'some_mdc = {md_name}.get_col.*<col')
+        self.assertRegex(rendered,
+                         f'{mdc_name} = {md_name}.get_col.*<col')
         self.assertRegex(rendered,
                          rf'{out_name}, _ = {plugin}_actions.{action}\(')
         self.assertRegex(rendered, f'seqs.*{vars[seqs_id].name}')
-        self.assertRegex(rendered, 'barcodes.*some_mdc')
+        self.assertRegex(rendered, f'barcodes.*{mdc_name}')
         self.assertRegex(rendered, 'rev_comp_barcodes.*False')
         self.assertRegex(rendered, 'rev_comp_mapping_barcodes.*False')
 

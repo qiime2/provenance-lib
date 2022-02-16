@@ -5,7 +5,7 @@ import qiime2.plugins.emperor.actions as emperor_actions
 commands we were able to reconstruct have been rendered, with the string
 descriptions below replacing actual inputs.
 # Original Node ID                       String Description
-# 9f6a0f3e-22e6-4c39-8733-4e672919bbc7   no-provenance-node_0
+# 9f6a0f3e-22e6-4c39-8733-4e672919bbc7   <no_provenance_node_0>
 # Replay attempts to represent metadata inputs accurately, but metadata .tsv
 files are merged automatically by some interfaces, rendering distinctions
 between file inputs invisible in provenance. We output the recorded metadata
@@ -20,7 +20,7 @@ metadata, saved at 'recorded_metadata/emperor_plot_0/'
 metadata_0_md = Metadata.load(<your metadata filepath>)
 
 visualization_0_viz, = emperor_actions.plot(
-    pcoa='no-provenance-node_0',
+    pcoa=<no_provenance_node_0>,
     metadata=metadata_0_md,
     custom_axis='DaysSinceExperimentStart',
 )

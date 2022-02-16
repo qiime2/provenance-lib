@@ -7,7 +7,7 @@ import pkg_resources
 import re
 from collections import UserDict
 from dataclasses import dataclass, field
-from typing import Dict, Iterator, List, Literal, Optional, Set, Union
+from typing import Dict, Iterator, List, Literal, Optional, Set
 
 from .archive_parser import ProvNode
 from .parse import ProvDAG, UUID
@@ -211,20 +211,14 @@ class UsageVarsDict(UserDict):
     added, n is incremented as needed until collision is avoided.
     UsageVarsDicts mutate ALL str values they receive.
 
-    This dict explicitly supports the storage of variable-name strings,
-    and of the UsageVariables that correspond to those strings.
-
-    Best practice is generally to add the UUID: variable-name pair to the dict,
-    create the usage variable using the name stored in the dict,
-    then replace the variable-name with the related UsageVariable. This
+    Best practice is generally to add the UUID: variable-name pair to this,
+    create the usage variable using the stored name,
+    then store the usage variable in a separate {UUID: UsagVar}. This
     ensures that UsageVariable.name is unique, preventing namespace collisions.
-
-    .get_key exists to support this use case, by enabling reverse lookup
+    NamespaceCollections (below) exist to group these related structures.
     """
-    def __setitem__(self, key: UUID, item: Union[str, UsageVariable]) -> None:
-        unique_item = item
-        if isinstance(item, str):
-            unique_item = self._uniquify(item)
+    def __setitem__(self, key: UUID, item: str) -> None:
+        unique_item = self._uniquify(item)
         return super().__setitem__(key, unique_item)
 
     def _uniquify(self, var_name: str) -> str:
@@ -239,7 +233,7 @@ class UsageVarsDict(UserDict):
             unique_name = f"{var_name}_{some_int}"
         return unique_name
 
-    def get_key(self, value: Union[str, UsageVariable]):
+    def get_key(self, value: str):
         """
         Given some value in the dict, returns its key
         Results are predictable due to the uniqueness of dict values.
@@ -253,6 +247,13 @@ class UsageVarsDict(UserDict):
             if value == val:
                 return key
         raise KeyError(f"passed value '{value}' does not exist in this dict.")
+
+
+@dataclass(frozen=False)
+class NamespaceCollections:
+    usg_var_namespace: UsageVarsDict = field(default_factory=UsageVarsDict)
+    usg_vars: Dict[UUID, UsageVariable] = field(default_factory=dict)
+    action_namespace: Set[str] = field(default_factory=set)
 
 
 def replay_fp(in_fp: FileName, out_fp: FileName,
@@ -333,8 +334,7 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
     """
     Builds a chained usage example representing the analysis `dag`.
     """
-    actions_namespace = set()  # type: Set[str]
-    usg_var_namespace = UsageVarsDict()
+    usg_ns = NamespaceCollections()
 
     # TODO: This could probably be added to the dag as a property or method
     # to enable memoization. Possible inside group_by_action? The only shift
@@ -345,16 +345,15 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
     for node_id in actions.no_provenance_nodes:
         n_data = dag.get_node_data(node_id)
         build_no_provenance_node_usage(
-            n_data, node_id, usg_var_namespace, cfg)
+            n_data, node_id, usg_ns.usg_var_namespace, cfg)
 
     for action_id in (std_actions := actions.std_actions):
         some_node_id_from_this_action = next(iter(std_actions[action_id]))
         n_data = dag.get_node_data(some_node_id_from_this_action)
         if n_data.action.action_type == 'import':
-            build_import_usage(n_data, usg_var_namespace, cfg)
+            build_import_usage(n_data, usg_ns, cfg)
         else:
-            build_action_usage(n_data, usg_var_namespace, actions_namespace,
-                               std_actions, action_id, cfg)
+            build_action_usage(n_data, usg_ns, std_actions, action_id, cfg)
 
 
 def build_no_provenance_node_usage(node: Optional[ProvNode],
@@ -395,7 +394,7 @@ def build_no_provenance_node_usage(node: Optional[ProvNode],
 
 
 def build_import_usage(node: ProvNode,
-                       usg_var_namespce: UsageVarsDict,
+                       ns: NamespaceCollections,
                        cfg: ReplayConfig):
     """
     Given a ProvNode, adds an import usage example for it, roughly
@@ -412,16 +411,19 @@ def build_import_usage(node: ProvNode,
     The `lambda: None` is a placeholder for some actual data factory,
     and should not impact the rendered usage.
     """
-    usg_var_namespce.update({node._uuid: camel_to_snake(node.type)})
-    format_for_import = cfg.use.init_format('<your data here>', lambda: None)
+    format_id = node._uuid + '_f'
+    ns.usg_var_namespace.update({format_id: camel_to_snake(node.type) + '_f'})
+    format_for_import = cfg.use.init_format(
+        ns.usg_var_namespace[format_id], lambda: None)
+
+    ns.usg_var_namespace.update({node._uuid: camel_to_snake(node.type)})
     use_var = cfg.use.import_from_format(
-        usg_var_namespce[node._uuid], node.type, format_for_import)
-    usg_var_namespce.update({node._uuid: use_var})
+        ns.usg_var_namespace[node._uuid], node.type, format_for_import)
+    ns.usg_vars.update({node._uuid: use_var})
 
 
 def build_action_usage(node: ProvNode,
-                       namespace: UsageVarsDict,
-                       action_namespace: set,
+                       ns: NamespaceCollections,
                        std_actions: Dict[UUID, Dict[UUID, str]],
                        action_id: UUID,
                        cfg: ReplayConfig):
@@ -439,33 +441,34 @@ def build_action_usage(node: ProvNode,
     command_specific_md_context_has_been_printed = False
     plugin = node.action.plugin
     action = node.action.action_name
-    plg_action_name = uniquify_action_name(plugin, action, action_namespace)
+    plg_action_name = uniquify_action_name(plugin, action, ns.action_namespace)
 
     inputs = {}
     for input_name, uuid in node.action.inputs.items():
         # Some optional params take None as a default
         if uuid is not None:
-            inputs.update({input_name: namespace[uuid]})
+            inputs.update({input_name: ns.usg_vars[uuid]})
 
     # Process outputs before params so we can access the unique output name
     # from the namespace when dumping metadata to files below
     raw_outputs = std_actions[action_id].items()
     outputs = {}
     for uuid, output_name in raw_outputs:
-        namespace.update({uuid: output_name})
-        uniquified_output_name = namespace[uuid]
+        ns.usg_var_namespace.update({uuid: output_name})
+        uniquified_output_name = ns.usg_var_namespace[uuid]
         outputs.update({output_name: uniquified_output_name})
 
     for param_name, param_val in node.action.parameters.items():
         if isinstance(param_val, MetadataInfo):
-            unique_md_id = namespace[node._uuid] + '_' + param_name
-            namespace.update({unique_md_id: camel_to_snake(param_name)})
-            md_fn = namespace[unique_md_id] + '.tsv'
+            unique_md_id = ns.usg_var_namespace[node._uuid] + '_' + param_name
+            ns.usg_var_namespace.update(
+                {unique_md_id: camel_to_snake(param_name)})
+            md_fn = ns.usg_var_namespace[unique_md_id] + '.tsv'
             dump_recorded_md_file(node, plg_action_name, param_name, md_fn)
 
             if cfg.use_recorded_metadata:
                 md = init_md_from_recorded_md(
-                    node, unique_md_id, namespace, cfg)
+                    node, unique_md_id, ns.usg_var_namespace, cfg)
             else:
                 if not cfg.md_context_has_been_printed:
                     cfg.md_context_has_been_printed = True
@@ -486,10 +489,10 @@ def build_action_usage(node: ProvNode,
                         f"metadata, saved at '{fp}'\n")
 
                 if not param_val.input_artifact_uuids:
-                    md = init_md_from_md_file(
-                        node, param_name, unique_md_id, namespace, cfg)
+                    md = init_md_from_md_file(node, param_name, unique_md_id,
+                                              ns.usg_var_namespace, cfg)
                 else:
-                    md = init_md_from_artifacts(param_val, namespace, cfg)
+                    md = init_md_from_artifacts(param_val, ns.usg_vars, cfg)
 
             param_val = md
         inputs.update({param_name: param_val})
@@ -499,10 +502,10 @@ def build_action_usage(node: ProvNode,
         cfg.use.UsageInputs(**inputs),
         cfg.use.UsageOutputNames(**outputs))
 
-    # Replace variable names with built UsageVariables to allow chaining
+    # write the usage vars into the UsageVars dict so we can use em downstream
     for res in usg_var:
-        uuid_key = namespace.get_key(value=res.name)
-        namespace[uuid_key] = res
+        uuid_key = ns.usg_var_namespace.get_key(value=res.name)
+        ns.usg_vars[uuid_key] = res
 
 
 def init_md_from_recorded_md(node: ProvNode, unique_md_id: str,
@@ -545,12 +548,14 @@ def init_md_from_md_file(node: ProvNode, param_name: str, md_id: str,
     plugin = node.action.plugin
     action = node.action.action_name
     md = cfg.use.init_metadata(namespace[md_id], lambda: None)
+    # TODO: Uniqueness is enforced for 'some' here, so fix this.
     if param_is_metadata_column(cfg, param_name, plugin, action):
         md = cfg.use.get_metadata_column('some', '<column_name>', md)
     return md
 
 
-def init_md_from_artifacts(md_inf: MetadataInfo, namespace: UsageVarsDict,
+def init_md_from_artifacts(md_inf: MetadataInfo,
+                           usg_vars: Dict[UUID, UsageVariable],
                            cfg: ReplayConfig) -> UsageVariable:
     """
     initializes and returns a Metadata UsageVariable with no real data,
@@ -564,9 +569,9 @@ def init_md_from_artifacts(md_inf: MetadataInfo, namespace: UsageVarsDict,
         raise ValueError("This funtion should not be used if"
                          "MetadataInfo.input_artifact_uuids is empty.")
     md_files_in = []
-    for artif in md_inf.input_artifact_uuids:
-        art_as_md = cfg.use.view_as_metadata(namespace[artif].name,
-                                             namespace[artif])
+    for artif_id in md_inf.input_artifact_uuids:
+        art_as_md = cfg.use.view_as_metadata(usg_vars[artif_id].name,
+                                             usg_vars[artif_id])
         md_files_in.append(art_as_md)
     if len(md_inf.input_artifact_uuids) > 1:
         art_as_md = cfg.use.merge_metadata('merged_artifacts', *md_files_in)

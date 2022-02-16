@@ -363,7 +363,7 @@ class DirectoryParser(Parser):
         within the archives they parse by default.
         """
         search_exp = str(data).rstrip('/') + '/**/*.qz[av]'
-        # TODO: Recursive should be an option!!
+        # TODO: Recursive should be optional
         artifacts_to_parse = glob.glob(search_exp, recursive=True)
         if not artifacts_to_parse:
             raise ValueError(f"No .qza or .qzv files present in {data}")

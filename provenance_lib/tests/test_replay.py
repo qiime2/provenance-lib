@@ -16,12 +16,13 @@ from qiime2.plugins import ArtifactAPIUsageVariable
 
 from ..parse import ProvDAG
 from ..replay import (
-    ActionCollections, ReplayConfig, UsageVarsDict, SUPPORTED_USAGE_DRIVERS,
+    ActionCollections, NamespaceCollections, ReplayConfig, UsageVarsDict,
     build_no_provenance_node_usage, build_import_usage, build_action_usage,
     build_usage_examples, camel_to_snake, collect_citations, dedupe_citations,
     dump_recorded_md_file, group_by_action, init_md_from_artifacts,
     init_md_from_md_file, init_md_from_recorded_md, param_is_metadata_column,
     replay_fp, replay_provdag, uniquify_action_name, write_citations,
+    SUPPORTED_USAGE_DRIVERS,
     )
 from .test_parse import DATA_DIR, TEST_DATA
 from .testing_utilities import CustomAssertions
@@ -46,33 +47,6 @@ class UsageVarsDictTests(unittest.TestCase):
         ns['789'] = collision_val
         self.assertEqual(ns.pop('789'), 'emp_single_end_sequences_2')
 
-    def test_add_usage_var_flow(self):
-        """
-        Smoke tests a common workflow with this data structure
-        - Create a unique variable name by adding to dict
-        - Create a UsageVariable with that name
-        - use the name to get the UUID (when we have Results, we have no UUIDs)
-        - Replace the name with the correctly-named UsageVariable
-        """
-        use = Usage()
-        uuid = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
-        base_name = 'v5_table'
-        exp_name = base_name + '_0'
-        ns = UsageVarsDict({uuid: base_name})
-        self.assertEqual(ns[uuid], exp_name)
-
-        def factory():  # pragma: no cover
-            return Artifact.load(os.path.join(DATA_DIR, 'v5_table.qza'))
-        u_var = use.init_artifact(ns[uuid], factory)
-        self.assertEqual(u_var.name, exp_name)
-
-        actual_uuid = ns.get_key(u_var.name)
-        self.assertEqual(actual_uuid, uuid)
-
-        ns[uuid] = u_var
-        self.assertIsInstance(ns[uuid], UsageVariable)
-        self.assertEqual(ns[uuid].name, exp_name)
-
     def test_get_key(self):
         ns = UsageVarsDict({'123': 'some_name'})
         # some_name is uniquified to some_name_0
@@ -80,6 +54,36 @@ class UsageVarsDictTests(unittest.TestCase):
         with self.assertRaisesRegex(KeyError,
                                     "passed value 'fake_key' does not exist"):
             ns.get_key('fake_key')
+
+
+class NamespaceCollectionTests(unittest.TestCase):
+    def test_add_usage_var_flow(self):
+        """
+        Smoke tests a common workflow with this data structure
+        - Create a unique variable name by adding to .usg_vars_namespace
+        - Create a UsageVariable with that name
+        - use the name to get the UUID (when we have Results, we have no UUIDs)
+        - add the correctly-named UsageVariable to .usg_vars
+        """
+        use = Usage()
+        uuid = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
+        base_name = 'v5_table'
+        exp_name = base_name + '_0'
+        ns = NamespaceCollections()
+        ns.usg_var_namespace.update({uuid: base_name})
+        self.assertEqual(ns.usg_var_namespace[uuid], exp_name)
+
+        def factory():  # pragma: no cover
+            return Artifact.load(os.path.join(DATA_DIR, 'v5_table.qza'))
+        u_var = use.init_artifact(ns.usg_var_namespace[uuid], factory)
+        self.assertEqual(u_var.name, exp_name)
+
+        actual_uuid = ns.usg_var_namespace.get_key(u_var.name)
+        self.assertEqual(actual_uuid, uuid)
+
+        ns.usg_vars[uuid] = u_var
+        self.assertIsInstance(ns.usg_vars[uuid], UsageVariable)
+        self.assertEqual(ns.usg_vars[uuid].name, exp_name)
 
 
 class ReplayFPTests(unittest.TestCase):
@@ -164,17 +168,19 @@ class ReplayProvDAGTests(unittest.TestCase):
         # we're not uniquifying variable names properly.
         dag = ProvDAG(os.path.join(DATA_DIR, 'ns_collision.qza'))
         drivers = ['python3', 'cli']
+        exp = ['filtered_table_0', 'filtered_table_1', 'filtered_table_2',
+               'filtered_table_3']
         for driver in drivers:
-            print(driver)
             with tempfile.TemporaryDirectory() as tmpdir:
                 out_path = pathlib.Path(tmpdir) / 'ns_coll.txt'
-                # replay_provdag(dag, out_path, 'python3')
                 replay_provdag(dag, out_path, driver)
 
                 with open(out_path, 'r') as fp:
                     rendered = fp.read()
-                    # print(rendered)
-        self.assertTrue(False)
+                    for tbl in exp:
+                        if driver == 'cli':
+                            tbl = tbl.replace('_', '-')
+                        self.assertIn(tbl, rendered)
 
 
 class ReplayProvDAGDirectoryTests(unittest.TestCase):
@@ -540,11 +546,11 @@ class InitializerTests(unittest.TestCase):
     def test_init_md_from_artifacts_no_artifacts(self):
         cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
                            use_recorded_metadata=False, pm=pm)
-        ns = UsageVarsDict()
+        usg_vars = {}
         md_info = MetadataInfo([], relative_fp='hmm.tsv')
         with self.assertRaisesRegex(ValueError,
                                     "not.*used.*input_artifact_uuids.*empty"):
-            init_md_from_artifacts(md_info, ns, cfg)
+            init_md_from_artifacts(md_info, usg_vars, cfg)
 
     def test_init_md_from_artifacts_one_art(self):
         # This helper doesn't capture real data, so we're only smoke testing,
@@ -554,10 +560,10 @@ class InitializerTests(unittest.TestCase):
 
         # We expect artifact vars have already been added to the namespace, so:
         a1 = cfg.use.init_artifact(name='thing1', factory=lambda: None)
-        ns = UsageVarsDict({'uuid1': a1})
+        usg_vars = {'uuid1': a1}
 
         md_info = MetadataInfo(['uuid1'], relative_fp='hmm.tsv')
-        var = init_md_from_artifacts(md_info, ns, cfg)
+        var = init_md_from_artifacts(md_info, usg_vars, cfg)
         self.assertIsInstance(var, UsageVariable)
         self.assertEqual(var.var_type, 'metadata')
         rendered = var.use.render()
@@ -576,11 +582,11 @@ thing1_md = thing1.view(Metadata)"""
         a1 = cfg.use.init_artifact(name='thing1', factory=lambda: None)
         a2 = cfg.use.init_artifact(name='thing2', factory=lambda: None)
         a3 = cfg.use.init_artifact(name='thing3', factory=lambda: None)
-        ns = UsageVarsDict({'uuid1': a1, 'uuid2': a2, 'uuid3': a3})
+        usg_vars = {'uuid1': a1, 'uuid2': a2, 'uuid3': a3}
 
         md_info = MetadataInfo(['uuid1', 'uuid2', 'uuid3'],
                                relative_fp='hmm.tsv')
-        var = init_md_from_artifacts(md_info, ns, cfg)
+        var = init_md_from_artifacts(md_info, usg_vars, cfg)
         self.assertIsInstance(var, UsageVariable)
         self.assertEqual(var.var_type, 'metadata')
         rendered = var.use.render()
@@ -741,7 +747,7 @@ class BuildNoProvenanceUsageTests(CustomAssertions):
 
 class BuildImportUsageTests(CustomAssertions):
     def test_build_import_usage_python(self):
-        ns = UsageVarsDict()
+        ns = NamespaceCollections()
         cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
                            use_recorded_metadata=False, pm=pm)
         dag = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
@@ -751,18 +757,19 @@ class BuildImportUsageTests(CustomAssertions):
         unq_var_nm = c_to_s_type + '_0'
         build_import_usage(imp_node, ns, cfg)
         rendered = cfg.use.render()
-        out_name = ns[n_id].to_interface_name()
+        vars = ns.usg_vars
+        out_name = vars[n_id].to_interface_name()
 
-        self.assertIsInstance(ns[n_id], UsageVariable)
-        self.assertEqual(ns[n_id].var_type, 'artifact')
-        self.assertEqual(ns[n_id].name, unq_var_nm)
+        self.assertIsInstance(vars[n_id], UsageVariable)
+        self.assertEqual(vars[n_id].var_type, 'artifact')
+        self.assertEqual(vars[n_id].name, unq_var_nm)
         self.assertRegex(rendered, 'from qiime2 import Artifact')
         self.assertRegex(rendered, rf'{out_name} = Artifact.import_data\(')
         self.assertRegex(rendered, imp_node.type)
         self.assertRegex(rendered, '<your data here>')
 
     def test_build_import_usage_cli(self):
-        ns = UsageVarsDict()
+        ns = NamespaceCollections()
         cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['cli'](),
                            use_recorded_metadata=False, pm=pm)
         dag = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
@@ -772,11 +779,12 @@ class BuildImportUsageTests(CustomAssertions):
         unq_var_nm = c_to_s_type + '_0'
         build_import_usage(imp_node, ns, cfg)
         rendered = cfg.use.render()
-        out_name = ns[n_id].to_interface_name()
+        vars = ns.usg_vars
+        out_name = vars[n_id].to_interface_name()
 
-        self.assertIsInstance(ns[n_id], UsageVariable)
-        self.assertEqual(ns[n_id].var_type, 'artifact')
-        self.assertEqual(ns[n_id].name, unq_var_nm)
+        self.assertIsInstance(vars[n_id], UsageVariable)
+        self.assertEqual(vars[n_id].var_type, 'artifact')
+        self.assertEqual(vars[n_id].name, unq_var_nm)
         self.assertRegex(rendered, r'qiime tools import \\')
         self.assertRegex(rendered, f"  --type '{imp_node.type}'")
         self.assertRegex(rendered, "  --input-path <your data here>")
@@ -789,11 +797,10 @@ class BuildActionUsageTests(CustomAssertions):
         action = 'emp-single'
         cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['cli'](),
                            use_recorded_metadata=False, pm=pm)
+        ns = NamespaceCollections()
         import_var = CLIUsageVariable(
             'imported_seqs_0', lambda: None, 'artifact', cfg.use)
-        ns = UsageVarsDict(
-            {'a35830e1-4535-47c6-aa23-be295a57ee1c': import_var})
-        a_ns = set()
+        ns.usg_vars = {'a35830e1-4535-47c6-aa23-be295a57ee1c': import_var}
         dag = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
         act_id = '3d69c8d1-a1fa-4ab3-ac88-3a98da15b2d5'
         n_id = '99fa3670-aa1a-45f6-ba8e-803c976a1163'
@@ -801,13 +808,14 @@ class BuildActionUsageTests(CustomAssertions):
         acts = ActionCollections(std_actions={act_id:
                                               {n_id: 'per_sample_sequences'}})
         unq_var_nm = node.action.output_name + '_0'
-        build_action_usage(node, ns, a_ns, acts.std_actions, act_id, cfg)
+        build_action_usage(node, ns, acts.std_actions, act_id, cfg)
         rendered = cfg.use.render()
-        out_name = ns[n_id].to_interface_name()
+        out_name = ns.usg_vars[n_id].to_interface_name()
 
-        self.assertIsInstance(ns[n_id], UsageVariable)
-        self.assertEqual(ns[n_id].var_type, 'artifact')
-        self.assertEqual(ns[n_id].name, unq_var_nm)
+        vars = ns.usg_vars
+        self.assertIsInstance(vars[n_id], UsageVariable)
+        self.assertEqual(vars[n_id].var_type, 'artifact')
+        self.assertEqual(vars[n_id].name, unq_var_nm)
         self.assertREAppearsOnlyOnce(rendered, "Replay attempts.*metadata")
         self.assertREAppearsOnlyOnce(rendered, "command may have received")
         act_undersc = re.sub('-', '_', action)
@@ -830,10 +838,10 @@ class BuildActionUsageTests(CustomAssertions):
         n_id = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
         cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['cli'](),
                            use_recorded_metadata=True, pm=pm)
+        ns = NamespaceCollections()
         import_var = CLIUsageVariable(
             'pcoa', lambda: None, 'artifact', cfg.use)
-        ns = UsageVarsDict({pcoa_id: import_var})
-        a_ns = set()
+        ns.usg_vars = {pcoa_id: import_var}
         mixed_uuid = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
         with self.assertWarnsRegex(
                 UserWarning, f'(:?)Art.*{mixed_uuid}.*prior.*incomplete'):
@@ -844,13 +852,14 @@ class BuildActionUsageTests(CustomAssertions):
         acts = ActionCollections(std_actions={act_id:
                                               {n_id: out_name_raw}})
         unq_var_nm = out_name_raw + '_0'
-        build_action_usage(node, ns, a_ns, acts.std_actions, act_id, cfg)
+        build_action_usage(node, ns, acts.std_actions, act_id, cfg)
         rendered = cfg.use.render()
-        out_name = ns[n_id].to_interface_name()
+        vars = ns.usg_vars
+        out_name = vars[n_id].to_interface_name()
 
-        self.assertIsInstance(ns[n_id], UsageVariable)
-        self.assertEqual(ns[n_id].var_type, 'visualization')
-        self.assertEqual(ns[n_id].name, unq_var_nm)
+        self.assertIsInstance(vars[n_id], UsageVariable)
+        self.assertEqual(vars[n_id].var_type, 'visualization')
+        self.assertEqual(vars[n_id].name, unq_var_nm)
 
         self.assertRegex(rendered, f"qiime {plugin} {action}")
         self.assertRegex(rendered, "--i-pcoa pcoa.qza")
@@ -869,8 +878,8 @@ class BuildActionUsageTests(CustomAssertions):
         import_var = ArtifactAPIUsageVariable(
             'imported_seqs_0', lambda: None, 'artifact', cfg.use)
         seqs_id = 'a35830e1-4535-47c6-aa23-be295a57ee1c'
-        ns = UsageVarsDict({seqs_id: import_var})
-        a_ns = set()
+        ns = NamespaceCollections()
+        ns.usg_vars = {seqs_id: import_var}
         dag = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
         act_id = '3d69c8d1-a1fa-4ab3-ac88-3a98da15b2d5'
         n_id = '99fa3670-aa1a-45f6-ba8e-803c976a1163'
@@ -879,33 +888,29 @@ class BuildActionUsageTests(CustomAssertions):
         acts = ActionCollections(std_actions={act_id:
                                               {n_id: out_name_raw}})
         unq_var_nm = out_name_raw + '_0'
-        build_action_usage(node, ns, a_ns, acts.std_actions, act_id, cfg)
+        build_action_usage(node, ns, acts.std_actions, act_id, cfg)
         rendered = cfg.use.render()
-        out_name = ns[n_id].to_interface_name()
+        vars = ns.usg_vars
+        out_name = vars[n_id].to_interface_name()
 
-        self.assertIsInstance(ns[n_id], UsageVariable)
-        self.assertEqual(ns[n_id].var_type, 'artifact')
-        self.assertEqual(ns[n_id].name, unq_var_nm)
-
+        self.assertIsInstance(vars[n_id], UsageVariable)
+        self.assertEqual(vars[n_id].var_type, 'artifact')
+        self.assertEqual(vars[n_id].name, unq_var_nm)
         self.assertRegex(rendered, "from qiime2 import Metadata")
         self.assertRegex(
             rendered, f"import.*{plugin}.actions as {plugin}_actions")
-
         self.assertREAppearsOnlyOnce(rendered, "Replay attempts.*metadata")
         self.assertREAppearsOnlyOnce(rendered, "command may have received")
         self.assertREAppearsOnlyOnce(
             rendered,
             fr"saved at 'recorded_metadata\/{plugin}_{action}_0\/'")
         self.assertREAppearsOnlyOnce(rendered, "NOTE:.*substitute.*Metadata")
-
         md_name = 'barcodes_0_md'
         self.assertRegex(rendered, rf'{md_name} = Metadata.load\(<.*filepath>')
         self.assertRegex(rendered, f'some_mdc = {md_name}.get_col.*<col')
-
         self.assertRegex(rendered,
                          rf'{out_name}, _ = {plugin}_actions.{action}\(')
-
-        self.assertRegex(rendered, f'seqs.*{ns[seqs_id].name}')
+        self.assertRegex(rendered, f'seqs.*{vars[seqs_id].name}')
         self.assertRegex(rendered, 'barcodes.*some_mdc')
         self.assertRegex(rendered, 'rev_comp_barcodes.*False')
         self.assertRegex(rendered, 'rev_comp_mapping_barcodes.*False')
@@ -921,8 +926,8 @@ class BuildActionUsageTests(CustomAssertions):
                            use_recorded_metadata=True, pm=pm)
         import_var = ArtifactAPIUsageVariable(
             'pcoa', lambda: None, 'artifact', cfg.use)
-        ns = UsageVarsDict({pcoa_id: import_var})
-        a_ns = set()
+        ns = NamespaceCollections()
+        ns.usg_vars = {pcoa_id: import_var}
         mixed_uuid = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
         with self.assertWarnsRegex(
                 UserWarning, f'(:?)Art.*{mixed_uuid}.*prior.*incomplete'):
@@ -933,13 +938,14 @@ class BuildActionUsageTests(CustomAssertions):
         acts = ActionCollections(std_actions={act_id:
                                               {n_id: out_name_raw}})
         unq_var_nm = out_name_raw + '_0'
-        build_action_usage(node, ns, a_ns, acts.std_actions, act_id, cfg)
+        build_action_usage(node, ns, acts.std_actions, act_id, cfg)
         rendered = cfg.use.render()
-        out_name = ns[n_id].to_interface_name()
+        vars = ns.usg_vars
+        out_name = vars[n_id].to_interface_name()
 
-        self.assertIsInstance(ns[n_id], UsageVariable)
-        self.assertEqual(ns[n_id].var_type, 'visualization')
-        self.assertEqual(ns[n_id].name, unq_var_nm)
+        self.assertIsInstance(vars[n_id], UsageVariable)
+        self.assertEqual(vars[n_id].var_type, 'visualization')
+        self.assertEqual(vars[n_id].name, unq_var_nm)
 
         self.assertRegex(rendered, "from qiime2 import Metadata")
         self.assertRegex(
@@ -950,7 +956,7 @@ class BuildActionUsageTests(CustomAssertions):
 
         self.assertRegex(rendered,
                          rf'{out_name}, = {plugin}_actions.{action}\(')
-        self.assertRegex(rendered, f'pcoa.*{ns[pcoa_id].name}')
+        self.assertRegex(rendered, f'pcoa.*{vars[pcoa_id].name}')
         self.assertRegex(rendered, f'metadata.*{md_name}')
         self.assertRegex(rendered, "custom_axis='DaysSinceExperimentStart'")
 
@@ -965,18 +971,18 @@ class BuildActionUsageTests(CustomAssertions):
                            use_recorded_metadata=False, pm=pm)
         sd_var = ArtifactAPIUsageVariable(
             'sample_data_alpha_diversity_0', lambda: None, 'artifact', cfg.use)
-        ns = UsageVarsDict({sd_id: sd_var})
-        a_ns = set()
+        ns = NamespaceCollections()
+        ns.usg_vars = {sd_id: sd_var}
         node = dag.get_node_data(n_id)
         out_name_raw = node.action.output_name
         acts = ActionCollections(std_actions={act_id: {n_id: out_name_raw},
                                               sd_act_id: {sd_id: 'smpl_data'}})
-        build_action_usage(node, ns, a_ns, acts.std_actions, act_id, cfg)
+        build_action_usage(node, ns, acts.std_actions, act_id, cfg)
         patch.assert_called_once_with(
             MetadataInfo(
                 input_artifact_uuids=['a42ea02f-8c40-432c-9b88-e602f6cd3787'],
                 relative_fp='input.tsv'),
-            ns, cfg)
+            ns.usg_vars, cfg)
 
 
 class CitationsTests(unittest.TestCase):

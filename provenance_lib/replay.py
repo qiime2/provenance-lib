@@ -356,7 +356,7 @@ def build_action_usage(node: ProvNode,
                     md = init_md_from_md_file(node, param_name, unique_md_id,
                                               ns.usg_var_namespace, cfg)
                 else:
-                    md = init_md_from_artifacts(param_val, ns.usg_vars, cfg)
+                    md = init_md_from_artifacts(param_val, ns, cfg)
 
             param_val = md
         inputs.update({param_name: param_val})
@@ -421,14 +421,14 @@ def init_md_from_md_file(node: ProvNode, param_name: str, md_id: str,
 
 
 def init_md_from_artifacts(md_inf: MetadataInfo,
-                           usg_vars: Dict[UUID, UsageVariable],
+                           ns: NamespaceCollections,
                            cfg: ReplayConfig) -> UsageVariable:
     """
     initializes and returns a Metadata UsageVariable with no real data,
     mimicking a user passing one or more QIIME 2 Artifacts as metadata
 
-    We expect these usage vars are already in the namespace, if we're reading
-    them in as metadata.
+    We expect these usage vars are already in the namespace as artifacts if
+    we're reading them in as metadata.
     TODO: Test how no-prov nodes affect this - esp mixed.
     """
     if not md_inf.input_artifact_uuids:
@@ -436,11 +436,26 @@ def init_md_from_artifacts(md_inf: MetadataInfo,
                          "MetadataInfo.input_artifact_uuids is empty.")
     md_files_in = []
     for artif_id in md_inf.input_artifact_uuids:
-        art_as_md = cfg.use.view_as_metadata(usg_vars[artif_id].name,
-                                             usg_vars[artif_id])
+        amd_id = artif_id + '_a'
+        var_name = ns.usg_vars[artif_id].name + '_a'
+        if amd_id not in ns.usg_var_namespace:
+            ns.usg_var_namespace.update({amd_id: var_name})
+            art_as_md = cfg.use.view_as_metadata(ns.usg_var_namespace[amd_id],
+                                                 ns.usg_vars[artif_id])
+            ns.usg_vars.update({amd_id: art_as_md})
+            ns.usg_var_namespace.align_value_with_usage_var_name(amd_id,
+                                                                 art_as_md)
+        else:
+            art_as_md = ns.usg_vars[amd_id]
         md_files_in.append(art_as_md)
     if len(md_inf.input_artifact_uuids) > 1:
-        art_as_md = cfg.use.merge_metadata('merged_artifacts', *md_files_in)
+        merge_id = artif_id + '_mrg'
+        ns.usg_var_namespace.update({merge_id: 'merged_artifacts'})
+        merged_md = cfg.use.merge_metadata(ns.usg_var_namespace[merge_id],
+                                           *md_files_in)
+        ns.usg_vars.update({merge_id: merged_md})
+        ns.usg_var_namespace.align_value_with_usage_var_name(merge_id,
+                                                             merged_md)
     return art_as_md
 
 

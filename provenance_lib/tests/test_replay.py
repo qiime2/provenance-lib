@@ -559,16 +559,16 @@ class InitializerTests(unittest.TestCase):
 
         # We expect artifact vars have already been added to the namespace, so:
         a1 = cfg.use.init_artifact(name='thing1', factory=lambda: None)
-        usg_vars = {'uuid1': a1}
+        ns = NamespaceCollections(usg_vars={'uuid1': a1})
 
         md_info = MetadataInfo(['uuid1'], relative_fp='hmm.tsv')
-        var = init_md_from_artifacts(md_info, usg_vars, cfg)
+        var = init_md_from_artifacts(md_info, ns, cfg)
         self.assertIsInstance(var, UsageVariable)
         self.assertEqual(var.var_type, 'metadata')
         rendered = var.use.render()
         exp = """from qiime2 import Metadata
 
-thing1_md = thing1.view(Metadata)"""
+thing1_a_0_md = thing1.view(Metadata)"""
         self.assertEqual(rendered, exp)
 
     def test_init_md_from_artifacts_many(self):
@@ -581,20 +581,21 @@ thing1_md = thing1.view(Metadata)"""
         a1 = cfg.use.init_artifact(name='thing1', factory=lambda: None)
         a2 = cfg.use.init_artifact(name='thing2', factory=lambda: None)
         a3 = cfg.use.init_artifact(name='thing3', factory=lambda: None)
-        usg_vars = {'uuid1': a1, 'uuid2': a2, 'uuid3': a3}
+        ns = NamespaceCollections(
+            usg_vars={'uuid1': a1, 'uuid2': a2, 'uuid3': a3})
 
         md_info = MetadataInfo(['uuid1', 'uuid2', 'uuid3'],
                                relative_fp='hmm.tsv')
-        var = init_md_from_artifacts(md_info, usg_vars, cfg)
+        var = init_md_from_artifacts(md_info, ns, cfg)
         self.assertIsInstance(var, UsageVariable)
         self.assertEqual(var.var_type, 'metadata')
         rendered = var.use.render()
         exp = """from qiime2 import Metadata
 
-thing1_md = thing1.view(Metadata)
-thing2_md = thing2.view(Metadata)
-thing3_md = thing3.view(Metadata)
-merged_artifacts_md = thing1_md.merge(thing2_md, thing3_md)"""
+thing1_a_0_md = thing1.view(Metadata)
+thing2_a_0_md = thing2.view(Metadata)
+thing3_a_0_md = thing3.view(Metadata)
+merged_artifacts_0_md = thing1_a_0_md.merge(thing2_a_0_md, thing3_a_0_md)"""
         self.assertEqual(rendered, exp)
 
     def test_init_md_from_md_file_not_mdc(self):
@@ -986,8 +987,7 @@ class BuildActionUsageTests(CustomAssertions):
         patch.assert_called_once_with(
             MetadataInfo(
                 input_artifact_uuids=['a42ea02f-8c40-432c-9b88-e602f6cd3787'],
-                relative_fp='input.tsv'),
-            ns.usg_vars, cfg)
+                relative_fp='input.tsv'), ns, cfg)
 
 
 class CitationsTests(unittest.TestCase):

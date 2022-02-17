@@ -18,7 +18,7 @@ from ..parse import ProvDAG
 from ..replay import (
     ActionCollections, NamespaceCollections, ReplayConfig, UsageVarsDict,
     build_no_provenance_node_usage, build_import_usage, build_action_usage,
-    build_usage_examples, camel_to_snake, collect_citations, dedupe_citations,
+    build_usage_examples, collect_citations, dedupe_citations,
     dump_recorded_md_file, group_by_action, init_md_from_artifacts,
     init_md_from_md_file, init_md_from_recorded_md, param_is_metadata_column,
     replay_fp, replay_provdag, uniquify_action_name, write_citations,
@@ -26,6 +26,7 @@ from ..replay import (
     )
 from .test_parse import DATA_DIR, TEST_DATA
 from .testing_utilities import CustomAssertions
+from ..util import camel_to_snake
 from ..yaml_constructors import MetadataInfo
 
 # Create a PM Instance once and use it throughout - expensive!
@@ -308,38 +309,6 @@ class BuildUsageExamplesTests(unittest.TestCase):
 
 
 class MiscHelperFnTests(unittest.TestCase):
-    def test_camel_to_snake(self):
-        some_types_n_formats = [
-            'Hierarchy',  # simple
-            'DistanceMatrix',  # compound
-            'Bowtie2Index',  # compound w numeral
-            'EMPPairedEndSequences',  # acronym
-            'BIOMV210DirFmt',  # acronym w numeral
-            'PCoAResults',  # weird acronym
-            'PairedEndFastqManifestPhred64V2',  # compound with acronym and num
-            'SampleData[Sequences]',  # bracket notation
-            'FeatureData[BLAST6]',  # bracket with acronym and numeral
-            'SampleData[DADA2Stats]',  # bracket complex acronym
-            'FeatureData[AlignedRNASequence]',  # bracket complex acronym
-            'List[FeatureTable[RelativeFrequency]]',  # made-up nested example
-        ]
-        exp = [
-            'hierarchy',
-            'distance_matrix',
-            'bowtie2_index',
-            'emp_paired_end_sequences',
-            'biomv210_dir_fmt',
-            'p_co_a_results',
-            'paired_end_fastq_manifest_phred64_v2',
-            'sample_data_sequences',
-            'feature_data_blast6',
-            'sample_data_dada2_stats',
-            'feature_data_aligned_rna_sequence',
-            'list_feature_table_relative_frequency',  # made-up nested example
-        ]
-        for og_str, exp_str in zip(some_types_n_formats, exp):
-            self.assertEqual(camel_to_snake(og_str), exp_str)
-
     def test_uniquify_action_name(self):
         ns = set()
         p1 = 'dummy_plugin'

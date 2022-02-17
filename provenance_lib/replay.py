@@ -12,7 +12,7 @@ from typing import Dict, Iterator, List, Optional, Set
 from .archive_parser import ProvNode
 from .parse import ProvDAG, UUID
 from .usage_drivers import DRIVER_CHOICES, SUPPORTED_USAGE_DRIVERS
-from .util import FileName
+from .util import FileName, camel_to_snake
 from .yaml_constructors import MetadataInfo
 
 from qiime2.sdk import PluginManager
@@ -526,20 +526,6 @@ def uniquify_action_name(plugin: str, action: str, action_nmspace: set) -> str:
         plg_action_name = f'{plugin}_{action}_{counter}'
     action_nmspace.add(plg_action_name)
     return plg_action_name
-
-
-def camel_to_snake(name: str) -> str:
-    """
-    There are more comprehensive and faster ways of doing this (incl compiling)
-    but it handles acronyms in semantic types nicely
-    e.g. EMPSingleEndSequences -> emp_single_end_sequences
-    c/o https://stackoverflow.com/a/1176023/9872253
-    """
-    # this will frequently be called on QIIME type expressions, so drop [ and ]
-    name = re.sub(r'[\[\]]', '', name)
-    # camel to snake
-    name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
 
 
 def collect_citations(dag: ProvDAG, deduped: bool = True) -> \

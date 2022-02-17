@@ -308,10 +308,17 @@ def build_action_usage(node: ProvNode,
     plg_action_name = uniquify_action_name(plugin, action, ns.action_namespace)
 
     inputs = {}
-    for input_name, uuid in node.action.inputs.items():
-        # Some optional params take None as a default
-        if uuid is not None:
-            inputs.update({input_name: ns.usg_vars[uuid]})
+    for input_name, uuids in node.action.inputs.items():
+        # Some optional inputs take None as a default
+        if uuids is not None:
+            # Some inputs take collections of input strings, so:
+            if type(uuids) is str:
+                inputs.update({input_name: ns.usg_vars[uuids]})
+            else:  # it's a collection
+                input_vars = []
+                for uuid in uuids:
+                    input_vars.append(ns.usg_vars[uuid])
+                inputs.update({input_name: input_vars})
 
     # Process outputs before params so we can access the unique output name
     # from the namespace when dumping metadata to files below

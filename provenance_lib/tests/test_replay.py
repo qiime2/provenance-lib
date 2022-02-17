@@ -183,6 +183,43 @@ class ReplayProvDAGTests(unittest.TestCase):
                             tbl = tbl.replace('_', '-')
                         self.assertIn(tbl, rendered)
 
+    def test_replay_optional_param_is_none_big(self):
+        # This artifact's
+        dag = ProvDAG(os.path.join(DATA_DIR, 'feature_importance_heatmap.qzv'))
+        drivers = ['cli']
+        for driver in drivers:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                out_path = pathlib.Path(tmpdir) / 'ns_coll.txt'
+                replay_provdag(dag, out_path, driver)
+
+                with open(out_path, 'r') as fp:
+                    rendered = fp.read()
+                    print(rendered)
+        self.assertTrue(False)
+
+    def test_replay_optional_param_is_none(self):
+        # This artifact fails because the first three nodes don't track output
+        # names. As a result, demux emp-single fails to replay when
+        # Usage.action tries to look up its output-name in the plugin manager's
+        # record of the actual action's signature.
+        # We've monkeypatched Usage.action here to allow replay to proceed.
+        dag = ProvDAG(os.path.join(DATA_DIR, 'heatmap.qzv'))
+        drivers = ['python3', 'cli']
+        exp = {
+            'python3':
+                'heatmap_0_viz.*sample_classifier_actions.classify_samples',
+            'cli': '(?s)qiime sample-classifier classify-samples.*'
+                   '--o-heatmap heatmap-0.qzv'}
+        for driver in drivers:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                out_path = pathlib.Path(tmpdir) / 'ns_coll.txt'
+                replay_provdag(dag, out_path, driver)
+
+                with open(out_path, 'r') as fp:
+                    rendered = fp.read()
+                    print(rendered)
+            self.assertRegex(rendered, exp[driver])
+
 
 class ReplayProvDAGDirectoryTests(unittest.TestCase):
     def test_directory_replay_multiple_imports(self):

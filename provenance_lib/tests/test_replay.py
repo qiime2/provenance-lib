@@ -184,9 +184,20 @@ class ReplayProvDAGTests(unittest.TestCase):
                         self.assertIn(tbl, rendered)
 
     def test_replay_optional_param_is_none_big(self):
-        # This artifact's
-        dag = ProvDAG(os.path.join(DATA_DIR, 'feature_importance_heatmap.qzv'))
-        drivers = ['cli']
+        # This artifact fails because it has optional metadata columns, which
+        # default to None. These values are dumped as `- col-name: null`,
+        # and loaded in the parser as None. The metadata column handler in
+        # CLIUsage expects a value it can unpack, so None blows it up here
+        # https://github.com/qiime2/q2cli/blob
+        # /aee8a154513f5e49cd7de714a341a6bb915f5f49/q2cli/core/usage.py#L293
+        # build_action_usage needs to deal with that appropriately.
+        dag = ProvDAG(os.path.join(DATA_DIR, 'heatmap2.qzv'))
+        drivers = ['python3', 'cli']
+        exp = {
+            'python3':
+                'heatmap_0_viz.*sample_classifier_actions.heatmap',
+            'cli': '(?s)qiime sample-classifier heatmap.*'
+                   '--o-heatmap heatmap-0.qzv'}
         for driver in drivers:
             with tempfile.TemporaryDirectory() as tmpdir:
                 out_path = pathlib.Path(tmpdir) / 'ns_coll.txt'
@@ -194,10 +205,9 @@ class ReplayProvDAGTests(unittest.TestCase):
 
                 with open(out_path, 'r') as fp:
                     rendered = fp.read()
-                    print(rendered)
-        self.assertTrue(False)
+            self.assertRegex(rendered, exp[driver])
 
-    def test_replay_optional_param_is_none(self):
+    def test_replay_untracked_output_names(self):
         # This artifact fails because the first three nodes don't track output
         # names. As a result, demux emp-single fails to replay when
         # Usage.action tries to look up its output-name in the plugin manager's
@@ -217,7 +227,6 @@ class ReplayProvDAGTests(unittest.TestCase):
 
                 with open(out_path, 'r') as fp:
                     rendered = fp.read()
-                    print(rendered)
             self.assertRegex(rendered, exp[driver])
 
 

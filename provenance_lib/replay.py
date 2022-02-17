@@ -330,6 +330,11 @@ def build_action_usage(node: ProvNode,
         outputs.update({output_name: uniquified_output_name})
 
     for param_name, param_val in node.action.parameters.items():
+        # We can currently assume that None arguments are only passed to params
+        # as default values, so we can skip these parameters entirely in replay
+        if param_val is None:
+            continue
+
         if isinstance(param_val, MetadataInfo):
             unique_md_id = ns.usg_var_namespace[node._uuid] + '_' + param_name
             ns.usg_var_namespace.update(

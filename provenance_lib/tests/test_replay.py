@@ -358,6 +358,18 @@ class BuildUsageExamplesTests(unittest.TestCase):
         self.assertEqual(imp_builder.call_count, 3)
         self.assertEqual(act_builder.call_count, 7)
 
+    def test_build_action_usage_collection_of_inputs(self):
+        """
+        This artifact's root node is passed a collection of inputs. Collections
+        need to be handled in a separate branch, so this exists for coverage.
+        """
+        dag = ProvDAG(os.path.join(DATA_DIR, 'merged_tbls.qza'))
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
+                           use_recorded_metadata=False, pm=pm)
+        build_usage_examples(dag, cfg)
+        list_line = 'tables=[table_0, table_1],'
+        self.assertIn(list_line, cfg.use.render())
+
 
 class MiscHelperFnTests(unittest.TestCase):
     def test_uniquify_action_name(self):

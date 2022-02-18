@@ -33,15 +33,15 @@ def action(self,
     Because our goal in the patched snippet is to assign a usage example type,
     a type-expression match should always return a correct usage example type.
     """
-    if not isinstance(action, UsageAction):
+    if not isinstance(action, UsageAction):  # pragma: no cover
         raise ValueError('Invalid value for `action`: expected %r, '
                          'received %r.' % (UsageAction, type(action)))
 
-    if not isinstance(inputs, UsageInputs):
+    if not isinstance(inputs, UsageInputs):  # pragma: no cover
         raise ValueError('Invalid value for `inputs`: expected %r, '
                          'received %r.' % (UsageInputs, type(inputs)))
 
-    if not isinstance(outputs, UsageOutputNames):
+    if not isinstance(outputs, UsageOutputNames):  # pragma: no cover
         raise ValueError('Invalid value for `outputs`: expected %r, '
                          'received %r.' % (UsageOutputNames,
                                            type(outputs)))
@@ -49,7 +49,7 @@ def action(self,
     action_f = action.get_action()
 
     @functools.lru_cache(maxsize=None)
-    def memoized_action():
+    def memoized_action():  # pragma: no cover
         execed_inputs = inputs.map_variables(lambda v: v.execute())
         if self.asynchronous:
             return action_f.asynchronous(**execed_inputs).result()
@@ -76,10 +76,10 @@ def action(self,
             var_type = 'visualization'
         elif is_semantic_type(qiime_type):
             var_type = 'artifact'
-        else:
+        else:  # pragma: no cover
             raise ValueError('unknown output type: %r' % (qiime_type,))
 
-        def factory(name=param_name):
+        def factory(name=param_name):  # pragma: no cover
             results = memoized_action()
             result = getattr(results, name)
             return result
@@ -182,7 +182,7 @@ class ReplayPythonUsage(ArtifactAPIUsage):
             self.INDENT + '%r,' % (import_fp,),
         ]
 
-        if view_type is not None:
+        if view_type is not None:  # pragma: no cover
             if type(view_type) is not str:
                 # Show users where these formats come from when used in the
                 # Python API to make things less "magical".
@@ -258,7 +258,7 @@ class ReplayCLIUsage(CLIUsage):
             self.INDENT + '--type %r \\' % (semantic_type,)
         ]
 
-        if view_type is not None:
+        if view_type is not None:  # pragma: no cover
             lines.append(
                 self.INDENT + '--input-format %s \\' % (view_type,))
 

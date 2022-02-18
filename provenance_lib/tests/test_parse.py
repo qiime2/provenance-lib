@@ -1,4 +1,6 @@
+from contextlib import redirect_stdout
 import copy
+import io
 import networkx as nx
 import os
 import pathlib
@@ -1195,3 +1197,17 @@ class DirectoryParserTests(unittest.TestCase):
         self.assertIn(s2_id, inner_dir_dag.dag)
 
         self.assertEqual(dir_dag, inner_dir_dag)
+
+    def test_verbose(self):
+        buffer = io.StringIO()
+        tbl = 'parse_dir_test/inner/v5_table.qza'
+        viz = 'parse_dir_test/v5_uu_emperor.qzv'
+        tree = 'parse_dir_test/inner/v5_unrooted_tree.qza'
+        with redirect_stdout(buffer):
+            dag = ProvDAG(os.path.join(DATA_DIR, 'parse_dir_test'),
+                          verbose=True)
+        self.assertEqual(dag.cfg.verbose, True)
+        stdout_log = buffer.getvalue()
+        self.assertRegex(stdout_log, f"Parsing.*{tbl}")
+        self.assertRegex(stdout_log, f"Parsing.*{viz}")
+        self.assertRegex(stdout_log, f"Parsing.*{tree}")

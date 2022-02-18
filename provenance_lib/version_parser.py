@@ -11,7 +11,8 @@ _VERSION_MATCHER = (
     r'QIIME 2\n'
     r'archive: [0-9]{1,2}$\n'
     r'framework: '
-    r'(?:20[0-9]{2}|2)\.(?:[1-9][0-2]?|0)\.[0-9](?:\.dev[0-9]?)?\Z')
+    r'(?:20[0-9]{2}|2)\.(?:[1-9][0-2]?|0)\.[0-9](?:\.dev[0-9]?)?'
+    r'(?:\+[.\w]+)?\Z')
 
 
 def parse_version_from_fp(fp: pathlib.Path) -> Tuple[str, str]:

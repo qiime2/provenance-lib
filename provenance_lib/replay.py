@@ -19,6 +19,9 @@ from qiime2.sdk import PluginManager
 from qiime2.sdk.usage import UsageVariable
 
 
+# TODO: NEXT Test coverage
+# TODO: DOIs for common things
+
 @dataclass(frozen=False)
 class ReplayConfig():
     use: Usage

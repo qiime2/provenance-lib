@@ -12,7 +12,7 @@ import zipfile
 from networkx import DiGraph
 from networkx.classes.reportviews import NodeView
 
-from ..checksum_validator import ChecksumDiff, ValidationCode
+from .._checksum_validator import ChecksumDiff, ValidationCode
 from ..parse import (
     ProvDAG, UnparseableDataError, DirectoryParser, EmptyParser, ProvDAGParser,
     archive_not_parsed, select_parser, parse_provenance,

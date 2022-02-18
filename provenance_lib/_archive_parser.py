@@ -13,7 +13,7 @@ import zipfile
 
 import bibtexparser as bp
 
-from . import checksum_validator
+from . import _checksum_validator
 from . import version_parser
 from .util import get_root_uuid, get_nonroot_uuid, UUID, FileName
 from ._yaml_constructors import CONSTRUCTOR_REGISTRY, MetadataInfo
@@ -36,8 +36,8 @@ class ParserResults():
     """
     parsed_artifact_uuids: Set[UUID]
     prov_digraph: nx.DiGraph
-    provenance_is_valid: checksum_validator.ValidationCode
-    checksum_diff: Optional[checksum_validator.ChecksumDiff]
+    provenance_is_valid: _checksum_validator.ValidationCode
+    checksum_diff: Optional[_checksum_validator.ChecksumDiff]
 
 
 class ProvNode:
@@ -505,7 +505,7 @@ class ParserV0(ArtifactParser):
                     self._validate_checksums(zf)
             else:
                 provenance_is_valid, checksum_diff = (
-                    checksum_validator.ValidationCode.VALIDATION_OPTOUT, None)
+                    _checksum_validator.ValidationCode.VALIDATION_OPTOUT, None)
 
             uuid = get_root_uuid(zf)
 
@@ -539,14 +539,14 @@ class ParserV0(ArtifactParser):
         return _ResultMetadata(zf, root_md_fp)
 
     def _validate_checksums(self, zf: zipfile.ZipFile) -> \
-            Tuple[checksum_validator.ValidationCode,
-                  Optional[checksum_validator.ChecksumDiff]]:
+            Tuple[_checksum_validator.ValidationCode,
+                  Optional[_checksum_validator.ChecksumDiff]]:
         """
         V0 archives predate provenance tracking, so
         - provenance_is_valid = False
         - checksum_diff = None
         """
-        return (checksum_validator.ValidationCode.PREDATES_CHECKSUMS,
+        return (_checksum_validator.ValidationCode.PREDATES_CHECKSUMS,
                 None)
 
     def _digraph_from_archive_contents(
@@ -618,7 +618,7 @@ class ParserV1(ParserV0):
                     self._validate_checksums(zf)
             else:
                 provenance_is_valid, checksum_diff = (
-                    checksum_validator.ValidationCode.VALIDATION_OPTOUT, None)
+                    _checksum_validator.ValidationCode.VALIDATION_OPTOUT, None)
 
             prov_data_fps = self._get_prov_data_fps(
                 zf, self.expected_files_in_all_nodes,
@@ -660,7 +660,7 @@ class ParserV1(ParserV0):
                         if fp not in prov_data_fps:
                             files_are_missing = True
                             provenance_is_valid = \
-                                checksum_validator.ValidationCode.INVALID
+                                _checksum_validator.ValidationCode.INVALID
                             error_contents += (
                                 f"{fp.name} file for node {node_uuid} "
                                 f"misplaced or nonexistent in {zf.filename}.\n"
@@ -686,15 +686,15 @@ class ParserV1(ParserV0):
         )
 
     def _validate_checksums(self, zf: zipfile.ZipFile) -> \
-            Tuple[checksum_validator.ValidationCode,
-                  Optional[checksum_validator.ChecksumDiff]]:
+            Tuple[_checksum_validator.ValidationCode,
+                  Optional[_checksum_validator.ChecksumDiff]]:
         """
         Provenance is initially assumed valid because we have no checksums,
         so:
         - provenance_is_valid = False
         - checksum_diff = None
         """
-        return (checksum_validator.ValidationCode.PREDATES_CHECKSUMS,
+        return (_checksum_validator.ValidationCode.PREDATES_CHECKSUMS,
                 None)
 
     def _get_prov_data_fps(self, zf: zipfile.ZipFile,
@@ -769,8 +769,8 @@ class ParserV5(ParserV4):
         return super().parse_prov(cfg, archive_data)
 
     def _validate_checksums(self, zf: zipfile.ZipFile) -> \
-            Tuple[checksum_validator.ValidationCode,
-                  Optional[checksum_validator.ChecksumDiff]]:
+            Tuple[_checksum_validator.ValidationCode,
+                  Optional[_checksum_validator.ChecksumDiff]]:
         """
         With v5, we can actually validate checksums, so use checksum_validator
         to return:
@@ -778,7 +778,7 @@ class ParserV5(ParserV4):
         - checksum_diff: Optional[ChecksumDiff], where None only if
             checksums.md5 is missing
         """
-        return checksum_validator.validate_checksums(zf)
+        return _checksum_validator.validate_checksums(zf)
 
 
 FORMAT_REGISTRY = {

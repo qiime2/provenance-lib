@@ -8,7 +8,7 @@ import unittest
 import warnings
 import zipfile
 
-from .. import checksum_validator
+from .. import _checksum_validator
 from .testing_utilities import is_root_provnode_data
 from .test_parse import TEST_DATA, DATA_DIR
 from ..util import UUID
@@ -62,9 +62,9 @@ class ParserVxTests(unittest.TestCase):
                 self.assertIsInstance(res.prov_digraph,
                                       (type(None), nx.DiGraph))
                 self.assertIsInstance(res.provenance_is_valid,
-                                      checksum_validator.ValidationCode)
+                                      _checksum_validator.ValidationCode)
                 exp_diff_type = (type(None) if int(archive_version[0]) < 5
-                                 else checksum_validator.ChecksumDiff)
+                                 else _checksum_validator.ChecksumDiff)
                 self.assertIsInstance(res.checksum_diff, exp_diff_type)
 
                 # Does this archive have the expected number of Results?

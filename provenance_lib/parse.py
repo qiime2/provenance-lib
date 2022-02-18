@@ -8,7 +8,7 @@ import os
 from networkx.classes.reportviews import NodeView
 import zipfile
 
-from . import checksum_validator
+from . import _checksum_validator
 from ._archive_parser import (
     Config, ParserResults, ProvNode, Parser, ArtifactParser
 )
@@ -158,11 +158,11 @@ class ProvDAG:
         return {self.get_node_data(uuid) for uuid in self.terminal_uuids}
 
     @property
-    def provenance_is_valid(self) -> checksum_validator.ValidationCode:
+    def provenance_is_valid(self) -> _checksum_validator.ValidationCode:
         return self._provenance_is_valid
 
     @property
-    def checksum_diff(self) -> Optional[checksum_validator.ChecksumDiff]:
+    def checksum_diff(self) -> Optional[_checksum_validator.ChecksumDiff]:
         return self._checksum_diff
 
     @property
@@ -326,7 +326,7 @@ class EmptyParser(Parser):
         return ParserResults(
             parsed_artifact_uuids=set(),
             prov_digraph=nx.DiGraph(),
-            provenance_is_valid=checksum_validator.ValidationCode.VALID,
+            provenance_is_valid=_checksum_validator.ValidationCode.VALID,
             checksum_diff=None,
         )
 

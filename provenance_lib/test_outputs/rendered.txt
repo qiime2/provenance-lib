@@ -22,10 +22,10 @@ metadata, saved at 'recorded_metadata/demux_emp_single_0/'
 # or cast a pandas.DataFrame to Metadata as needed.
 barcodes_0_md = Metadata.load(<your metadata filepath>)
 
-some_mdc = barcodes_0_md.get_column('<column_name>')
+barcodes_0_mdc_0 = barcodes_0_md.get_column('<column_name>')
 per_sample_sequences_0, _ = demux_actions.emp_single(
     seqs=emp_single_end_sequences_0,
-    barcodes=some_mdc,
+    barcodes=barcodes_0_mdc_0,
     rev_comp_barcodes=False,
     rev_comp_mapping_barcodes=False,
 )

@@ -4,7 +4,7 @@ import pathlib
 import unittest
 import zipfile
 
-from ..checksum_validator import (
+from .._checksum_validator import (
     diff_checksums, md5sum_directory, md5sum, from_checksum_format,
     validate_checksums, ChecksumDiff, ValidationCode,
 )

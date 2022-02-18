@@ -11,7 +11,8 @@ _VERSION_MATCHER = (
     r'QIIME 2\n'
     r'archive: [0-9]{1,2}$\n'
     r'framework: '
-    r'(?:20[0-9]{2}|2)\.(?:[1-9][0-2]?|0)\.[0-9](?:\.dev[0-9]?)?\Z')
+    r'(?:20[0-9]{2}|2)\.(?:[1-9][0-2]?|0)\.[0-9](?:\.dev[0-9]?)?'
+    r'(?:\+[.\w]+)?\Z')
 
 
 def parse_version_from_fp(fp: pathlib.Path) -> Tuple[str, str]:
@@ -42,9 +43,10 @@ def parse_version(zf: zipfile.ZipFile,
         with zf.open(str(version_fp)) as v_fp:
             version_contents = str(v_fp.read().strip(), 'utf-8')
     except KeyError:
+
         raise ValueError(
             f"Malformed Archive: VERSION file for node {node_uuid} misplaced "
-            f" or nonexistent\nArchive {root_uuid} may be corrupt or "
+            f"or nonexistent\nArchive {zf.filename} may be corrupt or "
             "provenance may be false.")
 
     if not re.match(_VERSION_MATCHER, version_contents, re.MULTILINE):
@@ -53,9 +55,8 @@ def parse_version(zf: zipfile.ZipFile,
         _vrsn_mtch_repr = codecs.decode(_VERSION_MATCHER.encode('utf-8'),
                                         'unicode-escape')
         raise ValueError(
-            "Malformed Archive: VERSION file out of spec for archive "
-            f"{root_uuid}\n\n"
-            f"Should match this RE:\n{_vrsn_mtch_repr}\n\n"
+            f"Malformed Archive: VERSION file out of spec in {zf.filename}\n"
+            f"\nShould match this RE:\n{_vrsn_mtch_repr}\n\n"
             f"Actually looks like:\n{version_contents}\n")
 
     _, archive_version, frmwk_vrsn = [

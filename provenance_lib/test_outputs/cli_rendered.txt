@@ -48,5 +48,5 @@ qiime diversity core-metrics-phylogenetic \
   # QIIME 2 environment. This may occur when the plugin version you have
   # installed does not match the version used in the original analysis.
   # Please see the docs and correct the parameter name before running.
-  --?-n_jobs 1 \
+  --?-n-jobs 1 \
   --o-unweighted-unifrac-emperor unweighted-unifrac-emperor-0.qzv

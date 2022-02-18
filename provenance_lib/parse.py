@@ -2,14 +2,17 @@ from __future__ import annotations
 import copy
 from typing import Any, List, Mapping, Optional, Set
 
+import glob
 import networkx as nx
+import os
 from networkx.classes.reportviews import NodeView
+import zipfile
 
-from . import checksum_validator
-from .archive_parser import (
-    Config, ParserResults, ProvNode, Parser, ArtifactParser,
+from . import _checksum_validator
+from ._archive_parser import (
+    Config, ParserResults, ProvNode, Parser, ArtifactParser
 )
-from .util import UUID
+from .util import UUID, get_root_uuid
 
 
 class ProvDAG:
@@ -73,8 +76,15 @@ class ProvDAG:
     inputs. They are added to the DAG when we add in-edges to "real" provenance
     nodes. These nodes are explicitly assigned the node attributes above,
     allowing red-flagging of no-provenance nodes, as all nodes have a
-    has_provenance attribute. No-provenance nodes with no v1+ children will
-    always appear as disconnected members of the DiGraph.
+    has_provenance attribute.
+
+    A node with has_provenance = False may be a "complete" v0 node or a
+    uuid-only !no-provenance input.
+
+    A node with node_data = None will always be a uuid-only !no-provence input
+
+    No-provenance nodes with no v1+ children will always appear as disconnected
+    members of the DiGraph.
 
     Custom node objects:
     Though NetworkX supports the use of custom objects as nodes, querying the
@@ -85,13 +95,14 @@ class ProvDAG:
     def __init__(self, artifact_data: Any = None,
                  validate_checksums: bool = True,
                  parse_metadata: bool = True,
+                 verbose: bool = False,
                  ):
         """
         Create a ProvDAG (digraph) by getting a parser from the parser
         dispatcher, using it to parse the incoming data into a ParserResults,
         and then loading those Results into key fields.
         """
-        cfg = Config(validate_checksums, parse_metadata)
+        cfg = Config(validate_checksums, parse_metadata, verbose)
         parser_results = parse_provenance(cfg, artifact_data)
 
         self.cfg = cfg
@@ -147,11 +158,11 @@ class ProvDAG:
         return {self.get_node_data(uuid) for uuid in self.terminal_uuids}
 
     @property
-    def provenance_is_valid(self) -> checksum_validator.ValidationCode:
+    def provenance_is_valid(self) -> _checksum_validator.ValidationCode:
         return self._provenance_is_valid
 
     @property
-    def checksum_diff(self) -> Optional[checksum_validator.ChecksumDiff]:
+    def checksum_diff(self) -> Optional[_checksum_validator.ChecksumDiff]:
         return self._checksum_diff
 
     @property
@@ -311,13 +322,87 @@ class EmptyParser(Parser):
         else:
             raise TypeError(f" in EmptyParser: {artifact_data} is not None")
 
-    def parse_prov(self, cfg: Config, data: None):
+    def parse_prov(self, cfg: Config, data: None) -> ParserResults:
         return ParserResults(
             parsed_artifact_uuids=set(),
             prov_digraph=nx.DiGraph(),
-            provenance_is_valid=checksum_validator.ValidationCode.VALID,
+            provenance_is_valid=_checksum_validator.ValidationCode.VALID,
             checksum_diff=None,
         )
+
+
+class DirectoryParser(Parser):
+    accepted_data_types = \
+        'filepath to a directory containing .qza/.qzv archives'
+
+    @classmethod
+    def get_parser(cls, artifact_data: Any) -> Parser:
+        """
+        Return the appropriate Parser if this Parser type can handle the data
+        passed in.
+
+        Should raise an appropriate exception if this Parser cannot handle the
+        data.
+        """
+        try:
+            is_dir = os.path.isdir(artifact_data)
+        except TypeError:
+            t = type(artifact_data)
+            raise ValueError(
+                f" in DirectoryParser: expects a directory, not a {t}")
+
+        if not is_dir:
+            raise ValueError(f" in DirectoryParser: {artifact_data} "
+                             "is not a valid directory.")
+
+        return DirectoryParser()
+
+    def parse_prov(self, cfg: Config, data: Any) -> ParserResults:
+        """
+        Iterates over the directory's .qza and .qzv files, parsing them if
+        their terminal node isn't already in the DAG.
+
+        This behavior assumes that the ArchiveParsers capture all nodes
+        within the archives they parse by default.
+        """
+        search_exp = str(data).rstrip('/') + '/**/*.qz[av]'
+        # TODO: Recursive should be optional
+        artifacts_to_parse = glob.glob(search_exp, recursive=True)
+        if not artifacts_to_parse:
+            raise ValueError(f"No .qza or .qzv files present in {data}")
+
+        dag = ProvDAG()
+        for archive in artifacts_to_parse:
+            if cfg.verbose:
+                print("Parsing", archive)
+            with zipfile.ZipFile(archive) as zf:
+                root_id = get_root_uuid(zf)
+            if archive_not_parsed(root_id, dag):
+                dag = ProvDAG.union(
+                    [dag,
+                     ProvDAG(archive,
+                             cfg.perform_checksum_validation,
+                             cfg.parse_study_metadata)])
+            else:
+                # Even if we skip a redundant file for efficiency,
+                # we should add its UUID to the list of parsed artifacts
+                dag._parsed_artifact_uuids.add(root_id)
+
+        return ParserResults(
+            dag._parsed_artifact_uuids,
+            dag.dag,
+            dag.provenance_is_valid,
+            dag.checksum_diff,
+            )
+
+
+def archive_not_parsed(root_id: UUID, dag: ProvDAG) -> bool:
+    """
+    returns True if the archive with root_uuid has not been parsed into dag
+    (not in the dag at all, or added only as a !no-provenance parent id)
+    """
+    return (root_id in dag.dag and dag.get_node_data(root_id) is None) \
+        or root_id not in dag.dag
 
 
 class ProvDAGParser(Parser):
@@ -360,6 +445,7 @@ def select_parser(payload: Any) -> Parser:
     """
     _PARSER_TYPE_REGISTRY = [
         ArtifactParser,
+        DirectoryParser,
         ProvDAGParser,
         EmptyParser,
     ]

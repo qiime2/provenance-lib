@@ -1,7 +1,10 @@
+from contextlib import redirect_stdout
 import copy
+import io
 import networkx as nx
 import os
 import pathlib
+import tempfile
 import unittest
 import warnings
 import zipfile
@@ -9,13 +12,13 @@ import zipfile
 from networkx import DiGraph
 from networkx.classes.reportviews import NodeView
 
-from ..checksum_validator import ChecksumDiff, ValidationCode
+from .._checksum_validator import ChecksumDiff, ValidationCode
 from ..parse import (
-    ProvDAG, UnparseableDataError, ProvDAGParser, EmptyParser,
-    select_parser, parse_provenance,
+    ProvDAG, UnparseableDataError, DirectoryParser, EmptyParser, ProvDAGParser,
+    archive_not_parsed, select_parser, parse_provenance,
 )
 from ..util import UUID
-from ..archive_parser import (
+from .._archive_parser import (
     ParserV0, ParserV1, ParserV2, ParserV3, ParserV4, ParserV5,
     Config, ProvNode, ParserResults, ArtifactParser,
 )
@@ -547,9 +550,10 @@ class ProvDAGTests(unittest.TestCase):
                     # Fudging this to match what the user sees - 'action.yaml'
                     if name == 'action/action.yaml':
                         name = 'action.yaml'
+                    fn = 'mangled.qzv'
                     expected = (
                         f"(?s)Malformed.*{name}.*{node_uuid}.*"
-                        f"{root_uuid}.*corrupt"
+                        f"{fn}.*corrupt"
                     )
                     with self.assertRaisesRegex(ValueError, expected):
                         # Only v5 warns on this, so an assert would be clunky
@@ -590,6 +594,18 @@ class ProvDAGTests(unittest.TestCase):
         self.assertEqual(dag.get_node_data(a_as_md_uuid)._uuid, a_as_md_uuid)
         self.assertEqual(dag.get_node_data(a_as_md_uuid).type,
                          'FeatureData[Taxonomy]')
+
+    def test_artifact_with_collection_of_inputs(self):
+        fp = os.path.join(DATA_DIR, 'merged_tbls.qza')
+        root_uuid = '2a045e27-7f3a-4d83-b358-8d39373708cb'
+        dag = ProvDAG(fp)
+        root_node = dag.get_node_data(root_uuid)
+        self.assertEqual(root_node.type, 'FeatureTable[Frequency]')
+        exp_parents = {
+            '84898e39-f6e0-44bb-8fa1-6df2f330af68',
+            '0be6c7be-ad84-4417-9f1c-cade0a8a9b58'
+        }
+        self.assertEqual(dag.predecessors(root_uuid), exp_parents)
 
     def test_provdag_initialized_from_a_provdag(self):
         for dag in self.dags.values():
@@ -922,9 +938,10 @@ class ProvDAGTestsNoChecksumValidation(unittest.TestCase):
                     # Fudging this to match what the user sees - 'action.yaml'
                     if name == 'action/action.yaml':
                         name = 'action.yaml'
+                    fn = 'mangled.qzv'
                     expected = (
                         f"(?s)Malformed.*{name}.*{node_uuid}.*"
-                        f"{root_uuid}.*corrupt"
+                        f"{fn}.*corrupt"
                     )
                     with self.assertRaisesRegex(ValueError, expected):
                         ProvDAG(chopped_archive, validate_checksums=False)
@@ -1007,6 +1024,16 @@ class SelectParserTests(unittest.TestCase):
         pdag = select_parser(dag)
         self.assertIsInstance(pdag, ProvDAGParser)
 
+        # check dir_fp as fp
+        dir_fp = pathlib.Path(DATA_DIR) / 'parse_dir_test'
+        dir_p = select_parser(dir_fp)
+        self.assertIsInstance(dir_p, DirectoryParser)
+
+        # check dir_fp as str
+        dir_fp_str = str(dir_fp)
+        dir_p = select_parser(dir_fp_str)
+        self.assertIsInstance(dir_p, DirectoryParser)
+
     def test_correct_archive_parser_version(self):
         for arch_ver in TEST_DATA:
             qzv_fp = TEST_DATA[arch_ver]['qzv_fp']
@@ -1065,17 +1092,123 @@ class ParseProvenanceTests(unittest.TestCase):
         self.assertEqual(res.provenance_is_valid, ValidationCode.VALID)
         self.assertEqual(res.checksum_diff, None)
 
+    def test_parse_with_directory_parser(self):
+        dir_fp = pathlib.Path(DATA_DIR) / 'parse_dir_test'
+        res = parse_provenance(self.cfg, dir_fp)
+        self.assertIsInstance(res, ParserResults)
+        v5_tbl_id = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
+        v5_uu_id = 'ffb7cee3-2f1f-4988-90cc-efd5184ef003'
+        v5_unr_tree_id = '12e012d5-b01c-40b7-b825-a17f0478a02f'
+        self.assertEqual(res.parsed_artifact_uuids,
+                         {v5_tbl_id, v5_unr_tree_id, v5_uu_id})
+        self.assertEqual(len(res.prov_digraph), 16)
+        self.assertEqual(res.provenance_is_valid,
+                         TEST_DATA['5']['prov_is_valid'])
+        self.assertEqual(res.checksum_diff, TEST_DATA['5']['checksum'])
+
+    def test_parse_with_directory_parser_bad_dir_path(self):
+        dir_fp = pathlib.Path(DATA_DIR) / 'fake_dir'
+        with self.assertRaisesRegex(UnparseableDataError, 'not a valid dir'):
+            parse_provenance(self.cfg, dir_fp)
+
     def test_no_correct_parser_found_error(self):
-        """
-        Nothing blows up here, it's just not the right kind of filepath
-        e.g. not a zipfile?
-        """
         input_data = {'this': 'is not parseable'}
         with self.assertRaisesRegex(
             UnparseableDataError,
             f"(?s)Input data {input_data}.*not supported.*"
             "AttributeError.*ArtifactParser.*dict.*no attribute.*seek.*"
+            "DirectoryParser.*expects a directory.*"
             "ProvDAGParser.*is not a ProvDAG.*"
             "EmptyParser.*is not None"
                 ):
             select_parser(input_data)
+
+
+class DirectoryParserTests(unittest.TestCase):
+    def test_parse_empty_dir(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with self.assertRaisesRegex(ValueError,
+                                        f"No .qza or .qzv files.*{tmpdir}"):
+                ProvDAG(tmpdir)
+
+    def test_directory_parser_works_regardless_trailing_slash(self):
+        dag = ProvDAG(DATA_DIR + '/parse_dir_test/')
+        dag2 = ProvDAG(DATA_DIR + '/parse_dir_test')
+        self.assertEqual(dag, dag2)
+
+    def test_directory_parser_captures_all_parsed_artifact_uuids(self):
+        """
+        This test dir contains a feature table, an unrooted tree, and a viz.
+        The feature table is a true subset of the viz, and is not re-parsed as
+        implemented.
+
+        The unrooted tree is a terminal node, but shares some ancestors with
+        the others. It must be parsed, though its shared parents don't.
+
+        The resulting dag should be aware of all three user-passed artifacts,
+        regardless of whether we actual parse the v5_table
+        """
+        dag = ProvDAG(DATA_DIR + '/parse_dir_test/')
+        v5_tbl_id = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
+        v5_uu_id = 'ffb7cee3-2f1f-4988-90cc-efd5184ef003'
+        v5_unr_tree_id = '12e012d5-b01c-40b7-b825-a17f0478a02f'
+        self.assertEqual(dag._parsed_artifact_uuids,
+                         {v5_tbl_id, v5_uu_id, v5_unr_tree_id})
+
+    def test_archive_not_parsed(self):
+        mixed_archive_fp = os.path.join(DATA_DIR, 'mixed_v0_v1_uu_emperor.qzv')
+        v1_uuid = TEST_DATA['1']['uuid']
+        v0_uuid = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
+        with self.assertWarnsRegex(
+                UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
+            dag = ProvDAG(mixed_archive_fp)
+        # Never parsed
+        self.assertTrue(archive_not_parsed(root_id='not even an id', dag=dag))
+        # Only parsed as a !no-provenance parent
+        self.assertTrue(archive_not_parsed(v0_uuid, dag))
+        # Actually parsed
+        self.assertFalse(archive_not_parsed(v1_uuid, dag))
+
+    def test_directory_parser_idempotent_with_parse_and_union(self):
+        base_dir = os.path.join(DATA_DIR, 'parse_dir_test')
+        inner_dir = os.path.join(base_dir, 'inner')
+        dir_dag = ProvDAG(base_dir)
+        # parse files separately, then union
+        tbl = ProvDAG(os.path.join(inner_dir, 'v5_table.qza'))
+        tree = ProvDAG(os.path.join(inner_dir, 'v5_unrooted_tree.qza'))
+        viz = ProvDAG(os.path.join(base_dir, 'v5_uu_emperor.qzv'))
+        union_dag = ProvDAG.union([tbl, tree, viz])
+        self.assertEqual(dir_dag, union_dag)
+
+    def test_directory_parser_multiple_imports(self):
+        base_dir = os.path.join(DATA_DIR, 'multiple_imports_test')
+        inner_dir = os.path.join(base_dir, 'duplicated_inner')
+        inner_dir_dag = ProvDAG(inner_dir)
+        s1_id = '4f6794e7-0e34-46d9-9a48-3fbc7900430e'
+        s2_id = 'b4fd43fb-91c3-45f6-9672-7cf8fd90bc0b'
+        self.assertEqual(len(inner_dir_dag), 2)
+        self.assertIn(s1_id, inner_dir_dag.dag)
+        self.assertIn(s2_id, inner_dir_dag.dag)
+
+        # Despite the two pairs of duplicate files with different names,
+        # this DAG should be identical to the inner.
+        dir_dag = ProvDAG(base_dir)
+        self.assertEqual(len(inner_dir_dag), 2)
+        self.assertIn(s1_id, inner_dir_dag.dag)
+        self.assertIn(s2_id, inner_dir_dag.dag)
+
+        self.assertEqual(dir_dag, inner_dir_dag)
+
+    def test_verbose(self):
+        buffer = io.StringIO()
+        tbl = 'parse_dir_test/inner/v5_table.qza'
+        viz = 'parse_dir_test/v5_uu_emperor.qzv'
+        tree = 'parse_dir_test/inner/v5_unrooted_tree.qza'
+        with redirect_stdout(buffer):
+            dag = ProvDAG(os.path.join(DATA_DIR, 'parse_dir_test'),
+                          verbose=True)
+        self.assertEqual(dag.cfg.verbose, True)
+        stdout_log = buffer.getvalue()
+        self.assertRegex(stdout_log, f"Parsing.*{tbl}")
+        self.assertRegex(stdout_log, f"Parsing.*{viz}")
+        self.assertRegex(stdout_log, f"Parsing.*{tree}")

@@ -7,96 +7,19 @@ import pkg_resources
 import re
 from collections import UserDict
 from dataclasses import dataclass, field
-from typing import Dict, Iterator, List, Literal, Optional, Set, Union
+from typing import Dict, Iterator, List, Optional, Set
 
-from .archive_parser import ProvNode
+from ._archive_parser import ProvNode
 from .parse import ProvDAG, UUID
-from .util import FileName
-from .yaml_constructors import MetadataInfo
+from ._usage_drivers import DRIVER_CHOICES, SUPPORTED_USAGE_DRIVERS, Usage
+from .util import FileName, camel_to_snake
+from ._yaml_constructors import MetadataInfo
 
-from q2cli.core.usage import CLIUsage
-from qiime2.plugins import ArtifactAPIUsage
 from qiime2.sdk import PluginManager
-from qiime2.sdk.usage import Usage, UsageVariable
+from qiime2.sdk.usage import UsageVariable
 
 
-class ReplayPythonUsage(ArtifactAPIUsage):
-    def _template_outputs(self, action, variables):
-        """
-        Monkeypatch allowing us to replay an action even when our provenance
-        DAG doesn't have a record of all outputs from that action.
-        """
-        output_vars = []
-        action_f = action.get_action()
-
-        # need to coax the outputs into the correct order for unpacking
-        for output in action_f.signature.outputs:
-            try:
-                variable = getattr(variables, output)
-                output_vars.append(str(variable.to_interface_name()))
-            except AttributeError:
-                # if the args to UsageOutputNames skip an output name,
-                # can we assume the user doesn't care about that output?
-                # These assumptions are OK here, but not in the framework.
-                # I'm guessing this could break chaining, so maybe
-                # this behavior should warn?
-                output_vars.append('_')
-
-        if len(output_vars) == 1:
-            output_vars.append('')
-
-        return ', '.join(output_vars).strip()
-
-    def init_metadata(self, name, factory):
-        var = super().init_metadata(name, factory)
-        self._update_imports(from_='qiime2', import_='Metadata')
-        input_fp = var.to_interface_name()
-        lines = [
-            '# NOTE: You may substitute already-loaded Metadata for the '
-            'following,\n# or cast a pandas.DataFrame to Metadata as needed.\n'
-            f'{input_fp} = Metadata.load(<your metadata filepath>)',
-            '',
-        ]
-        self._add(lines)
-        return var
-
-
-class ReplayCLIUsage(CLIUsage):
-    def _append_action_line(self, signature, param_name, value):
-        """
-        Monkeypatch allowing us to replay when recorded parameter names
-        are not present in the registered function signatures in the active
-        QIIME 2 environment
-        """
-        param_state = signature.get(param_name)
-        if param_state is not None:
-            for opt, val in self._make_param(value, param_state):
-                line = self.INDENT + opt
-                if val is not None:
-                    line += ' ' + val
-                line += ' \\'
-                self.recorder.append(line)
-        else:  # no matching param name
-            line = self.INDENT + (
-                "# TODO: The following parameter name was not found in "
-                "your current\n  # QIIME 2 environment. This may occur "
-                "when the plugin version you have\n  # installed does not "
-                "match the version used in the original analysis.\n  # "
-                "Please see the docs and correct the parameter name "
-                "before running.\n")
-            cli_name = re.sub('_', '-', param_name)
-            line += self.INDENT + '--?-' + cli_name + ' ' + str(value)
-            line += ' \\'
-            self.recorder.append(line)
-
-
-DRIVER_CHOICES = Literal['python3', 'cli']
-SUPPORTED_USAGE_DRIVERS = {
-    'python3': ReplayPythonUsage,
-    'cli': ReplayCLIUsage,
-}
-DRIVER_NAMES = list(SUPPORTED_USAGE_DRIVERS.keys())
-
+# TODO: NEXT DOIs for common things
 
 @dataclass(frozen=False)
 class ReplayConfig():
@@ -105,6 +28,7 @@ class ReplayConfig():
     pm: PluginManager = PluginManager()
     md_context_has_been_printed: bool = False
     no_provenance_context_has_been_printed: bool = False
+    verbose: bool = False
 
 
 @dataclass(frozen=False)
@@ -134,20 +58,18 @@ class UsageVarsDict(UserDict):
     added, n is incremented as needed until collision is avoided.
     UsageVarsDicts mutate ALL str values they receive.
 
-    This dict explicitly supports the storage of variable-name strings,
-    and of the UsageVariables that correspond to those strings.
-
-    Best practice is generally to add the UUID: variable-name pair to the dict,
-    create the usage variable using the name stored in the dict,
-    then replace the variable-name with the related UsageVariable. This
+    Best practice is generally to add the UUID: variable-name pair to this,
+    create the usage variable using the stored name,
+    then store the usage variable in a separate {UUID: UsagVar}. This
     ensures that UsageVariable.name is unique, preventing namespace collisions.
+    NamespaceCollections (below) exist to group these related structures.
 
-    .get_key exists to support this use case, by enabling reverse lookup
+    Note: it's not necessary (and may break the mechanism of uniqueness here)
+    to maintain parity between variable names in this namespace and in the
+    usage variable store. The keys in both stores, however, must match.
     """
-    def __setitem__(self, key: UUID, item: Union[str, UsageVariable]) -> None:
-        unique_item = item
-        if isinstance(item, str):
-            unique_item = self._uniquify(item)
+    def __setitem__(self, key: UUID, item: str) -> None:
+        unique_item = self._uniquify(item)
         return super().__setitem__(key, unique_item)
 
     def _uniquify(self, var_name: str) -> str:
@@ -157,12 +79,15 @@ class UsageVarsDict(UserDict):
         """
         some_int = 0
         unique_name = f"{var_name}_{some_int}"
-        while unique_name in self.data.values():
+        values = self.data.values()
+        # no-prov nodes are stored with angle brackets around them, but
+        # those brackets shouldn't be considered on uniqueness check
+        while unique_name in values or f'<{unique_name}>' in values:
             some_int += 1
             unique_name = f"{var_name}_{some_int}"
         return unique_name
 
-    def get_key(self, value: Union[str, UsageVariable]):
+    def get_key(self, value: str):
         """
         Given some value in the dict, returns its key
         Results are predictable due to the uniqueness of dict values.
@@ -177,12 +102,23 @@ class UsageVarsDict(UserDict):
                 return key
         raise KeyError(f"passed value '{value}' does not exist in this dict.")
 
+    def wrap_val_in_angle_brackets(self, key: UUID):
+        super().__setitem__(key, f'<{self.data[key]}>')
+
+
+@dataclass(frozen=False)
+class NamespaceCollections:
+    usg_var_namespace: UsageVarsDict = field(default_factory=UsageVarsDict)
+    usg_vars: Dict[UUID, UsageVariable] = field(default_factory=dict)
+    action_namespace: Set[str] = field(default_factory=set)
+
 
 def replay_fp(in_fp: FileName, out_fp: FileName,
               usage_driver_name: DRIVER_CHOICES,
               validate_checksums: bool = True,
               parse_metadata: bool = True,
-              use_recorded_metadata: bool = False):
+              use_recorded_metadata: bool = False,
+              verbose: bool = False):
     """
     One-shot replay from a filepath string, through a ProvDAG to a written
     executable
@@ -191,13 +127,15 @@ def replay_fp(in_fp: FileName, out_fp: FileName,
         raise ValueError(
             "Metadata not parsed for replay. Re-run with parse_metadata = "
             "True or use_recorded_metadata = False")
-    dag = ProvDAG(in_fp, validate_checksums, parse_metadata)
-    replay_provdag(dag, out_fp, usage_driver_name, use_recorded_metadata)
+    dag = ProvDAG(in_fp, validate_checksums, parse_metadata, verbose)
+    replay_provdag(dag, out_fp, usage_driver_name, use_recorded_metadata,
+                   verbose)
 
 
 def replay_provdag(dag: ProvDAG, out_fp: FileName,
                    usage_driver: DRIVER_CHOICES,
-                   use_recorded_metadata: bool = False):
+                   use_recorded_metadata: bool = False,
+                   verbose: bool = False):
     """
     Renders usage examples describing a ProvDAG, producing an interface-
     specific executable.
@@ -208,7 +146,8 @@ def replay_provdag(dag: ProvDAG, out_fp: FileName,
             "use_recorded_metadata to False")
 
     cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS[usage_driver](),
-                       use_recorded_metadata=use_recorded_metadata)
+                       use_recorded_metadata=use_recorded_metadata,
+                       verbose=verbose)
     build_usage_examples(dag, cfg)
     output = cfg.use.render()
     with open(out_fp, mode='w') as out_fh:
@@ -252,8 +191,7 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
     """
     Builds a chained usage example representing the analysis `dag`.
     """
-    actions_namespace = set()  # type: Set[str]
-    usg_var_namespace = UsageVarsDict()
+    usg_ns = NamespaceCollections()
 
     # TODO: This could probably be added to the dag as a property or method
     # to enable memoization. Possible inside group_by_action? The only shift
@@ -263,22 +201,20 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
 
     for node_id in actions.no_provenance_nodes:
         n_data = dag.get_node_data(node_id)
-        build_no_provenance_node_usage(
-            n_data, node_id, usg_var_namespace, cfg)
+        build_no_provenance_node_usage(n_data, node_id, usg_ns, cfg)
 
     for action_id in (std_actions := actions.std_actions):
         some_node_id_from_this_action = next(iter(std_actions[action_id]))
         n_data = dag.get_node_data(some_node_id_from_this_action)
         if n_data.action.action_type == 'import':
-            build_import_usage(n_data, usg_var_namespace, cfg)
+            build_import_usage(n_data, usg_ns, cfg)
         else:
-            build_action_usage(n_data, usg_var_namespace, actions_namespace,
-                               std_actions, action_id, cfg)
+            build_action_usage(n_data, usg_ns, std_actions, action_id, cfg)
 
 
 def build_no_provenance_node_usage(node: Optional[ProvNode],
                                    uuid: UUID,
-                                   usg_var_namespace: UsageVarsDict,
+                                   ns: NamespaceCollections,
                                    cfg: ReplayConfig):
     """
     Given a ProvNode (with no provenance), does something useful with it.
@@ -305,16 +241,24 @@ def build_no_provenance_node_usage(node: Optional[ProvNode],
         cfg.use.comment(
             "Original Node ID                       String Description")
     if node is None:
-        # This occurs when the node is known only from a child node's prov,
-        # and we have no information beyond UUID
-        usg_var_namespace.update({uuid: 'no-provenance-node'})
+        # the node is a !no-provenance input and we have only UUID
+        var_name = 'no-provenance-node'
     else:
-        usg_var_namespace.update({uuid: camel_to_snake(node.type)})
-    cfg.use.comment(f"{uuid}   {usg_var_namespace[uuid]}")
+        var_name = camel_to_snake(node.type)
+    ns.usg_var_namespace.update({uuid: var_name})
+    ns.usg_var_namespace.wrap_val_in_angle_brackets(uuid)
+
+    # Make a usage variable for downstream consumption
+    empty_var = cfg.use.usage_variable(
+        ns.usg_var_namespace[uuid], lambda: None, 'artifact')
+    ns.usg_vars.update({uuid: empty_var})
+
+    # Log the no-prov node
+    cfg.use.comment(f"{uuid}   {ns.usg_vars[uuid].to_interface_name()}")
 
 
 def build_import_usage(node: ProvNode,
-                       usg_var_namespce: UsageVarsDict,
+                       ns: NamespaceCollections,
                        cfg: ReplayConfig):
     """
     Given a ProvNode, adds an import usage example for it, roughly
@@ -331,16 +275,19 @@ def build_import_usage(node: ProvNode,
     The `lambda: None` is a placeholder for some actual data factory,
     and should not impact the rendered usage.
     """
-    usg_var_namespce.update({node._uuid: camel_to_snake(node.type)})
-    format_for_import = cfg.use.init_format('<your data here>', lambda: None)
+    format_id = node._uuid + '_f'
+    ns.usg_var_namespace.update({format_id: camel_to_snake(node.type) + '_f'})
+    format_for_import = cfg.use.init_format(
+        ns.usg_var_namespace[format_id], lambda: None)
+
+    ns.usg_var_namespace.update({node._uuid: camel_to_snake(node.type)})
     use_var = cfg.use.import_from_format(
-        usg_var_namespce[node._uuid], node.type, format_for_import)
-    usg_var_namespce.update({node._uuid: use_var})
+        ns.usg_var_namespace[node._uuid], node.type, format_for_import)
+    ns.usg_vars.update({node._uuid: use_var})
 
 
 def build_action_usage(node: ProvNode,
-                       namespace: UsageVarsDict,
-                       action_namespace: set,
+                       ns: NamespaceCollections,
                        std_actions: Dict[UUID, Dict[UUID, str]],
                        action_id: UUID,
                        cfg: ReplayConfig):
@@ -358,33 +305,46 @@ def build_action_usage(node: ProvNode,
     command_specific_md_context_has_been_printed = False
     plugin = node.action.plugin
     action = node.action.action_name
-    plg_action_name = uniquify_action_name(plugin, action, action_namespace)
+    plg_action_name = uniquify_action_name(plugin, action, ns.action_namespace)
 
     inputs = {}
-    for k, v in node.action.inputs.items():
-        # Some optional params take None as a default
-        if v is not None:
-            inputs.update({k: namespace[v]})
+    for input_name, uuids in node.action.inputs.items():
+        # Some optional inputs take None as a default
+        if uuids is not None:
+            # Some inputs take collections of input strings, so:
+            if type(uuids) is str:
+                inputs.update({input_name: ns.usg_vars[uuids]})
+            else:  # it's a collection
+                input_vars = []
+                for uuid in uuids:
+                    input_vars.append(ns.usg_vars[uuid])
+                inputs.update({input_name: input_vars})
 
     # Process outputs before params so we can access the unique output name
     # from the namespace when dumping metadata to files below
     raw_outputs = std_actions[action_id].items()
     outputs = {}
-    for k, v in raw_outputs:
-        namespace.update({k: v})
-        uniquified_v = namespace[k]
-        outputs.update({v: uniquified_v})
+    for uuid, output_name in raw_outputs:
+        ns.usg_var_namespace.update({uuid: output_name})
+        uniquified_output_name = ns.usg_var_namespace[uuid]
+        outputs.update({output_name: uniquified_output_name})
 
-    for k, v in node.action.parameters.items():
-        if isinstance(v, MetadataInfo):
-            unique_md_id = namespace[node._uuid] + '_' + k
-            namespace.update({unique_md_id: camel_to_snake(k)})
-            md_fn = namespace[unique_md_id] + '.tsv'
-            dump_recorded_md_file(node, plg_action_name, k, md_fn)
+    for param_name, param_val in node.action.parameters.items():
+        # We can currently assume that None arguments are only passed to params
+        # as default values, so we can skip these parameters entirely in replay
+        if param_val is None:
+            continue
+
+        if isinstance(param_val, MetadataInfo):
+            unique_md_id = ns.usg_var_namespace[node._uuid] + '_' + param_name
+            ns.usg_var_namespace.update(
+                {unique_md_id: camel_to_snake(param_name)})
+            md_fn = ns.usg_var_namespace[unique_md_id] + '.tsv'
+            dump_recorded_md_file(node, plg_action_name, param_name, md_fn)
 
             if cfg.use_recorded_metadata:
                 md = init_md_from_recorded_md(
-                    node, unique_md_id, namespace, cfg)
+                    node, unique_md_id, ns.usg_var_namespace, cfg)
             else:
                 if not cfg.md_context_has_been_printed:
                     cfg.md_context_has_been_printed = True
@@ -404,24 +364,24 @@ def build_action_usage(node: ProvNode,
                         "your metadata needs adequately, review the original\n"
                         f"metadata, saved at '{fp}'\n")
 
-                if not v.input_artifact_uuids:
-                    md = init_md_from_md_file(
-                        node, k, unique_md_id, namespace, cfg)
+                if not param_val.input_artifact_uuids:
+                    md = init_md_from_md_file(node, param_name, unique_md_id,
+                                              ns.usg_var_namespace, cfg)
                 else:
-                    md = init_md_from_artifacts(v, namespace, cfg)
+                    md = init_md_from_artifacts(param_val, ns, cfg)
 
-            v = md
-        inputs.update({k: v})
+            param_val = md
+        inputs.update({param_name: param_val})
 
     usg_var = cfg.use.action(
         cfg.use.UsageAction(plugin_id=plugin, action_id=action),
         cfg.use.UsageInputs(**inputs),
         cfg.use.UsageOutputNames(**outputs))
 
-    # Replace variable names with built UsageVariables to allow chaining
+    # write the usage vars into the UsageVars dict so we can use em downstream
     for res in usg_var:
-        uuid_key = namespace.get_key(value=res.name)
-        namespace[uuid_key] = res
+        uuid_key = ns.usg_var_namespace.get_key(value=res.name)
+        ns.usg_vars[uuid_key] = res
 
 
 def init_md_from_recorded_md(node: ProvNode, unique_md_id: str,
@@ -434,8 +394,8 @@ def init_md_from_recorded_md(node: ProvNode, unique_md_id: str,
     Raises a ValueError if the node has no metadata
 
     TODO: If we decide to "touchless" replay with recorded metadata, we needn't
-    render, but if replay with recorded metadat isn't touchless (i.e. if it
-    also writes a rendered executable), we we'll need to render Python
+    render, but if replay with recorded metadata isn't touchless (i.e. if it
+    also writes a rendered executable), we'll need to render Python
     differently (e.g. with an actual filepath, not the current "you have
     options" comment). This is probably easiest with another variant driver
     """
@@ -455,7 +415,7 @@ def init_md_from_recorded_md(node: ProvNode, unique_md_id: str,
 
 
 def init_md_from_md_file(node: ProvNode, param_name: str, md_id: str,
-                         namespace: UsageVarsDict, cfg: ReplayConfig) -> \
+                         ns: UsageVarsDict, cfg: ReplayConfig) -> \
         UsageVariable:
     """
     initializes and returns a Metadata UsageVariable with no real data,
@@ -463,32 +423,49 @@ def init_md_from_md_file(node: ProvNode, param_name: str, md_id: str,
     """
     plugin = node.action.plugin
     action = node.action.action_name
-    md = cfg.use.init_metadata(namespace[md_id], lambda: None)
+    md = cfg.use.init_metadata(ns[md_id], lambda: None)
     if param_is_metadata_column(cfg, param_name, plugin, action):
-        md = cfg.use.get_metadata_column('some', '<column_name>', md)
+        mdc_id = node._uuid + '_mdc'
+        mdc_name = ns[md_id] + '_mdc'
+        ns.update({mdc_id: mdc_name})
+        md = cfg.use.get_metadata_column(ns[mdc_id], '<column_name>', md)
     return md
 
 
-def init_md_from_artifacts(md_inf: MetadataInfo, namespace: UsageVarsDict,
+def init_md_from_artifacts(md_inf: MetadataInfo,
+                           ns: NamespaceCollections,
                            cfg: ReplayConfig) -> UsageVariable:
     """
     initializes and returns a Metadata UsageVariable with no real data,
     mimicking a user passing one or more QIIME 2 Artifacts as metadata
 
-    We expect these usage vars are already in the namespace, if we're reading
-    them in as metadata.
+    We expect these usage vars are already in the namespace as artifacts if
+    we're reading them in as metadata.
     TODO: Test how no-prov nodes affect this - esp mixed.
     """
     if not md_inf.input_artifact_uuids:
         raise ValueError("This funtion should not be used if"
                          "MetadataInfo.input_artifact_uuids is empty.")
     md_files_in = []
-    for artif in md_inf.input_artifact_uuids:
-        art_as_md = cfg.use.view_as_metadata(namespace[artif].name,
-                                             namespace[artif])
+    for artif_id in md_inf.input_artifact_uuids:
+        amd_id = artif_id + '_a'
+        var_name = ns.usg_vars[artif_id].name + '_a'
+        if amd_id not in ns.usg_var_namespace:
+            ns.usg_var_namespace.update({amd_id: var_name})
+            art_as_md = cfg.use.view_as_metadata(ns.usg_var_namespace[amd_id],
+                                                 ns.usg_vars[artif_id])
+            ns.usg_vars.update({amd_id: art_as_md})
+        else:
+            art_as_md = ns.usg_vars[amd_id]
         md_files_in.append(art_as_md)
     if len(md_inf.input_artifact_uuids) > 1:
-        art_as_md = cfg.use.merge_metadata('merged_artifacts', *md_files_in)
+        # We can't uniquify this normally, because one uuid can be merged with
+        # combinations of others. One UUID does not a unique merge-id make.
+        merge_id = '-'.join(md_inf.input_artifact_uuids)
+        ns.usg_var_namespace.update({merge_id: 'merged_artifacts'})
+        merged_md = cfg.use.merge_metadata(ns.usg_var_namespace[merge_id],
+                                           *md_files_in)
+        ns.usg_vars.update({merge_id: merged_md})
     return art_as_md
 
 
@@ -552,20 +529,6 @@ def uniquify_action_name(plugin: str, action: str, action_nmspace: set) -> str:
         plg_action_name = f'{plugin}_{action}_{counter}'
     action_nmspace.add(plg_action_name)
     return plg_action_name
-
-
-def camel_to_snake(name: str) -> str:
-    """
-    There are more comprehensive and faster ways of doing this (incl compiling)
-    but it handles acronyms in semantic types nicely
-    e.g. EMPSingleEndSequences -> emp_single_end_sequences
-    c/o https://stackoverflow.com/a/1176023/9872253
-    """
-    # this will frequently be called on QIIME type expressions, so drop [ and ]
-    name = re.sub(r'[\[\]]', '', name)
-    # camel to snake
-    name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
 
 
 def collect_citations(dag: ProvDAG, deduped: bool = True) -> \

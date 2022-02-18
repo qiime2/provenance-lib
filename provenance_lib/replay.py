@@ -61,6 +61,10 @@ class UsageVarsDict(UserDict):
     then store the usage variable in a separate {UUID: UsagVar}. This
     ensures that UsageVariable.name is unique, preventing namespace collisions.
     NamespaceCollections (below) exist to group these related structures.
+
+    Note: it's not necessary (and may break the mechanism of uniqueness here)
+    to maintain parity between variable names in this namespace and in the
+    usage variable store. The keys in both stores, however, must match.
     """
     def __setitem__(self, key: UUID, item: str) -> None:
         unique_item = self._uniquify(item)
@@ -98,9 +102,6 @@ class UsageVarsDict(UserDict):
 
     def wrap_val_in_angle_brackets(self, key: UUID):
         super().__setitem__(key, f'<{self.data[key]}>')
-
-    def align_value_with_usage_var_name(self, key: UUID, var: UsageVariable):
-        super().__setitem__(key, str(var.to_interface_name()))
 
 
 @dataclass(frozen=False)
@@ -249,9 +250,6 @@ def build_no_provenance_node_usage(node: Optional[ProvNode],
     empty_var = cfg.use.usage_variable(
         ns.usg_var_namespace[uuid], lambda: None, 'artifact')
     ns.usg_vars.update({uuid: empty_var})
-
-    # Align the namespace name with the usage var name
-    ns.usg_var_namespace.align_value_with_usage_var_name(uuid, empty_var)
 
     # Log the no-prov node
     cfg.use.comment(f"{uuid}   {ns.usg_vars[uuid].to_interface_name()}")
@@ -455,19 +453,17 @@ def init_md_from_artifacts(md_inf: MetadataInfo,
             art_as_md = cfg.use.view_as_metadata(ns.usg_var_namespace[amd_id],
                                                  ns.usg_vars[artif_id])
             ns.usg_vars.update({amd_id: art_as_md})
-            ns.usg_var_namespace.align_value_with_usage_var_name(amd_id,
-                                                                 art_as_md)
         else:
             art_as_md = ns.usg_vars[amd_id]
         md_files_in.append(art_as_md)
     if len(md_inf.input_artifact_uuids) > 1:
-        merge_id = artif_id + '_mrg'
+        # We can't uniquify this normally, because one uuid can be merged with
+        # combinations of others. One UUID does not a unique merge-id make.
+        merge_id = '-'.join(md_inf.input_artifact_uuids)
         ns.usg_var_namespace.update({merge_id: 'merged_artifacts'})
         merged_md = cfg.use.merge_metadata(ns.usg_var_namespace[merge_id],
                                            *md_files_in)
         ns.usg_vars.update({merge_id: merged_md})
-        ns.usg_var_namespace.align_value_with_usage_var_name(merge_id,
-                                                             merged_md)
     return art_as_md
 
 

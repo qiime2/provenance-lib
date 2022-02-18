@@ -208,11 +208,11 @@ class ReplayProvDAGTests(unittest.TestCase):
             self.assertRegex(rendered, exp[driver])
 
     def test_replay_untracked_output_names(self):
-        # This artifact fails because the first three nodes don't track output
-        # names. As a result, demux emp-single fails to replay when
-        # Usage.action tries to look up its output-name in the plugin manager's
-        # record of the actual action's signature.
-        # We've monkeypatched Usage.action here to allow replay to proceed.
+        # In this artifact, the first three nodes don't track output names. As
+        # a result, replay could fail when Usage.action tries to look up the
+        # output-name for those results in the plugin manager's record of the
+        # actual action's signature. We've monkeypatched Usage.action here to
+        # allow replay to proceed.
         dag = ProvDAG(os.path.join(DATA_DIR, 'heatmap.qzv'))
         drivers = ['python3', 'cli']
         exp = {
@@ -698,7 +698,7 @@ class BuildNoProvenanceUsageTests(CustomAssertions):
         self.assertEqual(node, None)
         build_no_provenance_node_usage(node, v0_uuid, ns, cfg)
 
-        out_var_name = '<no_provenance_node_0>'
+        out_var_name = '<no-provenance-node_0>'
         self.assertEqual(ns.usg_var_namespace, {v0_uuid: out_var_name})
 
         rendered = cfg.use.render()
@@ -708,7 +708,7 @@ class BuildNoProvenanceUsageTests(CustomAssertions):
         self.assertREAppearsOnlyOnce(rendered, header)
 
         # Confirm expected values have been rendered
-        exp_v0 = f'# {v0_uuid}   {out_var_name}'
+        exp_v0 = f'# {v0_uuid}   {out_var_name.replace("-", "_")}'
         self.assertRegex(rendered, exp_v0)
 
     def test_build_no_provenance_node_usage_many_x(self):

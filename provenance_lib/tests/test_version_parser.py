@@ -39,7 +39,7 @@ class ParseVersionFromFPTests(unittest.TestCase):
         The regex handles these generously, matching a plus followed by
         any collection of . and word characters
         """
-        fp = os.path.join(DATA_DIR, 'ns_collision2.qza')
+        fp = os.path.join(DATA_DIR, 'ns_collisions.qza')
         actual = parse_version_from_fp(fp)
         self.assertEqual(actual,
                          ('5', '2019.7.0.dev0+111.g40f412f'))

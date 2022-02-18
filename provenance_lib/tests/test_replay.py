@@ -167,7 +167,7 @@ class ReplayProvDAGTests(unittest.TestCase):
         # This artifact's dag contains a few results with the output-name
         # filtered-table, so is a good check for namespace collisions if
         # we're not uniquifying variable names properly.
-        dag = ProvDAG(os.path.join(DATA_DIR, 'ns_collision.qza'))
+        dag = ProvDAG(os.path.join(DATA_DIR, 'ns_collisions.qza'))
         drivers = ['python3', 'cli']
         exp = ['filtered_table_0', 'filtered_table_1', 'filtered_table_2',
                'filtered_table_3']

@@ -1106,11 +1106,12 @@ class ParseProvenanceTests(unittest.TestCase):
                          TEST_DATA['5']['prov_is_valid'])
         self.assertEqual(res.checksum_diff, TEST_DATA['5']['checksum'])
 
+    def test_parse_with_directory_parser_bad_dir_path(self):
+        dir_fp = pathlib.Path(DATA_DIR) / 'fake_dir'
+        with self.assertRaisesRegex(UnparseableDataError, 'not a valid dir'):
+            parse_provenance(self.cfg, dir_fp)
+
     def test_no_correct_parser_found_error(self):
-        """
-        Nothing blows up here, it's just not the right kind of filepath
-        e.g. not a zipfile?
-        """
         input_data = {'this': 'is not parseable'}
         with self.assertRaisesRegex(
             UnparseableDataError,

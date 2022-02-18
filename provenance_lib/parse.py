@@ -347,10 +347,13 @@ class DirectoryParser(Parser):
         try:
             is_dir = os.path.isdir(artifact_data)
         except TypeError:
-            is_dir = False
+            t = type(artifact_data)
+            raise ValueError(
+                f" in DirectoryParser: expects a directory, not a {t}")
 
         if not is_dir:
-            raise ValueError("DirectoryParser expects a directory, not a file")
+            raise ValueError(f" in DirectoryParser: {artifact_data} "
+                             "is not a valid directory.")
 
         return DirectoryParser()
 

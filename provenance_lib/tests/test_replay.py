@@ -164,9 +164,11 @@ class ReplayProvDAGTests(unittest.TestCase):
                            use_recorded_metadata=True)
 
     def test_replay_provdag_ns_collision(self):
-        # This artifact's dag contains a few results with the output-name
-        # filtered-table, so is a good check for namespace collisions if
-        # we're not uniquifying variable names properly.
+        """
+        This artifact's dag contains a few results with the output-name
+        filtered-table, so is a good check for namespace collisions if
+        we're not uniquifying variable names properly.
+        """
         dag = ProvDAG(os.path.join(DATA_DIR, 'ns_collisions.qza'))
         drivers = ['python3', 'cli']
         exp = ['filtered_table_0', 'filtered_table_1', 'filtered_table_2']
@@ -183,13 +185,15 @@ class ReplayProvDAGTests(unittest.TestCase):
                         self.assertIn(tbl, rendered)
 
     def test_replay_optional_param_is_none_big(self):
-        # This artifact fails because it has optional metadata columns, which
-        # default to None. These values are dumped as `- col-name: null`,
-        # and loaded in the parser as None. The metadata column handler in
-        # CLIUsage expects a value it can unpack, so None blows it up here
-        # https://github.com/qiime2/q2cli/blob
-        # /aee8a154513f5e49cd7de714a341a6bb915f5f49/q2cli/core/usage.py#L293
-        # build_action_usage needs to deal with that appropriately.
+        """
+        This artifact fails because it has optional metadata columns, which
+        default to None. These values are dumped as `- col-name: null`,
+        and loaded in the parser as None. The metadata column handler in
+        CLIUsage expects a value it can unpack, so None blows it up here
+        https://github.com/qiime2/q2cli/blob
+        /aee8a154513f5e49cd7de714a341a6bb915f5f49/q2cli/core/usage.py#L293
+        build_action_usage needs to deal with that appropriately.
+        """
         dag = ProvDAG(os.path.join(DATA_DIR, 'heatmap2.qzv'))
         drivers = ['python3', 'cli']
         exp = {
@@ -207,11 +211,13 @@ class ReplayProvDAGTests(unittest.TestCase):
             self.assertRegex(rendered, exp[driver])
 
     def test_replay_untracked_output_names(self):
-        # In this artifact, the first three nodes don't track output names. As
-        # a result, replay could fail when Usage.action tries to look up the
-        # output-name for those results in the plugin manager's record of the
-        # actual action's signature. We've monkeypatched Usage.action here to
-        # allow replay to proceed.
+        """
+        In this artifact, the first three nodes don't track output names. As
+        a result, replay could fail when Usage.action tries to look up the
+        output-name for those results in the plugin manager's record of the
+        actual action's signature. We've monkeypatched Usage.action here to
+        allow replay to proceed.
+        """
         dag = ProvDAG(os.path.join(DATA_DIR, 'heatmap.qzv'))
         drivers = ['python3', 'cli']
         exp = {

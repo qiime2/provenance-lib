@@ -370,6 +370,20 @@ class BuildUsageExamplesTests(unittest.TestCase):
         list_line = 'tables=[table_0, table_1],'
         self.assertIn(list_line, cfg.use.render())
 
+    def test_init_md_from_artifacts_same_a_as_md_twice(self):
+        """
+        This artifact was created by filtering twice with the same artifact
+        passed as metadata. This exists primarily for coverage.
+        """
+        dag = ProvDAG(os.path.join(DATA_DIR, 'filter_twice.qza'))
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
+                           use_recorded_metadata=False, pm=pm)
+        build_usage_examples(dag, cfg)
+        # We're using the same a_as_md twice, instead of re-initializing
+        search = ('(?s)metadata=sample_data_alpha_diversity_0_a_0_md.*'
+                  'metadata=sample_data_alpha_diversity_0_a_0_md')
+        self.assertRegex(cfg.use.render(), search)
+
 
 class MiscHelperFnTests(unittest.TestCase):
     def test_uniquify_action_name(self):

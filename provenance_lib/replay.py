@@ -9,7 +9,7 @@ from collections import UserDict
 from dataclasses import dataclass, field
 from typing import Dict, Iterator, List, Optional, Set
 
-from .archive_parser import ProvNode
+from ._archive_parser import ProvNode
 from .parse import ProvDAG, UUID
 from .usage_drivers import DRIVER_CHOICES, SUPPORTED_USAGE_DRIVERS, Usage
 from .util import FileName, camel_to_snake

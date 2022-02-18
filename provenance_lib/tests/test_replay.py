@@ -27,7 +27,7 @@ from ..replay import (
 from .test_parse import DATA_DIR, TEST_DATA
 from .testing_utilities import CustomAssertions
 from ..util import camel_to_snake
-from ..yaml_constructors import MetadataInfo
+from .._yaml_constructors import MetadataInfo
 
 # Create a PM Instance once and use it throughout - expensive!
 pm = PluginManager()

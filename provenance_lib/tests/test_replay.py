@@ -169,8 +169,7 @@ class ReplayProvDAGTests(unittest.TestCase):
         # we're not uniquifying variable names properly.
         dag = ProvDAG(os.path.join(DATA_DIR, 'ns_collisions.qza'))
         drivers = ['python3', 'cli']
-        exp = ['filtered_table_0', 'filtered_table_1', 'filtered_table_2',
-               'filtered_table_3']
+        exp = ['filtered_table_0', 'filtered_table_1', 'filtered_table_2']
         for driver in drivers:
             with tempfile.TemporaryDirectory() as tmpdir:
                 out_path = pathlib.Path(tmpdir) / 'ns_coll.txt'

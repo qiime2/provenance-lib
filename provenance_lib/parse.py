@@ -172,7 +172,6 @@ class ProvDAG:
     @property
     # NOTE: This actually returns a graphview, which is a read-only DiGraph
     def collapsed_view(self) -> nx.DiGraph:
-        # TODO: Memoize this?
         outer_nodes = set()
         for terminal_uuid in self._parsed_artifact_uuids:
             outer_nodes |= self.get_outer_provenance_nodes(terminal_uuid)
@@ -260,7 +259,6 @@ class ProvDAG:
                                              .union(dag._parsed_artifact_uuids)
             new_dag._provenance_is_valid = min(new_dag.provenance_is_valid,
                                                dag.provenance_is_valid)
-            # TODO: test the following
             # Min of a bool is False, so we can:
             new_dag.cfg.parse_study_metadata = min(
                 new_dag.cfg.parse_study_metadata,
@@ -366,7 +364,6 @@ class DirectoryParser(Parser):
         within the archives they parse by default.
         """
         search_exp = str(data).rstrip('/') + '/**/*.qz[av]'
-        # TODO: Recursive should be optional
         artifacts_to_parse = glob.glob(search_exp, recursive=True)
         if not artifacts_to_parse:
             raise ValueError(f"No .qza or .qzv files present in {data}")

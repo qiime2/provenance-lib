@@ -17,12 +17,6 @@ def action(self,
            outputs: 'UsageOutputNames',
            ) -> 'UsageOutputs':
     """
-    # TODO: We should consider moving this into Usage. It would clean up a lot
-    here, and "name your stuff with a type if it has no output-name isn't a bad
-    general idea. It will probably fail if there are multiple outputs of a
-    single type, in which case the search strings may not matc. an .rstrip
-    may be in order if we go through with it.
-
     A monkeypatch for Usage.action that deals with archive versions that don't
     track output-name generously.
 

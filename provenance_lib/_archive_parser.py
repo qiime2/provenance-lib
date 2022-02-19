@@ -111,13 +111,11 @@ class ProvNode:
 
         Returns [] if this "action" is an Import
 
-        # TODO: I think this is no longer true, so long as the user
-        # sticks with the provided relabel method. Are there otheres?
-        NOTE: This property is "private" because it is unsafe,
+        NOTE: This property is "private" because it is slightly unsafe,
         reporting original node IDs that are not updated if the user renames
-        nodes using the ProvDAG/networkx API (e.g. nx.relabel_nodes).
+        nodes using the networkx API instead of Provdag.relabel_nodes.
         ProvDAG and its extensions should use the networkx.DiGraph itself to
-        work with ancestry.
+        work with ancestry when possible.
         """
         self._artifacts_passed_as_md: List[Dict[str, UUID]]
 

@@ -19,8 +19,6 @@ from qiime2.sdk import PluginManager
 from qiime2.sdk.usage import UsageVariable
 
 
-# TODO: NEXT DOIs for common things
-
 @dataclass(frozen=False)
 class ReplayConfig():
     use: Usage
@@ -161,7 +159,7 @@ def group_by_action(dag: ProvDAG, nodes: Iterator[UUID]) -> ActionCollections:
     aggregating the outputs related to each action.
 
     Takes an iterator of UUIDs, allowing us to influence the ordering of the
-    grouping. TODO: We should probably just lock in the topological sort here?
+    grouping.
 
     In cases where a captured output_name is unavailable, we substitute the
     output data's Semantic Type, snake-cased because it will be used as
@@ -192,10 +190,6 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
     Builds a chained usage example representing the analysis `dag`.
     """
     usg_ns = NamespaceCollections()
-
-    # TODO: This could probably be added to the dag as a property or method
-    # to enable memoization. Possible inside group_by_action? The only shift
-    # will be that group_by_action would have to take the collapsed view as arg
     sorted_nodes = nx.topological_sort(dag.collapsed_view)
     actions = group_by_action(dag, sorted_nodes)
 
@@ -223,13 +217,6 @@ def build_no_provenance_node_usage(node: Optional[ProvNode],
     # Basically:
     use.comment("Some context")
     use.comment("no-provenance nodes and descriptions")
-
-    TODO: This function's signature is messy because it may receive a ProvNode
-    or None (the result of dag.get_node_data). None is used, because some dag
-    nodes don't actually have underlying ProvNodes. Consider refactoring
-    ProvNode so that the minimal node has only a UUID. This would probably
-    require properties with Optional returns and more if not None checks,
-    but the semantics feel pretty good. A node is, at least, a UUID, after all.
     """
     if not cfg.no_provenance_context_has_been_printed:
         cfg.no_provenance_context_has_been_printed = True
@@ -392,18 +379,12 @@ def init_md_from_recorded_md(node: ProvNode, unique_md_id: str,
     scraped from provenance
 
     Raises a ValueError if the node has no metadata
-
-    TODO: If we decide to "touchless" replay with recorded metadata, we needn't
-    render, but if replay with recorded metadata isn't touchless (i.e. if it
-    also writes a rendered executable), we'll need to render Python
-    differently (e.g. with an actual filepath, not the current "you have
-    options" comment). This is probably easiest with another variant driver
     """
     if not node.metadata:
         raise ValueError(
             'This function should only be called if the node has metadata.')
-    # TODO: If this convention is real, we should probably implement it as a
-    # method on the UsageVarsDict (for metadata at least)
+    # TODO: If this convention proves broadly useful, we should implement it as
+    # a method on the UsageVarsDict (for metadata at least)
     parameter_name = namespace[unique_md_id][:-2]
     md_df = node.metadata[parameter_name]
 
@@ -441,7 +422,6 @@ def init_md_from_artifacts(md_inf: MetadataInfo,
 
     We expect these usage vars are already in the namespace as artifacts if
     we're reading them in as metadata.
-    TODO: Test how no-prov nodes affect this - esp mixed.
     """
     if not md_inf.input_artifact_uuids:
         raise ValueError("This funtion should not be used if"

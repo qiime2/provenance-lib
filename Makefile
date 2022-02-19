@@ -1,7 +1,11 @@
 .PHONY: run lint test test-cov
 
 run:
-	python provenance_lib/runner.py provenance_lib/tests/data/v5_uu_emperor.qzv
+	mkdir replay_scripts;
+	replay provenance \
+	--i-in-fp provenance_lib/tests/data/v5_uu_emperor.qzv \
+	--p-verbose \
+	--o-out-fp ./replay_scripts/sample_replay.sh
 
 lint:
 	flake8
@@ -26,4 +30,4 @@ dev:
 	pip install -e .
 
 clean:
-	rm -r recorded_metadata
+	rm -r recorded_metadata replay_scripts

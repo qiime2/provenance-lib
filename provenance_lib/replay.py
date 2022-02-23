@@ -540,10 +540,15 @@ def dedupe_citations(citations: List[Dict]) -> List[Dict]:
     """
     dd_cits = []
     fw_cited = False
+    id_set = set()
     doi_set = set()
     for entry in citations:
+        id = entry['ID']
+        if id in id_set:
+            continue
+
         # Write a single hardcoded framework citation
-        if 'framework|qiime2' in (id := entry['ID']):
+        if 'framework|qiime2' in id:
             if not fw_cited:
                 root = pkg_resources.resource_filename('provenance_lib', '.')
                 root = os.path.abspath(root)
@@ -552,16 +557,19 @@ def dedupe_citations(citations: List[Dict]) -> List[Dict]:
                     q2_entry = bp.load(bibtex_file).entries.pop()
 
                 q2_entry['ID'] = id
+                id_set.add(id)
                 dd_cits.append(q2_entry)
                 fw_cited = True
             continue
 
-        # Keep every entry without a doi
+        # Keep every unique entry without a doi
         if (doi := entry.get('doi')) is None:
+            id_set.add(id)
             dd_cits.append(entry)
-        # Keep one entry per non-framework doi
+        # Keep one unique entry per non-framework doi
         else:
             if doi not in doi_set:
+                id_set.add(id)
                 dd_cits.append(entry)
                 doi_set.add(doi)
 

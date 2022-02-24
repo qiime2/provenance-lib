@@ -684,11 +684,10 @@ merged_artifacts_0_md = thing1_a_0_md.merge(thing2_a_0_md, thing3_a_0_md)"""
         self.assertRegex(rendered, 'from qiime2 import Metadata')
         self.assertRegex(
             rendered,
-            r"barcodes_0_md = Metadata.load\(\<your metadata filepath\>\)")
-        self.assertRegex(
-            rendered,
-            rf"{mdc_name} = barcodes_0_md."
-            r"get_column\('\<column_name\>'\)")
+            r"barcodes_0_md = Metadata.load\(<your metadata filepath>\)")
+        self.assertRegex(rendered,
+                         rf"{mdc_name} = barcodes_0_md."
+                         r"get_column\(<column name>\)")
 
 
 class BuildNoProvenanceUsageTests(CustomAssertions):
@@ -875,7 +874,7 @@ class BuildActionUsageTests(CustomAssertions):
         self.assertRegex(rendered, f"qiime {plugin} {action}")
         self.assertRegex(rendered, "--i-seqs imported-seqs-0.qza")
         self.assertRegex(rendered, "--m-barcodes-file barcodes-0.tsv")
-        self.assertRegex(rendered, "--m-barcodes-column <column_name>")
+        self.assertRegex(rendered, r"--m-barcodes-column <column name>")
         self.assertRegex(rendered, "--p-no-rev-comp-barcodes")
         self.assertRegex(rendered, "--p-no-rev-comp-mapping-barcodes")
         self.assertRegex(rendered, f"--o-per-sample-sequences {out_name}")
@@ -958,8 +957,9 @@ class BuildActionUsageTests(CustomAssertions):
         md_name = 'barcodes_0_md'
         mdc_name = 'barcodes_0_mdc_0'
         self.assertRegex(rendered, rf'{md_name} = Metadata.load\(<.*filepath>')
+        print(rendered)
         self.assertRegex(rendered,
-                         f'{mdc_name} = {md_name}.get_col.*<col')
+                         rf'{mdc_name} = {md_name}.get_column\(<col')
         self.assertRegex(rendered,
                          rf'{out_name}, _ = {plugin}_actions.{action}\(')
         self.assertRegex(rendered, f'seqs.*{vars[seqs_id].name}')

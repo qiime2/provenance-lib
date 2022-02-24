@@ -409,7 +409,7 @@ def init_md_from_md_file(node: ProvNode, param_name: str, md_id: str,
         mdc_id = node._uuid + '_mdc'
         mdc_name = ns[md_id] + '_mdc'
         ns.update({mdc_id: mdc_name})
-        md = cfg.use.get_metadata_column(ns[mdc_id], '<column_name>', md)
+        md = cfg.use.get_metadata_column(ns[mdc_id], '<column name>', md)
     return md
 
 

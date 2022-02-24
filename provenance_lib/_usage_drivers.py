@@ -167,7 +167,6 @@ class ReplayPythonUsage(ArtifactAPIUsage):
             self, name, semantic_type, variable, view_type=view_type)
 
         interface_name = imported_var.to_interface_name()
-        # import_fp = variable.to_interface_name()
         import_fp = "<your data here>"
 
         lines = [
@@ -204,6 +203,29 @@ class ReplayPythonUsage(ArtifactAPIUsage):
 
     def usage_variable(self, name, factory, var_type):
         return ReplayPythonUsageVariable(name, factory, var_type, self)
+
+    class repr_raw_variable_name:
+        # allows us to repr col name without enclosing quotes
+        # (like qiime2.qiime2.plugins.ArtifactAPIUsageVariable)
+        def __init__(self, value):
+            self.value = value
+
+        def __repr__(self):
+            return self.value
+
+    def get_metadata_column(self, name, column_name, variable):
+        col_variable = Usage.get_metadata_column(
+            self, name, column_name, variable)
+
+        to_name = col_variable.to_interface_name()
+        from_name = variable.to_interface_name()
+
+        column_name = self.repr_raw_variable_name(column_name)
+        lines = ['%s = %s.get_column(%r)' % (to_name, from_name, column_name)]
+
+        self._add(lines)
+
+        return col_variable
 
 
 class ReplayCLIUsage(CLIUsage):

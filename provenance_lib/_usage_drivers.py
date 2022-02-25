@@ -119,6 +119,47 @@ class ReplayPythonUsageVariable(ArtifactAPIUsageVariable):
 
 
 class ReplayPythonUsage(ArtifactAPIUsage):
+    def __init__(self, enable_assertions: bool = False,
+                 action_collection_size: int = 2):
+        """Constructor for ReplayPythonUsage
+        Identical to ArtifactAPIUsage, but with smaller action_collection_size
+        """
+        super().__init__()
+        self.enable_assertions = enable_assertions
+        self.action_collection_size = action_collection_size
+        self._reset_state(reset_global_imports=True)
+
+    def _template_action(self, action, input_opts, variables):
+        """
+        Identical to super, but lumps results into `action_results` if
+        there are just too many results.
+        """
+        if len(variables) > self.action_collection_size or \
+                len(action.get_action().signature.outputs) > 5:
+            output_vars = 'action_results'
+        else:
+            output_vars = self._template_outputs(action, variables)
+
+        plugin_id = action.plugin_id
+        action_id = action.action_id
+        lines = [
+            '%s = %s_actions.%s(' % (output_vars, plugin_id, action_id),
+        ]
+
+        for k, v in input_opts.items():
+            line = self._template_input(k, v)
+            lines.append(line)
+
+        lines.append(')')
+
+        if len(variables) > self.action_collection_size or \
+                len(action.get_action().signature.outputs) > 5:
+            for k, v in variables._asdict().items():
+                var_name = v.to_interface_name()
+                lines.append('%s = action_results.%s' % (var_name, k))
+
+        self._add(lines)
+
     def _template_outputs(self, action, variables):
         """
         Monkeypatch allowing us to replay an action even when our provenance

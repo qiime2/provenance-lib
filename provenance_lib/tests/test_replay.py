@@ -957,7 +957,6 @@ class BuildActionUsageTests(CustomAssertions):
         md_name = 'barcodes_0_md'
         mdc_name = 'barcodes_0_mdc_0'
         self.assertRegex(rendered, rf'{md_name} = Metadata.load\(<.*filepath>')
-        print(rendered)
         self.assertRegex(rendered,
                          rf'{mdc_name} = {md_name}.get_column\(<col')
         self.assertRegex(rendered,

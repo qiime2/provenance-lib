@@ -112,7 +112,7 @@ class NamespaceCollections:
 
 
 def replay_fp(in_fp: FileName, out_fp: FileName,
-              usage_driver_name: DRIVER_CHOICES,
+              usage_driver_name: DRIVER_CHOICES = 'python3',
               validate_checksums: bool = True,
               parse_metadata: bool = True,
               use_recorded_metadata: bool = False,
@@ -131,7 +131,7 @@ def replay_fp(in_fp: FileName, out_fp: FileName,
 
 
 def replay_provdag(dag: ProvDAG, out_fp: FileName,
-                   usage_driver: DRIVER_CHOICES,
+                   usage_driver: DRIVER_CHOICES = 'python3',
                    use_recorded_metadata: bool = False,
                    verbose: bool = False):
     """
@@ -222,8 +222,8 @@ def build_no_provenance_node_usage(node: Optional[ProvNode],
         cfg.no_provenance_context_has_been_printed = True
         cfg.use.comment(
             "One or more nodes have no provenance, so full replay is "
-            "impossible. Any\ncommands we were able to reconstruct have been "
-            "rendered, with the string\ndescriptions below replacing actual "
+            "impossible. Any commands we were able to reconstruct have been "
+            "rendered, with the string descriptions below replacing actual "
             "inputs.")
         cfg.use.comment(
             "Original Node ID                       String Description")
@@ -337,19 +337,19 @@ def build_action_usage(node: ProvNode,
                     cfg.md_context_has_been_printed = True
                     cfg.use.comment(
                         "Replay attempts to represent metadata inputs "
-                        "accurately, but metadata .tsv\nfiles are merged "
+                        "accurately, but metadata .tsv files are merged "
                         "automatically by some interfaces, rendering "
-                        "distinctions\nbetween file inputs invisible in "
-                        "provenance. We output the recorded metadata\nto disk "
-                        "to enable visual inspection.\n")
+                        "distinctions between file inputs invisible in "
+                        "provenance. We output the recorded metadata to disk "
+                        "to enable visual inspection.")
 
                 if not command_specific_md_context_has_been_printed:
                     fp = f'recorded_metadata/{plg_action_name}/'
                     cfg.use.comment(
                         "The following command may have received additional "
-                        "metadata .tsv files.\nTo confirm you have covered "
-                        "your metadata needs adequately, review the original\n"
-                        f"metadata, saved at '{fp}'\n")
+                        "metadata .tsv files. To confirm you have covered "
+                        "your metadata needs adequately, review the original"
+                        f"metadata, saved at '{fp}'")
 
                 if not param_val.input_artifact_uuids:
                     md = init_md_from_md_file(node, param_name, unique_md_id,

@@ -7,6 +7,14 @@ run:
 	--p-verbose \
 	--o-out-fp ./replay_scripts/sample_replay.sh
 
+run-py:
+	mkdir replay_scripts;
+	replay provenance \
+	--i-in-fp provenance_lib/tests/data/v5_uu_emperor.qzv \
+	--p-usage-driver-name python3 \
+	--p-verbose \
+	--o-out-fp ./replay_scripts/sample_replay.py
+
 lint:
 	flake8
 

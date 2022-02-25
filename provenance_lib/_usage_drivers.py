@@ -1,5 +1,6 @@
 import functools
 import re
+import textwrap
 from typing import Literal
 
 from q2cli.core.usage import CLIUsage
@@ -145,15 +146,17 @@ class ReplayPythonUsage(ArtifactAPIUsage):
         return ', '.join(output_vars).strip()
 
     def init_metadata(self, name, factory):
+        """
+        ArtifactAPIUsage doesn't render Metadata loading, so we do it here.
+        """
         var = super().init_metadata(name, factory)
         self._update_imports(from_='qiime2', import_='Metadata')
         input_fp = var.to_interface_name()
-        lines = [
-            '# NOTE: You may substitute already-loaded Metadata for the '
-            'following,\n# or cast a pandas.DataFrame to Metadata as needed.\n'
-            f'{input_fp} = Metadata.load(<your metadata filepath>)',
-            '',
-        ]
+        self.comment(
+            'NOTE: You may substitute already-loaded Metadata for the '
+            'following, or cast a pandas.DataFrame to Metadata as needed.'
+        )
+        lines = [f'{input_fp} = Metadata.load(<your metadata filepath>)']
         self._add(lines)
         return var
 
@@ -226,6 +229,13 @@ class ReplayPythonUsage(ArtifactAPIUsage):
         self._add(lines)
 
         return col_variable
+
+    def comment(self, line):
+        LINE_LEN = 79
+        lines = textwrap.wrap(line, LINE_LEN, break_long_words=False,
+                              initial_indent='# ', subsequent_indent='# ')
+        lines.append('\n')
+        self._add(lines)
 
 
 class ReplayCLIUsage(CLIUsage):

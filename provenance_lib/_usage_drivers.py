@@ -162,8 +162,10 @@ class ReplayPythonUsage(ArtifactAPIUsage):
 
     def _template_outputs(self, action, variables):
         """
-        Monkeypatch allowing us to replay an action even when our provenance
+        Like parent, but allows us to replay an action even when our provenance
         DAG doesn't have a record of all outputs from that action.
+
+        renders outputs we're "not interested in" as _
         """
         output_vars = []
         action_f = action.get_action()
@@ -174,11 +176,6 @@ class ReplayPythonUsage(ArtifactAPIUsage):
                 variable = getattr(variables, output)
                 output_vars.append(str(variable.to_interface_name()))
             except AttributeError:
-                # if the args to UsageOutputNames skip an output name,
-                # can we assume the user doesn't care about that output?
-                # These assumptions are OK here, but not in the framework.
-                # I'm guessing this could break chaining, so maybe
-                # this behavior should warn?
                 output_vars.append('_')
 
         if len(output_vars) == 1:
@@ -250,7 +247,7 @@ class ReplayPythonUsage(ArtifactAPIUsage):
 
     class repr_raw_variable_name:
         # allows us to repr col name without enclosing quotes
-        # (like qiime2.qiime2.plugins.ArtifactAPIUsageVariable)
+        # (as in qiime2.qiime2.plugins.ArtifactAPIUsageVariable)
         def __init__(self, value):
             self.value = value
 

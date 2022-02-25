@@ -220,9 +220,11 @@ class ReplayProvDAGTests(unittest.TestCase):
         """
         dag = ProvDAG(os.path.join(DATA_DIR, 'heatmap.qzv'))
         drivers = ['python3', 'cli']
+        # If we rendered the final action correctly, then nothing blew up.
         exp = {
             'python3':
-                'heatmap_0_viz.*sample_classifier_actions.classify_samples',
+                '(?s)action_results.*classifier_actions.classify_samples.*'
+                'heatmap_0_viz = action_results.heatmap',
             'cli': '(?s)qiime sample-classifier classify-samples.*'
                    '--o-heatmap heatmap-0.qzv'}
         for driver in drivers:

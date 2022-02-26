@@ -26,6 +26,7 @@ for key in CONSTRUCTOR_REGISTRY:
 class Config():
     perform_checksum_validation: bool = True
     parse_study_metadata: bool = True
+    recursive: bool = False
     verbose: bool = False
 
 

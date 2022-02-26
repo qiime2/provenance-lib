@@ -1093,12 +1093,26 @@ class ParseProvenanceTests(unittest.TestCase):
         self.assertEqual(res.checksum_diff, None)
 
     def test_parse_with_directory_parser(self):
+        # Non-recursive
         dir_fp = pathlib.Path(DATA_DIR) / 'parse_dir_test'
         res = parse_provenance(self.cfg, dir_fp)
+        self.assertEqual(self.cfg.recursive, False)
         self.assertIsInstance(res, ParserResults)
+        v5_uu_id = 'ffb7cee3-2f1f-4988-90cc-efd5184ef003'
+        self.assertEqual(res.parsed_artifact_uuids, {v5_uu_id})
+        self.assertEqual(len(res.prov_digraph), 15)
+        self.assertEqual(res.provenance_is_valid,
+                         TEST_DATA['5']['prov_is_valid'])
+        self.assertEqual(res.checksum_diff, TEST_DATA['5']['checksum'])
+
+        # Recursive
+        self.cfg.recursive = True
+        self.assertEqual(self.cfg.recursive, True)
+        res = parse_provenance(self.cfg, dir_fp)
+        self.assertIsInstance(res, ParserResults)
+        v5_unr_tree_id = '12e012d5-b01c-40b7-b825-a17f0478a02f'
         v5_tbl_id = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
         v5_uu_id = 'ffb7cee3-2f1f-4988-90cc-efd5184ef003'
-        v5_unr_tree_id = '12e012d5-b01c-40b7-b825-a17f0478a02f'
         self.assertEqual(res.parsed_artifact_uuids,
                          {v5_tbl_id, v5_unr_tree_id, v5_uu_id})
         self.assertEqual(len(res.prov_digraph), 16)
@@ -1146,9 +1160,9 @@ class DirectoryParserTests(unittest.TestCase):
         the others. It must be parsed, though its shared parents don't.
 
         The resulting dag should be aware of all three user-passed artifacts,
-        regardless of whether we actual parse the v5_table
+        regardless of whether we actually parse the v5_table
         """
-        dag = ProvDAG(DATA_DIR + '/parse_dir_test/')
+        dag = ProvDAG(DATA_DIR + '/parse_dir_test/', recursive=True)
         v5_tbl_id = '89af91c0-033d-4e30-8ac4-f29a3b407dc1'
         v5_uu_id = 'ffb7cee3-2f1f-4988-90cc-efd5184ef003'
         v5_unr_tree_id = '12e012d5-b01c-40b7-b825-a17f0478a02f'
@@ -1170,9 +1184,20 @@ class DirectoryParserTests(unittest.TestCase):
         self.assertFalse(archive_not_parsed(v1_uuid, dag))
 
     def test_directory_parser_idempotent_with_parse_and_union(self):
+        # Non-recursive
         base_dir = os.path.join(DATA_DIR, 'parse_dir_test')
         inner_dir = os.path.join(base_dir, 'inner')
-        dir_dag = ProvDAG(base_dir)
+        dir_dag = ProvDAG(inner_dir)
+        # parse files separately, then union
+        tbl = ProvDAG(os.path.join(inner_dir, 'v5_table.qza'))
+        tree = ProvDAG(os.path.join(inner_dir, 'v5_unrooted_tree.qza'))
+        union_dag = ProvDAG.union([tbl, tree])
+        self.assertEqual(dir_dag, union_dag)
+
+        # Recursive
+        base_dir = os.path.join(DATA_DIR, 'parse_dir_test')
+        inner_dir = os.path.join(base_dir, 'inner')
+        dir_dag = ProvDAG(base_dir, recursive=True)
         # parse files separately, then union
         tbl = ProvDAG(os.path.join(inner_dir, 'v5_table.qza'))
         tree = ProvDAG(os.path.join(inner_dir, 'v5_unrooted_tree.qza'))
@@ -1206,7 +1231,7 @@ class DirectoryParserTests(unittest.TestCase):
         tree = 'parse_dir_test/inner/v5_unrooted_tree.qza'
         with redirect_stdout(buffer):
             dag = ProvDAG(os.path.join(DATA_DIR, 'parse_dir_test'),
-                          verbose=True)
+                          verbose=True, recursive=True)
         self.assertEqual(dag.cfg.verbose, True)
         stdout_log = buffer.getvalue()
         self.assertRegex(stdout_log, f"Parsing.*{tbl}")

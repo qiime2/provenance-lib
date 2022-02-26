@@ -33,7 +33,6 @@ class ReplayPythonUsageTests(unittest.TestCase):
 
             with open(out_path, 'r') as fp:
                 rendered = fp.read()
-                print(rendered)
         self.assertRegex(rendered, exp)
 
     def test_template_action_does_not_lump_four_outputs(self):
@@ -60,7 +59,6 @@ class ReplayPythonUsageTests(unittest.TestCase):
 
             with open(out_path, 'r') as fp:
                 rendered = fp.read()
-                print(rendered)
         self.assertRegex(rendered, exp)
 
     def test_template_action_lumps_three_variables(self):
@@ -94,7 +92,6 @@ class ReplayPythonUsageTests(unittest.TestCase):
 
             with open(out_path, 'r') as fp:
                 rendered = fp.read()
-                print(rendered)
         self.assertRegex(rendered, exp)
 
     def test_template_action_does_not_lump_two_vars(self):
@@ -121,5 +118,4 @@ class ReplayPythonUsageTests(unittest.TestCase):
 
             with open(out_path, 'r') as fp:
                 rendered = fp.read()
-                print(rendered)
         self.assertRegex(rendered, exp)

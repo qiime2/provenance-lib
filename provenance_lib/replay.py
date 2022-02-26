@@ -115,6 +115,7 @@ def replay_fp(in_fp: FileName, out_fp: FileName,
               usage_driver_name: DRIVER_CHOICES = 'python3',
               validate_checksums: bool = True,
               parse_metadata: bool = True,
+              recursive: bool = False,
               use_recorded_metadata: bool = False,
               verbose: bool = False):
     """
@@ -125,7 +126,8 @@ def replay_fp(in_fp: FileName, out_fp: FileName,
         raise ValueError(
             "Metadata not parsed for replay. Re-run with parse_metadata = "
             "True or use_recorded_metadata = False")
-    dag = ProvDAG(in_fp, validate_checksums, parse_metadata, verbose)
+    dag = ProvDAG(
+        in_fp, validate_checksums, parse_metadata, recursive, verbose)
     replay_provdag(dag, out_fp, usage_driver_name, use_recorded_metadata,
                    verbose)
 

@@ -16,6 +16,7 @@ setup(
    author='Chris Keefe',
    author_email='crk239@nau.edu',
    license='BSD-3-clause',
+   scripts=['scripts/tab-replay', 'scripts/always-tab-complete.py'],
    packages=find_packages(),
    install_requires=['bibtexparser>=1.0', 'Click', 'flake8', 'mypy',
                      'networkx', 'pandas', 'pytest>=6', 'pytest-cov>=2.0',

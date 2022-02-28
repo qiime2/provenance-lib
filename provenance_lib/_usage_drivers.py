@@ -159,6 +159,14 @@ class ReplayPythonUsage(ArtifactAPIUsage):
         self.action_collection_size = action_collection_size
         self._reset_state(reset_global_imports=True)
 
+    def _reset_state(self, reset_global_imports=False):
+        self.local_imports = set()
+        self.header = []
+        self.recorder = []
+        self.init_data_refs = dict()
+        if reset_global_imports:
+            self.global_imports = set()
+
     def _template_action(self, action, input_opts, variables):
         """
         Identical to super, but lumps results into `action_results` if
@@ -323,13 +331,12 @@ class ReplayPythonUsage(ArtifactAPIUsage):
         # shebang
         # header()
         # footer()
-        if getattr(self, 'header'):
-            header = self.header + ['']
+        if self.header:
+            self.header = self.header + ['']
         if sorted_imps:
             sorted_imps = sorted_imps + ['']
-        rendered = '\n'.join(header + sorted_imps + self.recorder)
+        rendered = '\n'.join(self.header + sorted_imps + self.recorder)
         if flush:
-            self.header = []
             self._reset_state()
         return rendered
 
@@ -340,11 +347,18 @@ class ReplayPythonUsage(ArtifactAPIUsage):
         _build_header(self)
 
     def build_footer(self):
-        # TODO: Implement
+        # TODO NEXT: Implement
         pass
 
 
 class ReplayCLIUsage(CLIUsage):
+    def __init__(self, enable_assertions=False, action_collection_size=None):
+        """Identical to CLIUsage.init, but creates a header attribute"""
+        super().__init__()
+        self.header = []
+        self.enable_assertions = enable_assertions
+        self.action_collection_size = action_collection_size
+
     def _append_action_line(self, signature, param_name, value):
         """
         Monkeypatch allowing us to replay when recorded parameter names
@@ -404,9 +418,9 @@ class ReplayCLIUsage(CLIUsage):
         return imported_var
 
     def render(self, flush=False):
-        if getattr(self, 'header'):
-            header = self.header + ['']
-        rendered = '\n'.join(header + self.recorder)
+        if self.header:
+            self.header = self.header + ['']
+        rendered = '\n'.join(self.header + self.recorder)
         if flush:
             self.header = []
             self.recorder = []
@@ -422,6 +436,7 @@ class ReplayCLIUsage(CLIUsage):
     def build_footer(self):
         # TODO: Implement
         pass
+
 
 DRIVER_CHOICES = Literal['python3', 'cli']
 SUPPORTED_USAGE_DRIVERS = {

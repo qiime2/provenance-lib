@@ -168,6 +168,7 @@ def replay_provdag(dag: ProvDAG, out_fp: FileName,
     cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS[usage_driver](),
                        use_recorded_metadata=use_recorded_metadata,
                        verbose=verbose)
+    # build order is handled by use.render, so doesn't matter here
     if header:
         cfg.use.build_header()
         cfg.use.build_footer(dag)

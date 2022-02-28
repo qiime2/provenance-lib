@@ -14,11 +14,11 @@ from qiime2.sdk.usage import (
 from .util import camel_to_snake
 
 
-def action(self,
-           action: 'UsageAction',
-           inputs: 'UsageInputs',
-           outputs: 'UsageOutputNames',
-           ) -> 'UsageOutputs':
+def action_patch(self,
+                 action: 'UsageAction',
+                 inputs: 'UsageInputs',
+                 outputs: 'UsageOutputNames',
+                 ) -> 'UsageOutputs':
     """
     A monkeypatch for Usage.action that deals with archive versions that don't
     track output-name generously.
@@ -96,7 +96,7 @@ def action(self,
 # NOTE: True monkeypatching happening here. Gross, but the alternative is
 # overriding more methods from ReplayCLIUsage and ReplayPythonUsage to point
 # to a ReplayUsage subclass
-Usage.action = action
+Usage.action = action_patch
 
 
 def _build_header(use):

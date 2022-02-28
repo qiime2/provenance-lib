@@ -38,6 +38,10 @@ def replay():
               default=False,
               show_default=True,
               help='re-use the original metadata captured by provenance')
+@click.option('--p-suppress-header/--p-no-suppress-header',
+              default=False,
+              show_default=True,
+              help='do not write header/footer blocks in the output script')
 @click.option('--p-verbose/--p-no-verbose',
               default=False,
               show_default=True,
@@ -51,6 +55,7 @@ def provenance(i_in_fp: FileName, o_out_fp: FileName,
                p_validate_checksums: bool = True,
                p_parse_metadata: bool = True,
                p_use_recorded_metadata: bool = False,
+               p_suppress_header: bool = False,
                p_verbose: bool = False):
     """
     Replay provenance from a QIIME 2 Artifact filepath to a written executable
@@ -61,6 +66,7 @@ def provenance(i_in_fp: FileName, o_out_fp: FileName,
               parse_metadata=p_parse_metadata,
               recursive=p_recurse,
               use_recorded_metadata=p_use_recorded_metadata,
+              suppress_header=p_suppress_header,
               verbose=p_verbose)
     filename = os.path.realpath(o_out_fp)
     click.echo(f'Replay script written to {filename}')
@@ -80,6 +86,10 @@ def provenance(i_in_fp: FileName, o_out_fp: FileName,
               help=('If deduped, collect_citations will attempt some heuristic'
                     'deduplication of documents, e.g. by comparing DOI fields,'
                     ' which may reduce manual curation of reference lists.'))
+@click.option('--p-suppress-header/--p-no-suppress-header',
+              default=False,
+              show_default=True,
+              help='do not write header/footer blocks in the output file')
 @click.option('--p-verbose/--p-no-verbose',
               default=False,
               show_default=True,
@@ -87,12 +97,17 @@ def provenance(i_in_fp: FileName, o_out_fp: FileName,
 @click.option('--o-out-fp',
               required=True,
               help='the filepath where your bibtex file should be written.')
-def citations(i_in_fp: FileName, o_out_fp: FileName, p_recurse: bool = False,
-              p_deduped: bool = True, p_verbose: bool = False):
+def citations(i_in_fp: FileName,
+              o_out_fp: FileName,
+              p_recurse: bool = False,
+              p_deduped: bool = True,
+              p_suppress_header: bool = False,
+              p_verbose: bool = False):
     """
     Report all citations from a QIIME 2 Artifact.
     """
     dag = ProvDAG(i_in_fp, verbose=p_verbose, recursive=p_recurse)
-    write_citations(dag, out_fp=o_out_fp, deduped=p_deduped)
+    write_citations(dag, out_fp=o_out_fp, deduped=p_deduped,
+                    suppress_header=p_suppress_header)
     filename = os.path.realpath(o_out_fp)
     click.echo(f'Citations bibtex file written to {filename}')

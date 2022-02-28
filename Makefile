@@ -15,6 +15,13 @@ run-py:
 	--p-verbose \
 	--o-out-fp ./replay_scripts/sample_replay.py
 
+run-cite:
+	mkdir replay_scripts;
+	replay citations \
+	--i-in-fp provenance_lib/tests/data/v5_uu_emperor.qzv \
+	--p-verbose \
+	--o-out-fp ./replay_scripts/sample-citations.bib
+
 lint:
 	flake8
 

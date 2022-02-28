@@ -135,7 +135,7 @@ def replay_fp(in_fp: FileName, out_fp: FileName,
               parse_metadata: bool = True,
               recursive: bool = False,
               use_recorded_metadata: bool = False,
-              header: bool = True,
+              suppress_header: bool = False,
               verbose: bool = False):
     """
     One-shot replay from a filepath string, through a ProvDAG to a written
@@ -148,13 +148,13 @@ def replay_fp(in_fp: FileName, out_fp: FileName,
     dag = ProvDAG(
         in_fp, validate_checksums, parse_metadata, recursive, verbose)
     replay_provdag(dag, out_fp, usage_driver_name, use_recorded_metadata,
-                   header, verbose)
+                   suppress_header, verbose)
 
 
 def replay_provdag(dag: ProvDAG, out_fp: FileName,
                    usage_driver: DRIVER_CHOICES = 'python3',
                    use_recorded_metadata: bool = False,
-                   header: bool = True,
+                   suppress_header: bool = False,
                    verbose: bool = False):
     """
     Renders usage examples describing a ProvDAG, producing an interface-
@@ -169,7 +169,7 @@ def replay_provdag(dag: ProvDAG, out_fp: FileName,
                        use_recorded_metadata=use_recorded_metadata,
                        verbose=verbose)
     # build order is handled by use.render, so doesn't matter here
-    if header:
+    if not suppress_header:
         cfg.use.build_header()
         cfg.use.build_footer(dag)
     build_usage_examples(dag, cfg)
@@ -602,7 +602,8 @@ def dedupe_citations(citations: List[Dict]) -> List[Dict]:
     return dd_cits
 
 
-def write_citations(dag: ProvDAG, out_fp: FileName, deduped: bool = True):
+def write_citations(dag: ProvDAG, out_fp: FileName, deduped: bool = True,
+                    suppress_header: bool = False):
     """
     Writes a .bib file representing all unique citations from a ProvDAG to disk
 
@@ -611,6 +612,8 @@ def write_citations(dag: ProvDAG, out_fp: FileName, deduped: bool = True):
     curation of reference lists.
     """
     bib_db = collect_citations(dag, deduped=deduped)
+    if not suppress_header:
+        raise NotImplementedError
     if bib_db.entries_dict == {}:
         bib_db = "No citations were recorded for this file."
         with open(out_fp, 'w') as bibfile:

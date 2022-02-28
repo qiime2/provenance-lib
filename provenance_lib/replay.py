@@ -11,7 +11,9 @@ from typing import Dict, Iterator, List, Optional, Set
 
 from ._archive_parser import ProvNode
 from .parse import ProvDAG, UUID
-from ._usage_drivers import DRIVER_CHOICES, SUPPORTED_USAGE_DRIVERS, Usage
+from ._usage_drivers import (
+    DRIVER_CHOICES, SUPPORTED_USAGE_DRIVERS, Usage, build_header, build_footer,
+)
 from .util import FileName, camel_to_snake
 from ._yaml_constructors import MetadataInfo
 
@@ -612,12 +614,18 @@ def write_citations(dag: ProvDAG, out_fp: FileName, deduped: bool = True,
     curation of reference lists.
     """
     bib_db = collect_citations(dag, deduped=deduped)
+    boundary = '#' * 79
+    header = []
+    footer = []
     if not suppress_header:
-        raise NotImplementedError
+        header = build_header(boundary=boundary) + ['\n']
+        footer = build_footer(dag=dag, boundary=boundary)
     if bib_db.entries_dict == {}:
         bib_db = "No citations were recorded for this file."
         with open(out_fp, 'w') as bibfile:
             bibfile.write(bib_db)
     else:
         with open(out_fp, 'w') as bibfile:
+            bibfile.write('\n'.join(header))
             bibfile.write(BibTexWriter().write(bib_db))
+            bibfile.write('\n'.join(footer))

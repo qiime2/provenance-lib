@@ -21,11 +21,29 @@ from qiime2.sdk.usage import UsageVariable
 
 @dataclass(frozen=False)
 class ReplayConfig():
+    """
+    fields:
+
+    - use_recorded_metadata
+      If true, replay should use the metadata recorded in provenance
+    - md_context_has_been_printed
+      TODO: if this was no_md_context, True would prevent context from printing
+      a flag set by default and used internally, allows context to be printed
+      once and only once.
+    - no_provenance_context_has_been_printed
+      TODO: if this was no_no_pr_context, True would stop context from printing
+      indicates the no-provenance context documentation has not been printed
+    - header
+      if True, an introductory how-to header should be rendered to the script
+    - verbose
+      if True, progress will be reported to stdout
+    """
     use: Usage
     use_recorded_metadata: bool
     pm: PluginManager = PluginManager()
     md_context_has_been_printed: bool = False
     no_provenance_context_has_been_printed: bool = False
+    header: bool = True
     verbose: bool = False
 
 
@@ -117,6 +135,7 @@ def replay_fp(in_fp: FileName, out_fp: FileName,
               parse_metadata: bool = True,
               recursive: bool = False,
               use_recorded_metadata: bool = False,
+              header: bool = True,
               verbose: bool = False):
     """
     One-shot replay from a filepath string, through a ProvDAG to a written
@@ -129,12 +148,13 @@ def replay_fp(in_fp: FileName, out_fp: FileName,
     dag = ProvDAG(
         in_fp, validate_checksums, parse_metadata, recursive, verbose)
     replay_provdag(dag, out_fp, usage_driver_name, use_recorded_metadata,
-                   verbose)
+                   header, verbose)
 
 
 def replay_provdag(dag: ProvDAG, out_fp: FileName,
                    usage_driver: DRIVER_CHOICES = 'python3',
                    use_recorded_metadata: bool = False,
+                   header: bool = True,
                    verbose: bool = False):
     """
     Renders usage examples describing a ProvDAG, producing an interface-
@@ -148,6 +168,9 @@ def replay_provdag(dag: ProvDAG, out_fp: FileName,
     cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS[usage_driver](),
                        use_recorded_metadata=use_recorded_metadata,
                        verbose=verbose)
+    if header:
+        cfg.use.build_header()
+        cfg.use.build_footer()
     build_usage_examples(dag, cfg)
     output = cfg.use.render()
     with open(out_fp, mode='w') as out_fh:

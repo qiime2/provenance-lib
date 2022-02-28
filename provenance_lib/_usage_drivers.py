@@ -208,7 +208,7 @@ class ReplayPythonUsage(ArtifactAPIUsage):
             self, name, semantic_type, variable, view_type=view_type)
 
         interface_name = imported_var.to_interface_name()
-        import_fp = self.repr_raw_variable_name("<your data here>")
+        import_fp = self.repr_raw_variable_name('<your data here>')
 
         lines = [
             '%s = Artifact.import_data(' % (interface_name,),

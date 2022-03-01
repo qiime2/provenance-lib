@@ -438,7 +438,7 @@ class ReplayCLIUsage(CLIUsage):
                            view_type=None):
         """
         Identical to super.import_from_format, but writes --input-path <your
-        data here>
+        data here> and follows import block with a blank line
         """
         # We need the super().super() here, so pass self to Usage.import_fr...
         imported_var = Usage.import_from_format(
@@ -461,9 +461,25 @@ class ReplayCLIUsage(CLIUsage):
             self.INDENT + '--output-path %s' % (out_fp,),
         ]
 
+        lines.append('')
         self.recorder.extend(lines)
 
         return imported_var
+
+    def comment(self, text):
+        """
+        Identical to parent, but pads comments with an extra newline
+        """
+        super().comment(text)
+        self.recorder.append('')
+
+    def action(self, action, inputs, outputs):
+        """
+        Identical to parent, but pads comments with an extra newline
+        """
+        variables = super().action(action, inputs, outputs)
+        self.recorder.append('')
+        return variables
 
     def render(self, flush=False):
         if self.header:

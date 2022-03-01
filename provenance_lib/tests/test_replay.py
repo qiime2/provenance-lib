@@ -1149,4 +1149,4 @@ class CitationsTests(unittest.TestCase):
             self.assertTrue(out_fp.is_file())
             with open(out_fn, 'r') as fp:
                 written = fp.read()
-                self.assertEqual(exp, written)
+                self.assertIn(exp, written)

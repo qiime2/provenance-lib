@@ -100,9 +100,11 @@ def action_patch(self,
 Usage.action = action_patch
 
 
-def build_header(shebang: str = None, boundary: str = None) -> List:
+def build_header(shebang: str = '', boundary: str = '',
+                 extra_text: List = []) -> List:
     """
-    Writes header copy for all replay outputs
+    Writes header copy for all replay outputs, with optional params allowing
+    for general utility
     """
     vzn = version('provenance_lib')
     p_lib_md = metadata('provenance_lib')
@@ -123,9 +125,11 @@ def build_header(shebang: str = None, boundary: str = None) -> List:
         "# Forum: https://forum.qiime2.org",
         f"# Documentation/issues: {p_lib_md['Home-page']}",
         "",
-        "# UUIDs of all QIIME 2 Results replayed here are shown at the end of "
+        "# UUIDs of all target QIIME 2 Results are shown at the end of "
         "the file",
     ])
+    if extra_text:
+        header.extend(extra_text)
     if boundary:
         header.append(boundary)
     return header

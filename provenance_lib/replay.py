@@ -617,11 +617,18 @@ def write_citations(dag: ProvDAG, out_fp: FileName, deduped: bool = True,
     boundary = '#' * 79
     header = []
     footer = []
+    extra = [
+        "",
+        "# This bibtex-formatted citation file can be imported into "
+        "popular citation ",
+        "# managers like Zotero and Mendeley, simplifying management and "
+        "formatting"
+    ]
     if not suppress_header:
-        header = build_header(boundary=boundary) + ['\n']
+        header = build_header(boundary=boundary, extra_text=extra) + ['\n']
         footer = build_footer(dag=dag, boundary=boundary)
     if bib_db.entries_dict == {}:
-        bib_db = "No citations were recorded for this file."
+        bib_db = "No citations were recorded for these Results."
         with open(out_fp, 'w') as bibfile:
             bibfile.write(bib_db)
     else:

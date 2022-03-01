@@ -81,18 +81,20 @@ class ReplayPythonUsageTests(unittest.TestCase):
         """
         in_fp = os.path.join(DATA_DIR, 'lump_three_vars_test')
         driver = 'python3'
-        exp = ('(?s)action_results = dada2_actions.denoise_single.*'
-               'representative_sequences_0 = action_results.representative_s.*'
-               'denoising_stats_0 = action_results.denoising_stats.*'
-               'table_0 = action_results.table.*'
-               )
+        e1 = ('action_results = dada2_actions.denoise_single')
+        e2 = ('representative_sequences_0 = action_results.representative_seq')
+        e3 = ('denoising_stats_0 = action_results.denoising_stats')
+        e4 = ('table_0 = action_results.table')
         with tempfile.TemporaryDirectory() as tmpdir:
             out_path = pathlib.Path(tmpdir) / 'action_collection.txt'
             replay_fp(in_fp, out_path, driver)
 
             with open(out_path, 'r') as fp:
                 rendered = fp.read()
-        self.assertRegex(rendered, exp)
+        self.assertRegex(rendered, e1)
+        self.assertRegex(rendered, e2)
+        self.assertRegex(rendered, e3)
+        self.assertRegex(rendered, e4)
 
     def test_template_action_does_not_lump_two_vars(self):
         """

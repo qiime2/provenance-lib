@@ -1,0 +1,11 @@
+[flake8]
+; ignore = D203
+exclude =
+    # No need to traverse our git directory
+    .git,
+    # There's no value in checking cache/build directories
+    __pycache__,
+    build,
+    # playtesting is a dumping ground for messy runner scripts and their results
+    playtesting/*
+max-complexity = 15

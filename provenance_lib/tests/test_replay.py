@@ -1141,7 +1141,7 @@ class CitationsTests(unittest.TestCase):
                 UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
             mixed = ProvDAG(os.path.join(DATA_DIR,
                             'mixed_v0_v1_uu_emperor.qzv'))
-        exp = "No citations were recorded for this file."
+        exp = "No citations were registered"
         with tempfile.TemporaryDirectory() as tmpdir:
             out_fp = pathlib.Path(tmpdir) / 'citations.bib'
             out_fn = str(out_fp)

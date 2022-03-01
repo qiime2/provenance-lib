@@ -628,7 +628,7 @@ def write_citations(dag: ProvDAG, out_fp: FileName, deduped: bool = True,
         header = build_header(boundary=boundary, extra_text=extra) + ['\n']
         footer = build_footer(dag=dag, boundary=boundary)
     if bib_db.entries_dict == {}:
-        bib_db = "No citations were recorded for these Results."
+        bib_db = "No citations were registered to the used Actions."
         with open(out_fp, 'w') as bibfile:
             bibfile.write(bib_db)
     else:

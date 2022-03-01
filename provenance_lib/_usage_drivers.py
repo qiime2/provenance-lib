@@ -234,6 +234,7 @@ class ReplayPythonUsage(ArtifactAPIUsage):
                 var_name = v.to_interface_name()
                 lines.append('%s = action_results.%s' % (var_name, k))
 
+        lines.append('')
         self._add(lines)
 
     def _template_outputs(self, action, variables):
@@ -312,6 +313,7 @@ class ReplayPythonUsage(ArtifactAPIUsage):
             lines.append(self.INDENT + '%s,' % (view_type,))
 
         lines.append(')')
+        lines.append('')
 
         self._update_imports(from_='qiime2', import_='Artifact')
         self._add(lines)

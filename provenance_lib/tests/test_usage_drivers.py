@@ -82,9 +82,9 @@ class ReplayPythonUsageTests(unittest.TestCase):
         in_fp = os.path.join(DATA_DIR, 'lump_three_vars_test')
         driver = 'python3'
         exp = ('(?s)action_results = dada2_actions.denoise_single.*'
+               'representative_sequences_0 = action_results.representative_s.*'
                'denoising_stats_0 = action_results.denoising_stats.*'
                'table_0 = action_results.table.*'
-               'representative_sequences_0 = action_results.representative_s.*'
                )
         with tempfile.TemporaryDirectory() as tmpdir:
             out_path = pathlib.Path(tmpdir) / 'action_collection.txt'

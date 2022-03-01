@@ -1,6 +1,7 @@
 from datetime import datetime
 import functools
 from importlib.metadata import version, metadata
+import pkg_resources
 import re
 import textwrap
 from typing import List, Literal
@@ -182,6 +183,8 @@ class ReplayPythonUsageVariable(ArtifactAPIUsageVariable):
 class ReplayPythonUsage(ArtifactAPIUsage):
     shebang = '#!/usr/bin/env python'
     header_boundary = '# ' + ('-' * 77)
+    how_to = pkg_resources.resource_string(
+        __package__, 'assets/python_howto.txt').decode('utf-8').split('\n')
 
     def __init__(self, enable_assertions: bool = False,
                  action_collection_size: int = 2):
@@ -379,7 +382,8 @@ class ReplayPythonUsage(ArtifactAPIUsage):
         return rendered
 
     def build_header(self):
-        self.header.extend(build_header(self.shebang, self.header_boundary))
+        self.header.extend(
+            build_header(self.shebang, self.header_boundary, self.how_to))
 
     def build_footer(self, dag: ProvDAG):
         self.footer.extend(build_footer(dag, self.header_boundary))
@@ -388,6 +392,8 @@ class ReplayPythonUsage(ArtifactAPIUsage):
 class ReplayCLIUsage(CLIUsage):
     shebang = '#!/usr/bin/env bash'
     header_boundary = ('#' * 79)
+    how_to = pkg_resources.resource_string(
+        __package__, 'assets/cli_howto.txt').decode('utf-8').split('\n')
 
     def __init__(self, enable_assertions=False, action_collection_size=None):
         """
@@ -471,7 +477,8 @@ class ReplayCLIUsage(CLIUsage):
         return rendered
 
     def build_header(self):
-        self.header.extend(build_header(self.shebang, self.header_boundary))
+        self.header.extend(
+            build_header(self.shebang, self.header_boundary, self.how_to))
 
     def build_footer(self, dag: ProvDAG):
         self.footer.extend(build_footer(dag, self.header_boundary))

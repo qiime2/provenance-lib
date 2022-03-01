@@ -1,0 +1,14 @@
+
+# Instructions for use:
+# 1. Open this script in a text editor or IDE. Support for BASH
+#    syntax highlighting is helpful.
+# 2. Search or scan visually for '<' or '>' characters to find places where
+#    user input (e.g. a filepath or column name) is required. If syntax
+# TODO: Is this true?
+#    highlighting is enabled, input indicators will appear as syntax errors.
+# 3. Adjust the arguments to the commands below to suit your data and metadata.
+#    If your data is not identical to that in the replayed analysis,
+#    changes may be required. (e.g. sample ids or rarefaction depth)
+# 4. Activate your replay conda environment, and confirm you have installed all
+#    plugins used by the script.
+# 5. Run this script with `bash <path to this script>`

@@ -19,6 +19,7 @@ setup(
     license='BSD-3-clause',
     scripts=['scripts/tab-replay', 'scripts/always-tab-complete.py'],
     packages=find_packages(),
+    package_data={'how-tos': ['assets/*.txt']},
     python_requires='>=3.8',
     install_requires=['bibtexparser>=1.0', 'Click', 'flake8', 'mypy',
                       'networkx', 'pandas', 'pyyaml>=5.3', 'types-setuptools',

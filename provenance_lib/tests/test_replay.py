@@ -16,7 +16,8 @@ from qiime2.plugins import ArtifactAPIUsageVariable
 
 from ..parse import ProvDAG
 from ..replay import (
-    ActionCollections, NamespaceCollections, ReplayConfig, UsageVarsDict,
+    ActionCollections, BibContent, NamespaceCollections, ReplayConfig,
+    UsageVarsDict,
     build_no_provenance_node_usage, build_import_usage, build_action_usage,
     build_usage_examples, collect_citations, dedupe_citations,
     dump_recorded_md_file, group_by_action, init_md_from_artifacts,
@@ -1037,6 +1038,34 @@ class BuildActionUsageTests(CustomAssertions):
                 relative_fp='input.tsv'), ns, cfg)
 
 
+class BibContentTests(unittest.TestCase):
+    def test_contents(self):
+        series_21 = {
+            'year': ' 2010 ',
+            'title': ' Data Structures for Statistical Computing in Python ',
+            'pages': ' 51 -- 56 ',
+            'editor': ' Stéfan van der Walt and Jarrod Millman ',
+            'booktitle': ' Proceedings of the 9th Python in Science Conferen',
+            'author': ' Wes McKinney ',
+            'ENTRYTYPE': 'inproceedings',
+            'ID': 'view|types:2021.2.0|pandas.core.series:Series|0'}
+
+        df_20 = {
+            'year': ' 2010 ',
+            'title': ' Data Structures for Statistical Computing in Python ',
+            'pages': ' 51 -- 56 ',
+            'editor': ' Stéfan van der Walt and Jarrod Millman ',
+            'booktitle': ' Proceedings of the 9th Python in Science Conferen',
+            'author': ' Wes McKinney ',
+            'ENTRYTYPE': 'inproceedings',
+            'ID': 'view|types:2020.2.0|pandas.core.frame:DataFrame|0'}
+
+        self.assertEqual(BibContent(series_21), BibContent(df_20))
+        self.assertEqual(hash(BibContent(series_21)), hash(BibContent(df_20)))
+        # Set membership because these objects are equal and hash-equal
+        self.assertIn(BibContent(series_21), {BibContent(df_20)})
+
+
 class CitationsTests(unittest.TestCase):
     def test_dedupe_citations(self):
         fn = os.path.join(DATA_DIR, 'dupes.bib')
@@ -1044,11 +1073,78 @@ class CitationsTests(unittest.TestCase):
             bib_db = bp.load(bibtex_file)
         deduped = dedupe_citations(bib_db.entries)
         # Dedupe by DOI will preserve only one of the biom.table entries
-        self.assertEqual(len(deduped), 2)
+        # Dedupe by contents should preserve only one of the pandas entries
+        self.assertEqual(len(deduped), 3)
         # Confirm each paper is present. The len assertion ensures one-to-one
         lower_keys = [entry['ID'].lower() for entry in deduped]
         self.assertTrue(any('framework' in key for key in lower_keys))
         self.assertTrue(any('biom' in key for key in lower_keys))
+        self.assertTrue(any('pandas' in key for key in lower_keys))
+
+    def test_dedupe_pandas(self):
+        """
+        No match on ID, framework, or DOI, but matching content should
+        deduplicate these
+        """
+        series_21 = {
+            'year': ' 2010 ',
+            'title': ' Data Structures for Statistical Computing in Python ',
+            'pages': ' 51 -- 56 ',
+            'editor': ' Stéfan van der Walt and Jarrod Millman ',
+            'booktitle': ' Proceedings of the 9th Python in Science Conferen',
+            'author': ' Wes McKinney ',
+            'ENTRYTYPE': 'inproceedings',
+            'ID': 'view|types:2021.2.0|pandas.core.series:Series|0'}
+
+        df_20 = {
+            'year': ' 2010 ',
+            'title': ' Data Structures for Statistical Computing in Python ',
+            'pages': ' 51 -- 56 ',
+            'editor': ' Stéfan van der Walt and Jarrod Millman ',
+            'booktitle': ' Proceedings of the 9th Python in Science Conferen',
+            'author': ' Wes McKinney ',
+            'ENTRYTYPE': 'inproceedings',
+            'ID': 'view|types:2020.2.0|pandas.core.frame:DataFrame|0'}
+
+        deduped = dedupe_citations([series_21, df_20])
+        self.assertEqual(len(deduped), 1)
+
+    def test_dedupe_silva(self):
+        """
+        These similar publications should not be deduped by content filter
+        """
+        s0 = {
+            'year': '2007',
+            'volume': '35',
+            'title': 'SILVA: a comprehensive online resource for quality '
+                     'checked and aligned ribosomal RNA sequence data '
+                     'compatible with ARB',
+            'pages': '7188-7196',
+            'number': '21',
+            'journal': 'Nucleic Acids Res',
+            'author': 'Pruesse, Elmar and Quast, Christian and Knittel, Katrin'
+                      ' and Fuchs, Bernhard M and Ludwig, Wolfgang and Peplies'
+                      ', Jorg and Glockner, Frank Oliver',
+            'ENTRYTYPE': 'article',
+            'ID': 'action|rescript:2020.6.0+3.g772294c|'
+                  'method:parse_silva_taxonomy|0'}
+        s1 = {
+            'year': '2013',
+            'volume': '41',
+            'title': 'The SILVA ribosomal RNA gene database project: '
+                     'improved data processing and web-based tools',
+            'publisher': 'Oxford University Press',
+            'pages': 'D590-6',
+            'number': 'Database issue',
+            'journal': 'Nucleic Acids Res',
+            'author': 'Quast, Christian and Pruesse, Elmar and Yilmaz, Pelin '
+                      'and Gerken, Jan and Schweer, Timmy and Yarza, Pablo and'
+                      ' Peplies, Jorg and Glockner, Frank Oliver',
+            'ENTRYTYPE': 'article',
+            'ID': 'action|rescript:2020.6.0+3.g772294c|'
+                  'method:parse_silva_taxonomy|1'}
+        deduped = dedupe_citations([s0, s1])
+        self.assertEqual(len(deduped), 2)
 
     def test_collect_citations_no_deduped(self):
         dag = ProvDAG(TEST_DATA['5']['qzv_fp'])

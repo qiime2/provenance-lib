@@ -561,6 +561,43 @@ def collect_citations(dag: ProvDAG, deduped: bool = True) -> \
     return bdb
 
 
+class BibContent():
+    """
+    A hashable data container capturing common bibtex fields
+
+    Has many fields, b/c false negatives (i.e. self != other) are preferable.
+    It is better to keep two dupes than to deduplicate a unique entry.
+    """
+    def __init__(self, entry):
+        self.title = entry.get('title'),
+        self.author = entry.get('author'),
+        self.journal = entry.get('journal')
+        self.booktitle = entry.get('booktitle')
+        self.year = entry.get('year')
+        self.pages = entry.get('pages')
+
+    def __eq__(self, other):
+        return(
+            type(self) == type(other) and
+            self.title == other.title and
+            self.author == other.author and
+            self.journal == other.journal and
+            self.booktitle == other.booktitle and
+            self.year == other.year and
+            self.pages == other.pages
+        )
+
+    def __hash__(self):
+        return hash(
+            str(self.title)
+            + str(self.author)
+            + str(self.journal)
+            + str(self.journal)
+            + str(self.booktitle)
+            + str(self.year)
+            + str(self.pages))
+
+
 def dedupe_citations(citations: List[Dict]) -> List[Dict]:
     """
     Heuristic attempts to reduce duplication in citations lists.
@@ -570,8 +607,10 @@ def dedupe_citations(citations: List[Dict]) -> List[Dict]:
     fw_cited = False
     id_set = set()
     doi_set = set()
+    content_set = set()
     for entry in citations:
         id = entry['ID']
+        # Deduplicate on bibtex key
         if id in id_set:
             continue
 
@@ -589,6 +628,13 @@ def dedupe_citations(citations: List[Dict]) -> List[Dict]:
                 dd_cits.append(q2_entry)
                 fw_cited = True
             continue
+
+        # deduplicate on content
+        entry_content = BibContent(entry)
+        if entry_content in content_set:
+            continue
+        else:
+            content_set.add(entry_content)
 
         # Keep every unique entry without a doi
         if (doi := entry.get('doi')) is None:

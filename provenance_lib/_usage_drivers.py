@@ -223,6 +223,15 @@ class ReplayPythonUsage(ArtifactAPIUsage):
         ]
 
         for k, v in input_opts.items():
+            # TODO NEXT: Here we check the actionf.signature for matching
+            # param names, and do something like this if missing
+            # line = self.INDENT + (
+            #     "# TODO: The following parameter name was not found in "
+            #     "your current\n  # QIIME 2 environment. This may occur "
+            #     "when the plugin version you have\n  # installed does not "
+            #     "match the version used in the original analysis.\n  # "
+            #     "Please see the docs and correct the parameter name "
+            #     "before running.\n")
             line = self._template_input(k, v)
             lines.append(line)
 
@@ -409,7 +418,7 @@ class ReplayCLIUsage(CLIUsage):
 
     def _append_action_line(self, signature, param_name, value):
         """
-        Monkeypatch allowing us to replay when recorded parameter names
+        Like parent but allows replay when recorded parameter names
         are not present in the registered function signatures in the active
         QIIME 2 environment
         """

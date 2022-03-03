@@ -6,7 +6,9 @@ import re
 import textwrap
 from typing import List, Literal
 
+from q2cli.core.state import get_action_state
 from q2cli.core.usage import CLIUsage
+import q2cli.util
 from qiime2.core.type import is_semantic_type, is_visualization_type
 from qiime2.plugins import ArtifactAPIUsage, ArtifactAPIUsageVariable
 from qiime2.sdk.usage import (
@@ -484,9 +486,53 @@ class ReplayCLIUsage(CLIUsage):
 
     def action(self, action, inputs, outputs):
         """
-        Identical to parent, but pads comments with an extra newline
+        Overrides parent to fill in missing outputlines from action_f.signature
+        Also pads actions with an extra newline
         """
-        variables = super().action(action, inputs, outputs)
+        variables = Usage.action(self, action, inputs, outputs)
+        vars_dict = variables._asdict()
+
+        # Get registered collection of output names, so we don't miss any
+        # Missing output-names make replay break
+        action_f = action.get_action()
+        missing_outputs = {}
+        for output in action_f.signature.outputs:
+            try:
+                # If we get a match on output-name, the correct pair is already
+                # in vars_dict and we can continue
+                getattr(variables, output)
+                continue
+            except AttributeError:
+                # Otherwise, we should add filler values to missing_outputs
+                missing_outputs[output] = f'XX_{output}'
+
+        plugin_name = q2cli.util.to_cli_name(action.plugin_id)
+        action_name = q2cli.util.to_cli_name(action.action_id)
+        self.recorder.append('qiime %s %s \\' % (plugin_name, action_name))
+
+        action_f = action.get_action()
+        action_state = get_action_state(action_f)
+
+        ins = inputs.map_variables(lambda v: v.to_interface_name())
+        outs = {k: v.to_interface_name() for k, v in vars_dict.items()}
+        outs.update(missing_outputs)
+        signature = {s['name']: s for s in action_state['signature']}
+
+        for param_name, value in ins.items():
+            self._append_action_line(signature, param_name, value)
+
+        max_collection_size = self.action_collection_size
+        if max_collection_size is not None and len(outs) > max_collection_size:
+            dir_name = self._build_output_dir_name(plugin_name, action_name)
+            self.recorder.append(
+                self.INDENT + '--output-dir %s \\' % (dir_name))
+            self._rename_outputs(vars_dict, dir_name)
+        else:
+            for param_name, value in outs.items():
+                self._append_action_line(signature, param_name, value)
+
+        self.recorder[-1] = self.recorder[-1][:-2]  # remove trailing \
+
         self.recorder.append('')
         return variables
 

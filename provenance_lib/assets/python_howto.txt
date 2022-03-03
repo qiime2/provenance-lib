@@ -5,9 +5,10 @@
 # 2. Search or scan visually for '<' or '>' characters to find places where
 #    user input (e.g. a filepath or column name) is required. If syntax
 #    highlighting is enabled, input indicators will appear as syntax errors.
-# 3. Adjust the arguments to the commands below to suit your data and metadata.
+# 3. Search for 'TODO' comments in the script, and respond as directed.
+# 4. Adjust the arguments to the commands below to suit your data and metadata.
 #    If your data is not identical to that in the replayed analysis,
 #    changes may be required. (e.g. sample ids or rarefaction depth)
-# 4. Activate your replay conda environment, and confirm you have installed all
+# 5. Activate your replay conda environment, and confirm you have installed all
 #    plugins used by the script.
-# 5. Run this script with `python <path to this script>`
+# 6. Run this script with `python <path to this script>`

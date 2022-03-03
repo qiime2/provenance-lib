@@ -22,10 +22,10 @@ def action_patch(self,
                  outputs: 'UsageOutputNames',
                  ) -> 'UsageOutputs':
     """
-    A monkeypatch for Usage.action that deals with archive versions that don't
-    track output-name generously.
+    A monkeypatch for Usage.action that deals generously with archive versions
+    that don't track output-name.
 
-    If there no output-name to search the signature with, it will attempt
+    If there are no output-names to search the signature with, it will attempt
     to search the signature.outputs for a parameter spec with the same
     QIIME type.
 
@@ -59,7 +59,7 @@ def action_patch(self,
     # signature order - this makes it so that the example writer doesn't
     # need to be explicitly aware of the signature order
     for param_name, var_name in outputs.items():
-        # param name is not output-name in archive versions without o.n.
+        # param name is not output-name in archive versions without output-name
         try:
             qiime_type = action_f.signature.outputs[param_name].qiime_type
         except KeyError:

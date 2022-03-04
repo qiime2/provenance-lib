@@ -212,8 +212,9 @@ class ReplayPythonUsage(ArtifactAPIUsage):
         Identical to super, but lumps results into `action_results` if
         there are just too many results.
         """
+        action_f = action.get_action()
         if len(variables) > self.action_collection_size or \
-                len(action.get_action().signature.outputs) > 5:
+                len(action_f.signature.outputs) > 5:
             output_vars = 'action_results'
         else:
             output_vars = self._template_outputs(action, variables)
@@ -224,17 +225,19 @@ class ReplayPythonUsage(ArtifactAPIUsage):
             '%s = %s_actions.%s(' % (output_vars, plugin_id, action_id),
         ]
 
+        all_inputs = (list(action_f.signature.inputs.keys()) +
+                      list(action_f.signature.parameters.keys()))
         for k, v in input_opts.items():
-            # TODO NEXT: Here we check the actionf.signature for matching
-            # param names, and do something like this if missing
-            # line = self.INDENT + (
-            #     "# TODO: The following parameter name was not found in "
-            #     "your current\n  # QIIME 2 environment. This may occur "
-            #     "when the plugin version you have\n  # installed does not "
-            #     "match the version used in the original analysis.\n  # "
-            #     "Please see the docs and correct the parameter name "
-            #     "before running.\n")
-            line = self._template_input(k, v)
+            line = ''
+            if k not in all_inputs:
+                line = self.INDENT + (
+                    "# TODO: The following parameter name was not found in "
+                    "your current\n    # QIIME 2 environment. This may occur "
+                    "when the plugin version you have\n    # installed does "
+                    "not match the version used in the original analysis.\n   "
+                    " # Please see the docs and correct the parameter name "
+                    "before running.\n")
+            line += self._template_input(k, v)
             lines.append(line)
 
         lines.append(')')

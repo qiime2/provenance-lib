@@ -8,4 +8,6 @@ exclude =
     build,
     # playtesting is a dumping ground for messy runner scripts and their results
     playtesting/*
+    # playtesting is a dumping ground for makefile runner results
+    replay_scripts/*
 max-complexity = 15

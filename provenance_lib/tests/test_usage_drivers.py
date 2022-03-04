@@ -3,7 +3,6 @@ import pathlib
 import tempfile
 import unittest
 
-# from ..parse import ProvDAG
 from ..replay import replay_fp
 from .test_parse import DATA_DIR
 

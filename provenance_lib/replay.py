@@ -411,8 +411,6 @@ def init_md_from_recorded_md(node: ProvNode, unique_md_id: str,
     if not node.metadata:
         raise ValueError(
             'This function should only be called if the node has metadata.')
-    # TODO: If this convention proves broadly useful, we should implement it as
-    # a method on the UsageVarsDict (for metadata at least)
     parameter_name = namespace[unique_md_id][:-2]
     md_df = node.metadata[parameter_name]
 

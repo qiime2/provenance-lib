@@ -210,7 +210,7 @@ class ReplayPythonUsage(ArtifactAPIUsage):
     def _template_action(self, action, input_opts, variables):
         """
         Identical to super, but lumps results into `action_results` if
-        there are just too many results.
+        there are just too many results, and saves results
         """
         action_f = action.get_action()
         if len(variables) > self.action_collection_size or \
@@ -245,8 +245,16 @@ class ReplayPythonUsage(ArtifactAPIUsage):
         if len(variables) > self.action_collection_size or \
                 len(action.get_action().signature.outputs) > 5:
             for k, v in variables._asdict().items():
-                var_name = v.to_interface_name()
-                lines.append('%s = action_results.%s' % (var_name, k))
+                interface_name = v.to_interface_name()
+                lines.append('%s = action_results.%s' % (interface_name, k))
+
+        lines.append(
+            '# SAVE: comment out the following to skip saving Results to disk')
+
+        for k, v in variables._asdict().items():
+            interface_name = v.to_interface_name()
+            lines.append(
+                '%s.save(\'%s\')' % (interface_name, interface_name,))
 
         lines.append('')
         self._add(lines)
@@ -293,7 +301,7 @@ class ReplayPythonUsage(ArtifactAPIUsage):
                            view_type=None):
         """
         Identical to super.import_from_format, but writes <your data here>
-        instead of import_fp
+        instead of import_fp, and saves the result.
         """
         imported_var = Usage.import_from_format(
             self, name, semantic_type, variable, view_type=view_type)
@@ -326,8 +334,12 @@ class ReplayPythonUsage(ArtifactAPIUsage):
 
             lines.append(self.INDENT + '%s,' % (view_type,))
 
-        lines.append(')')
-        lines.append('')
+        lines.extend([
+            ')',
+            '# SAVE: comment out the following to skip saving this Result to'
+            ' disk',
+            '%s.save(\'%s\')' % (interface_name, interface_name,),
+            ''])
 
         self._update_imports(from_='qiime2', import_='Artifact')
         self._add(lines)
@@ -381,10 +393,6 @@ class ReplayPythonUsage(ArtifactAPIUsage):
             the top-line imports for future invocations.
         """
         sorted_imps = sorted(self.local_imports)
-        # TODO: Metaclass for replay usage to define required attrs/methods
-        # shebang
-        # build_header()
-        # build_footer()
         if self.header:
             self.header = self.header + ['']
         if self.footer:

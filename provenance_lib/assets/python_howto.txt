@@ -11,6 +11,9 @@
 # 5. Adjust the arguments to the commands below to suit your data and metadata.
 #    If your data is not identical to that in the replayed analysis,
 #    changes may be required. (e.g. sample ids or rarefaction depth)
-# 6. Activate your replay conda environment, and confirm you have installed all
+# 6. Optional: search for 'SAVE' comments in the script, commenting out the
+#    `some_result.save` lines for any Results you do not want saved to disk.
+# 7. Activate your replay conda environment, and confirm you have installed all
 #    plugins used by the script.
-# 8. Run this script with `python <path to this script>`
+# 8. Run this script with `python <path to this script>`, or paste commands
+#    into a python interpreter or jupyter notebook for an interactive analysis

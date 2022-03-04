@@ -4,7 +4,7 @@ import pathlib
 import tempfile
 
 from ..click_commands import citations, provenance
-from .test_parse import TEST_DATA
+from .test_parse import DATA_DIR, TEST_DATA
 from .testing_utilities import CustomAssertions
 
 
@@ -44,6 +44,54 @@ class ReplayTests(CustomAssertions):
                           rendered)
             self.assertIn('parameter name was not found', rendered)
             self.assertIn('--?-n-jobs 1', rendered)
+
+    def test_provenance_python(self):
+        in_fp = TEST_DATA['5']['qzv_fp']
+        in_fn = str(in_fp)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_fp = pathlib.Path(tmpdir) / 'rendered.txt'
+            out_fn = str(out_fp)
+            res = CliRunner().invoke(
+                cli=provenance,
+                args=(f"--i-in-fp {in_fn} --o-out-fp {out_fn} "
+                      "--p-usage-driver python3"))
+            self.assertEqual(res.exit_code, 0)
+            self.assertTrue(out_fp.is_file())
+            with open(out_fn, 'r') as fp:
+                rendered = fp.read()
+                self.assertIn('from qiime2 import Artifact', rendered)
+                self.assertIn('import_data', rendered)
+                self.assertIn('demux_actions.emp_single', rendered)
+                self.assertIn('dada2_actions.denoise_single', rendered)
+                self.assertIn('phylogeny_actions.align_to_tree_maf', rendered)
+                self.assertIn('diversity_actions.core_metrics_phylogenetic',
+                              rendered)
+
+    def test_provenance_recursive(self):
+        """
+        If the directory under test is parsed recursively, two results will
+        be captured from align_to_tree_mafft_fasttree instead of one.
+
+        This is only visible in the python driver's rendering, and most users
+        will never look at the underlying ProvDAG or use, so that seems like a
+        reasonable way to test.
+        """
+        in_fp = pathlib.Path(DATA_DIR) / 'parse_dir_test'
+        in_fn = str(in_fp)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_fp = pathlib.Path(tmpdir) / 'rendered.txt'
+            out_fn = str(out_fp)
+            res = CliRunner().invoke(
+                cli=provenance,
+                args=(f"--i-in-fp {in_fn} --o-out-fp {out_fn} "
+                      "--p-usage-driver python3 --p-recurse"))
+            self.assertEqual(res.exit_code, 0)
+            self.assertTrue(out_fp.is_file())
+            with open(out_fn, 'r') as fp:
+                rendered = fp.read()
+        self.assertRegex(
+            rendered,
+            '_, _, tree_0, rooted_tree_0 = phylogeny_actions.align_to_tree_m')
 
     def test_provenance_use_md_without_parse(self):
         in_fp = TEST_DATA['5']['qzv_fp']
@@ -95,7 +143,7 @@ class ReportCitationsTests(CustomAssertions):
             for record in set(exp):
                 self.assertIn(record, bib_database.entries_dict.keys())
 
-    def test_citations_no_deduped(self):
+    def test_citations_no_deduplicate(self):
         in_fp = TEST_DATA['5']['qzv_fp']
         in_fn = str(in_fp)
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -104,7 +152,7 @@ class ReportCitationsTests(CustomAssertions):
             res = CliRunner().invoke(
                 cli=citations,
                 args=(f"--i-in-fp {in_fn} --o-out-fp {out_fn} "
-                      "--p-no-deduped"))
+                      "--p-no-deduplicate"))
 
             self.assertEqual(res.exit_code, 0)
             self.assertTrue(out_fp.is_file())

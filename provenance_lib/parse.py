@@ -2,9 +2,10 @@ from __future__ import annotations
 import copy
 from typing import Any, List, Mapping, Optional, Set
 
-import glob
+# import glob
 import networkx as nx
 import os
+from pathlib import Path
 from networkx.classes.reportviews import NodeView
 import zipfile
 
@@ -95,6 +96,7 @@ class ProvDAG:
     def __init__(self, artifact_data: Any = None,
                  validate_checksums: bool = True,
                  parse_metadata: bool = True,
+                 recursive: bool = False,
                  verbose: bool = False,
                  ):
         """
@@ -102,7 +104,7 @@ class ProvDAG:
         dispatcher, using it to parse the incoming data into a ParserResults,
         and then loading those Results into key fields.
         """
-        cfg = Config(validate_checksums, parse_metadata, verbose)
+        cfg = Config(validate_checksums, parse_metadata, recursive, verbose)
         parser_results = parse_provenance(cfg, artifact_data)
 
         self.cfg = cfg
@@ -363,10 +365,14 @@ class DirectoryParser(Parser):
         This behavior assumes that the ArchiveParsers capture all nodes
         within the archives they parse by default.
         """
-        search_exp = str(data).rstrip('/') + '/**/*.qz[av]'
-        artifacts_to_parse = glob.glob(search_exp, recursive=True)
+        dir_name = Path(str(data).rstrip('/') + os.sep)
+        if cfg.recursive:
+            # "empty" generators don't fail if not checks, so cast to list
+            artifacts_to_parse = list(dir_name.rglob('*.qz[av]'))
+        else:
+            artifacts_to_parse = list(dir_name.glob('*.qz[av]'))
         if not artifacts_to_parse:
-            raise ValueError(f"No .qza or .qzv files present in {data}")
+            raise ValueError(f"No .qza or .qzv files present in {dir_name}")
 
         dag = ProvDAG()
         for archive in artifacts_to_parse:

@@ -20,6 +20,16 @@ provenance_lib lets you:
 - `conda activate` your QIIME 2 environment
 - `pip install -e .` from the repo root directory
 
+## BASH tab completion
+To activate tab-completion automatically whenever you activate your conda environment,
+run `activate-replay-completion.py` while the environment is active. You should
+only have to do this once.
+To activate tab-completion for one session only,
+`source tab-replay` from your active conda env.
+
+Other shells (zsh, fish) are not supported at this time.
+Please raise an issue if this matters to you.
+
 ## Use - CLI
 provenance_lib offers tools for the command line under the name `replay`.
 

@@ -11,7 +11,9 @@ from typing import Dict, Iterator, List, Optional, Set
 
 from ._archive_parser import ProvNode
 from .parse import ProvDAG, UUID
-from ._usage_drivers import DRIVER_CHOICES, SUPPORTED_USAGE_DRIVERS, Usage
+from ._usage_drivers import (
+    DRIVER_CHOICES, SUPPORTED_USAGE_DRIVERS, Usage, build_header, build_footer,
+)
 from .util import FileName, camel_to_snake
 from ._yaml_constructors import MetadataInfo
 
@@ -21,11 +23,29 @@ from qiime2.sdk.usage import UsageVariable
 
 @dataclass(frozen=False)
 class ReplayConfig():
+    """
+    fields:
+
+    - use_recorded_metadata
+      If true, replay should use the metadata recorded in provenance
+    - md_context_has_been_printed
+      TODO: if this was no_md_context, True would prevent context from printing
+      a flag set by default and used internally, allows context to be printed
+      once and only once.
+    - no_provenance_context_has_been_printed
+      TODO: if this was no_no_pr_context, True would stop context from printing
+      indicates the no-provenance context documentation has not been printed
+    - header
+      if True, an introductory how-to header should be rendered to the script
+    - verbose
+      if True, progress will be reported to stdout
+    """
     use: Usage
     use_recorded_metadata: bool
     pm: PluginManager = PluginManager()
     md_context_has_been_printed: bool = False
     no_provenance_context_has_been_printed: bool = False
+    header: bool = True
     verbose: bool = False
 
 
@@ -112,10 +132,12 @@ class NamespaceCollections:
 
 
 def replay_fp(in_fp: FileName, out_fp: FileName,
-              usage_driver_name: DRIVER_CHOICES,
+              usage_driver_name: DRIVER_CHOICES = 'python3',
               validate_checksums: bool = True,
               parse_metadata: bool = True,
+              recursive: bool = False,
               use_recorded_metadata: bool = False,
+              suppress_header: bool = False,
               verbose: bool = False):
     """
     One-shot replay from a filepath string, through a ProvDAG to a written
@@ -125,14 +147,16 @@ def replay_fp(in_fp: FileName, out_fp: FileName,
         raise ValueError(
             "Metadata not parsed for replay. Re-run with parse_metadata = "
             "True or use_recorded_metadata = False")
-    dag = ProvDAG(in_fp, validate_checksums, parse_metadata, verbose)
+    dag = ProvDAG(
+        in_fp, validate_checksums, parse_metadata, recursive, verbose)
     replay_provdag(dag, out_fp, usage_driver_name, use_recorded_metadata,
-                   verbose)
+                   suppress_header, verbose)
 
 
 def replay_provdag(dag: ProvDAG, out_fp: FileName,
-                   usage_driver: DRIVER_CHOICES,
+                   usage_driver: DRIVER_CHOICES = 'python3',
                    use_recorded_metadata: bool = False,
+                   suppress_header: bool = False,
                    verbose: bool = False):
     """
     Renders usage examples describing a ProvDAG, producing an interface-
@@ -146,8 +170,12 @@ def replay_provdag(dag: ProvDAG, out_fp: FileName,
     cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS[usage_driver](),
                        use_recorded_metadata=use_recorded_metadata,
                        verbose=verbose)
+    # build order is handled by use.render, so doesn't matter here
+    if not suppress_header:
+        cfg.use.build_header()
+        cfg.use.build_footer(dag)
     build_usage_examples(dag, cfg)
-    output = cfg.use.render()
+    output = cfg.use.render(flush=True)
     with open(out_fp, mode='w') as out_fh:
         out_fh.write(output)
 
@@ -222,8 +250,8 @@ def build_no_provenance_node_usage(node: Optional[ProvNode],
         cfg.no_provenance_context_has_been_printed = True
         cfg.use.comment(
             "One or more nodes have no provenance, so full replay is "
-            "impossible. Any\ncommands we were able to reconstruct have been "
-            "rendered, with the string\ndescriptions below replacing actual "
+            "impossible. Any commands we were able to reconstruct have been "
+            "rendered, with the string descriptions below replacing actual "
             "inputs.")
         cfg.use.comment(
             "Original Node ID                       String Description")
@@ -337,19 +365,19 @@ def build_action_usage(node: ProvNode,
                     cfg.md_context_has_been_printed = True
                     cfg.use.comment(
                         "Replay attempts to represent metadata inputs "
-                        "accurately, but metadata .tsv\nfiles are merged "
+                        "accurately, but metadata .tsv files are merged "
                         "automatically by some interfaces, rendering "
-                        "distinctions\nbetween file inputs invisible in "
-                        "provenance. We output the recorded metadata\nto disk "
-                        "to enable visual inspection.\n")
+                        "distinctions between file inputs invisible in "
+                        "provenance. We output the recorded metadata to disk "
+                        "to enable visual inspection.")
 
                 if not command_specific_md_context_has_been_printed:
                     fp = f'recorded_metadata/{plg_action_name}/'
                     cfg.use.comment(
                         "The following command may have received additional "
-                        "metadata .tsv files.\nTo confirm you have covered "
-                        "your metadata needs adequately, review the original\n"
-                        f"metadata, saved at '{fp}'\n")
+                        "metadata .tsv files. To confirm you have covered "
+                        "your metadata needs adequately, review the original"
+                        f"metadata, saved at '{fp}'")
 
                 if not param_val.input_artifact_uuids:
                     md = init_md_from_md_file(node, param_name, unique_md_id,
@@ -383,8 +411,6 @@ def init_md_from_recorded_md(node: ProvNode, unique_md_id: str,
     if not node.metadata:
         raise ValueError(
             'This function should only be called if the node has metadata.')
-    # TODO: If this convention proves broadly useful, we should implement it as
-    # a method on the UsageVarsDict (for metadata at least)
     parameter_name = namespace[unique_md_id][:-2]
     md_df = node.metadata[parameter_name]
 
@@ -409,7 +435,7 @@ def init_md_from_md_file(node: ProvNode, param_name: str, md_id: str,
         mdc_id = node._uuid + '_mdc'
         mdc_name = ns[md_id] + '_mdc'
         ns.update({mdc_id: mdc_name})
-        md = cfg.use.get_metadata_column(ns[mdc_id], '<column_name>', md)
+        md = cfg.use.get_metadata_column(ns[mdc_id], '<column name>', md)
     return md
 
 
@@ -511,13 +537,11 @@ def uniquify_action_name(plugin: str, action: str, action_nmspace: set) -> str:
     return plg_action_name
 
 
-def collect_citations(dag: ProvDAG, deduped: bool = True) -> \
+def collect_citations(dag: ProvDAG, deduplicate: bool = True) -> \
         bp.bibdatabase.BibDatabase:
     """
     Returns a BibDatabase of all unique citations from a ProvDAG.
-
-    If deduped, collect_citations will attempt more extensive deduplication
-    of documents, e.g. by comparing DOI fields.
+    If `deduplicate`, refs will be heuristically deduplicated. e.g. by DOI
     """
     bdb = bp.bibdatabase.BibDatabase()
     cits = []
@@ -527,10 +551,47 @@ def collect_citations(dag: ProvDAG, deduped: bool = True) -> \
         if p_node is not None:
             cit = list(p_node.citations.values())
             cits.extend(cit)
-    if deduped:
+    if deduplicate:
         cits = dedupe_citations(cits)
     bdb.entries = cits
     return bdb
+
+
+class BibContent():
+    """
+    A hashable data container capturing common bibtex fields
+
+    Has many fields, b/c false negatives (i.e. self != other) are preferable.
+    It is better to keep two dupes than to deduplicate a unique entry.
+    """
+    def __init__(self, entry):
+        self.title = entry.get('title'),
+        self.author = entry.get('author'),
+        self.journal = entry.get('journal')
+        self.booktitle = entry.get('booktitle')
+        self.year = entry.get('year')
+        self.pages = entry.get('pages')
+
+    def __eq__(self, other):
+        return(
+            type(self) == type(other) and
+            self.title == other.title and
+            self.author == other.author and
+            self.journal == other.journal and
+            self.booktitle == other.booktitle and
+            self.year == other.year and
+            self.pages == other.pages
+        )
+
+    def __hash__(self):
+        return hash(
+            str(self.title)
+            + str(self.author)
+            + str(self.journal)
+            + str(self.journal)
+            + str(self.booktitle)
+            + str(self.year)
+            + str(self.pages))
 
 
 def dedupe_citations(citations: List[Dict]) -> List[Dict]:
@@ -540,10 +601,17 @@ def dedupe_citations(citations: List[Dict]) -> List[Dict]:
     """
     dd_cits = []
     fw_cited = False
+    id_set = set()
     doi_set = set()
+    content_set = set()
     for entry in citations:
+        id = entry['ID']
+        # Deduplicate on bibtex key
+        if id in id_set:
+            continue
+
         # Write a single hardcoded framework citation
-        if 'framework|qiime2' in (id := entry['ID']):
+        if 'framework|qiime2' in id:
             if not fw_cited:
                 root = pkg_resources.resource_filename('provenance_lib', '.')
                 root = os.path.abspath(root)
@@ -552,35 +620,58 @@ def dedupe_citations(citations: List[Dict]) -> List[Dict]:
                     q2_entry = bp.load(bibtex_file).entries.pop()
 
                 q2_entry['ID'] = id
+                id_set.add(id)
                 dd_cits.append(q2_entry)
                 fw_cited = True
             continue
 
-        # Keep every entry without a doi
+        # deduplicate on content
+        entry_content = BibContent(entry)
+        if entry_content in content_set:
+            continue
+        else:
+            content_set.add(entry_content)
+
+        # Keep every unique entry without a doi
         if (doi := entry.get('doi')) is None:
+            id_set.add(id)
             dd_cits.append(entry)
-        # Keep one entry per non-framework doi
+        # Keep one unique entry per non-framework doi
         else:
             if doi not in doi_set:
+                id_set.add(id)
                 dd_cits.append(entry)
                 doi_set.add(doi)
 
     return dd_cits
 
 
-def write_citations(dag: ProvDAG, out_fp: FileName, deduped: bool = True):
+def write_citations(dag: ProvDAG, out_fp: FileName, deduplicate: bool = True,
+                    suppress_header: bool = False):
     """
     Writes a .bib file representing all unique citations from a ProvDAG to disk
-
-    If deduped, collect_citations will attempt some heuristic deduplication
-    of documents, e.g. by comparing DOI fields, which may reduce manual
-    curation of reference lists.
+    If `deduplicate`, refs will be heuristically deduplicated. e.g. by DOI
     """
-    bib_db = collect_citations(dag, deduped=deduped)
+    bib_db = collect_citations(dag, deduplicate=deduplicate)
+    boundary = '#' * 79
+    header = []
+    footer = []
+    extra = [
+        "",
+        "# This bibtex-formatted citation file can be imported into "
+        "popular citation ",
+        "# managers like Zotero and Mendeley, simplifying management and "
+        "formatting"
+    ]
+    if not suppress_header:
+        header = build_header(boundary=boundary, extra_text=extra) + ['\n']
+        footer = build_footer(dag=dag, boundary=boundary)
     if bib_db.entries_dict == {}:
-        bib_db = "No citations were recorded for this file."
+        bib_db = "No citations were registered to the used Actions."
         with open(out_fp, 'w') as bibfile:
             bibfile.write(bib_db)
     else:
         with open(out_fp, 'w') as bibfile:
+            bibfile.write('\n'.join(header))
             bibfile.write(BibTexWriter().write(bib_db))
+            bibfile.write('\n'.join(footer))

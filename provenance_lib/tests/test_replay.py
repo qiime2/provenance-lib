@@ -16,7 +16,8 @@ from qiime2.plugins import ArtifactAPIUsageVariable
 
 from ..parse import ProvDAG
 from ..replay import (
-    ActionCollections, NamespaceCollections, ReplayConfig, UsageVarsDict,
+    ActionCollections, BibContent, NamespaceCollections, ReplayConfig,
+    UsageVarsDict,
     build_no_provenance_node_usage, build_import_usage, build_action_usage,
     build_usage_examples, collect_citations, dedupe_citations,
     dump_recorded_md_file, group_by_action, init_md_from_artifacts,
@@ -220,9 +221,11 @@ class ReplayProvDAGTests(unittest.TestCase):
         """
         dag = ProvDAG(os.path.join(DATA_DIR, 'heatmap.qzv'))
         drivers = ['python3', 'cli']
+        # If we rendered the final action correctly, then nothing blew up.
         exp = {
             'python3':
-                'heatmap_0_viz.*sample_classifier_actions.classify_samples',
+                '(?s)action_results.*classifier_actions.classify_samples.*'
+                'heatmap_0_viz = action_results.heatmap',
             'cli': '(?s)qiime sample-classifier classify-samples.*'
                    '--o-heatmap heatmap-0.qzv'}
         for driver in drivers:
@@ -580,8 +583,6 @@ class InitializerTests(unittest.TestCase):
         self.assertIsInstance(var, UsageVariable)
         self.assertEqual(var.var_type, 'metadata')
 
-        # NOTE: This tests against current expected behavior, which is pretty
-        # janky and will probably be updated per the comment in the docstring
         rendered = cfg.use.render()
         self.assertRegex(rendered, 'from qiime2 import Metadata')
         self.assertRegex(
@@ -684,11 +685,10 @@ merged_artifacts_0_md = thing1_a_0_md.merge(thing2_a_0_md, thing3_a_0_md)"""
         self.assertRegex(rendered, 'from qiime2 import Metadata')
         self.assertRegex(
             rendered,
-            r"barcodes_0_md = Metadata.load\(\<your metadata filepath\>\)")
-        self.assertRegex(
-            rendered,
-            rf"{mdc_name} = barcodes_0_md."
-            r"get_column\('\<column_name\>'\)")
+            r"barcodes_0_md = Metadata.load\(<your metadata filepath>\)")
+        self.assertRegex(rendered,
+                         rf"{mdc_name} = barcodes_0_md."
+                         r"get_column\(<column name>\)")
 
 
 class BuildNoProvenanceUsageTests(CustomAssertions):
@@ -874,8 +874,8 @@ class BuildActionUsageTests(CustomAssertions):
             fr"saved at 'recorded_metadata\/{plugin}_{act_undersc}_0\/'")
         self.assertRegex(rendered, f"qiime {plugin} {action}")
         self.assertRegex(rendered, "--i-seqs imported-seqs-0.qza")
-        self.assertRegex(rendered, "--m-barcodes-file barcodes-0.tsv")
-        self.assertRegex(rendered, "--m-barcodes-column <column_name>")
+        self.assertRegex(rendered, "--m-barcodes-file <barcodes-0.tsv>")
+        self.assertRegex(rendered, r"--m-barcodes-column <column name>")
         self.assertRegex(rendered, "--p-no-rev-comp-barcodes")
         self.assertRegex(rendered, "--p-no-rev-comp-mapping-barcodes")
         self.assertRegex(rendered, f"--o-per-sample-sequences {out_name}")
@@ -913,7 +913,7 @@ class BuildActionUsageTests(CustomAssertions):
 
         self.assertRegex(rendered, f"qiime {plugin} {action}")
         self.assertRegex(rendered, "--i-pcoa pcoa.qza")
-        self.assertRegex(rendered, "--m-metadata-file metadata-0")
+        self.assertRegex(rendered, "--m-metadata-file <metadata-0.tsv>")
         self.assertRegex(rendered,
                          "(?s)parameter name was not found in your.*env")
         # This has become "custom-axes" since the .qzv was first recorded
@@ -959,7 +959,7 @@ class BuildActionUsageTests(CustomAssertions):
         mdc_name = 'barcodes_0_mdc_0'
         self.assertRegex(rendered, rf'{md_name} = Metadata.load\(<.*filepath>')
         self.assertRegex(rendered,
-                         f'{mdc_name} = {md_name}.get_col.*<col')
+                         rf'{mdc_name} = {md_name}.get_column\(<col')
         self.assertRegex(rendered,
                          rf'{out_name}, _ = {plugin}_actions.{action}\(')
         self.assertRegex(rendered, f'seqs.*{vars[seqs_id].name}')
@@ -1036,6 +1036,34 @@ class BuildActionUsageTests(CustomAssertions):
                 relative_fp='input.tsv'), ns, cfg)
 
 
+class BibContentTests(unittest.TestCase):
+    def test_contents(self):
+        series_21 = {
+            'year': ' 2010 ',
+            'title': ' Data Structures for Statistical Computing in Python ',
+            'pages': ' 51 -- 56 ',
+            'editor': ' Stéfan van der Walt and Jarrod Millman ',
+            'booktitle': ' Proceedings of the 9th Python in Science Conferen',
+            'author': ' Wes McKinney ',
+            'ENTRYTYPE': 'inproceedings',
+            'ID': 'view|types:2021.2.0|pandas.core.series:Series|0'}
+
+        df_20 = {
+            'year': ' 2010 ',
+            'title': ' Data Structures for Statistical Computing in Python ',
+            'pages': ' 51 -- 56 ',
+            'editor': ' Stéfan van der Walt and Jarrod Millman ',
+            'booktitle': ' Proceedings of the 9th Python in Science Conferen',
+            'author': ' Wes McKinney ',
+            'ENTRYTYPE': 'inproceedings',
+            'ID': 'view|types:2020.2.0|pandas.core.frame:DataFrame|0'}
+
+        self.assertEqual(BibContent(series_21), BibContent(df_20))
+        self.assertEqual(hash(BibContent(series_21)), hash(BibContent(df_20)))
+        # Set membership because these objects are equal and hash-equal
+        self.assertIn(BibContent(series_21), {BibContent(df_20)})
+
+
 class CitationsTests(unittest.TestCase):
     def test_dedupe_citations(self):
         fn = os.path.join(DATA_DIR, 'dupes.bib')
@@ -1043,11 +1071,78 @@ class CitationsTests(unittest.TestCase):
             bib_db = bp.load(bibtex_file)
         deduped = dedupe_citations(bib_db.entries)
         # Dedupe by DOI will preserve only one of the biom.table entries
-        self.assertEqual(len(deduped), 2)
+        # Dedupe by contents should preserve only one of the pandas entries
+        self.assertEqual(len(deduped), 3)
         # Confirm each paper is present. The len assertion ensures one-to-one
         lower_keys = [entry['ID'].lower() for entry in deduped]
         self.assertTrue(any('framework' in key for key in lower_keys))
         self.assertTrue(any('biom' in key for key in lower_keys))
+        self.assertTrue(any('pandas' in key for key in lower_keys))
+
+    def test_dedupe_pandas(self):
+        """
+        No match on ID, framework, or DOI, but matching content should
+        deduplicate these
+        """
+        series_21 = {
+            'year': ' 2010 ',
+            'title': ' Data Structures for Statistical Computing in Python ',
+            'pages': ' 51 -- 56 ',
+            'editor': ' Stéfan van der Walt and Jarrod Millman ',
+            'booktitle': ' Proceedings of the 9th Python in Science Conferen',
+            'author': ' Wes McKinney ',
+            'ENTRYTYPE': 'inproceedings',
+            'ID': 'view|types:2021.2.0|pandas.core.series:Series|0'}
+
+        df_20 = {
+            'year': ' 2010 ',
+            'title': ' Data Structures for Statistical Computing in Python ',
+            'pages': ' 51 -- 56 ',
+            'editor': ' Stéfan van der Walt and Jarrod Millman ',
+            'booktitle': ' Proceedings of the 9th Python in Science Conferen',
+            'author': ' Wes McKinney ',
+            'ENTRYTYPE': 'inproceedings',
+            'ID': 'view|types:2020.2.0|pandas.core.frame:DataFrame|0'}
+
+        deduped = dedupe_citations([series_21, df_20])
+        self.assertEqual(len(deduped), 1)
+
+    def test_dedupe_silva(self):
+        """
+        These similar publications should not be deduped by content filter
+        """
+        s0 = {
+            'year': '2007',
+            'volume': '35',
+            'title': 'SILVA: a comprehensive online resource for quality '
+                     'checked and aligned ribosomal RNA sequence data '
+                     'compatible with ARB',
+            'pages': '7188-7196',
+            'number': '21',
+            'journal': 'Nucleic Acids Res',
+            'author': 'Pruesse, Elmar and Quast, Christian and Knittel, Katrin'
+                      ' and Fuchs, Bernhard M and Ludwig, Wolfgang and Peplies'
+                      ', Jorg and Glockner, Frank Oliver',
+            'ENTRYTYPE': 'article',
+            'ID': 'action|rescript:2020.6.0+3.g772294c|'
+                  'method:parse_silva_taxonomy|0'}
+        s1 = {
+            'year': '2013',
+            'volume': '41',
+            'title': 'The SILVA ribosomal RNA gene database project: '
+                     'improved data processing and web-based tools',
+            'publisher': 'Oxford University Press',
+            'pages': 'D590-6',
+            'number': 'Database issue',
+            'journal': 'Nucleic Acids Res',
+            'author': 'Quast, Christian and Pruesse, Elmar and Yilmaz, Pelin '
+                      'and Gerken, Jan and Schweer, Timmy and Yarza, Pablo and'
+                      ' Peplies, Jorg and Glockner, Frank Oliver',
+            'ENTRYTYPE': 'article',
+            'ID': 'action|rescript:2020.6.0+3.g772294c|'
+                  'method:parse_silva_taxonomy|1'}
+        deduped = dedupe_citations([s0, s1])
+        self.assertEqual(len(deduped), 2)
 
     def test_collect_citations_no_deduped(self):
         dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
@@ -1068,7 +1163,7 @@ class CitationsTests(unittest.TestCase):
                     'action|phylogeny:2018.11.0|method:fasttree|0',
                     'action|alignment:2018.11.0|method:mask|0',
                     }
-        citations = collect_citations(dag, deduped=False)
+        citations = collect_citations(dag, deduplicate=False)
         keys = set(citations.entries_dict.keys())
         self.assertEqual(len(keys), len(exp_keys))
         self.assertEqual(keys, exp_keys)
@@ -1079,12 +1174,12 @@ class CitationsTests(unittest.TestCase):
                     'view|types:2018.11.0|BIOMV210DirFmt|0',
                     'view|types:2018.11.0|biom.table:Table|0',
                     'plugin|dada2:2018.11.0|0'}
-        citations = collect_citations(v5_tbl, deduped=False)
+        citations = collect_citations(v5_tbl, deduplicate=False)
         keys = set(citations.entries_dict.keys())
         self.assertEqual(len(keys), len(std_keys))
         self.assertEqual(keys, std_keys)
 
-        citations = collect_citations(v5_tbl, deduped=True)
+        citations = collect_citations(v5_tbl, deduplicate=True)
         keys = set(citations.entries_dict.keys())
         # Dedupe by DOI will drop one of the biom.table entries
         self.assertEqual(len(keys), 3)
@@ -1140,7 +1235,7 @@ class CitationsTests(unittest.TestCase):
                 UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
             mixed = ProvDAG(os.path.join(DATA_DIR,
                             'mixed_v0_v1_uu_emperor.qzv'))
-        exp = "No citations were recorded for this file."
+        exp = "No citations were registered"
         with tempfile.TemporaryDirectory() as tmpdir:
             out_fp = pathlib.Path(tmpdir) / 'citations.bib'
             out_fn = str(out_fp)
@@ -1148,4 +1243,4 @@ class CitationsTests(unittest.TestCase):
             self.assertTrue(out_fp.is_file())
             with open(out_fn, 'r') as fp:
                 written = fp.read()
-                self.assertEqual(exp, written)
+                self.assertIn(exp, written)

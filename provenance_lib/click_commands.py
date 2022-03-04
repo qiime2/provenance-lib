@@ -80,12 +80,13 @@ def provenance(i_in_fp: FileName, o_out_fp: FileName,
               show_default=True,
               help=('if in-fp is a directory, will also search sub-directories'
                     'when finding .qza/.qzv files to parse'))
-@click.option('--p-deduped/--p-no-deduped',
+@click.option('--p-deduplicate/--p-no-deduplicate',
               default=True,
               show_default=True,
-              help=('If deduped, collect_citations will attempt some heuristic'
-                    'deduplication of documents, e.g. by comparing DOI fields,'
-                    ' which may reduce manual curation of reference lists.'))
+              help=('If deduplicate, duplicate citations will be removed '
+                    'heuristically, e.g. by comparing DOI fields. '
+                    'This greatly reduces manual curation of reference lists, '
+                    'but introduces a small risk of reference loss.'))
 @click.option('--p-suppress-header/--p-no-suppress-header',
               default=False,
               show_default=True,
@@ -100,14 +101,19 @@ def provenance(i_in_fp: FileName, o_out_fp: FileName,
 def citations(i_in_fp: FileName,
               o_out_fp: FileName,
               p_recurse: bool = False,
-              p_deduped: bool = True,
+              p_deduplicate: bool = True,
               p_suppress_header: bool = False,
               p_verbose: bool = False):
     """
-    Report all citations from a QIIME 2 Artifact.
+    Reports all citations from a QIIME 2 Artifact or directory of Artifacts,
+    with the goal of improving and simplifying attribution of/in published
+    work.
+
+    Not for use in reporting e.g. software versions used in an analysis, as
+    deduplication removes duplicate references with different plugin versions.
     """
     dag = ProvDAG(i_in_fp, verbose=p_verbose, recursive=p_recurse)
-    write_citations(dag, out_fp=o_out_fp, deduped=p_deduped,
+    write_citations(dag, out_fp=o_out_fp, deduplicate=p_deduplicate,
                     suppress_header=p_suppress_header)
     filename = os.path.realpath(o_out_fp)
     click.echo(f'Citations bibtex file written to {filename}')

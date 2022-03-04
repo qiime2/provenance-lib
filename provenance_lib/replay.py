@@ -539,13 +539,11 @@ def uniquify_action_name(plugin: str, action: str, action_nmspace: set) -> str:
     return plg_action_name
 
 
-def collect_citations(dag: ProvDAG, deduped: bool = True) -> \
+def collect_citations(dag: ProvDAG, deduplicate: bool = True) -> \
         bp.bibdatabase.BibDatabase:
     """
     Returns a BibDatabase of all unique citations from a ProvDAG.
-
-    If deduped, collect_citations will attempt more extensive deduplication
-    of documents, e.g. by comparing DOI fields.
+    If `deduplicate`, refs will be heuristically deduplicated. e.g. by DOI
     """
     bdb = bp.bibdatabase.BibDatabase()
     cits = []
@@ -555,7 +553,7 @@ def collect_citations(dag: ProvDAG, deduped: bool = True) -> \
         if p_node is not None:
             cit = list(p_node.citations.values())
             cits.extend(cit)
-    if deduped:
+    if deduplicate:
         cits = dedupe_citations(cits)
     bdb.entries = cits
     return bdb
@@ -650,16 +648,13 @@ def dedupe_citations(citations: List[Dict]) -> List[Dict]:
     return dd_cits
 
 
-def write_citations(dag: ProvDAG, out_fp: FileName, deduped: bool = True,
+def write_citations(dag: ProvDAG, out_fp: FileName, deduplicate: bool = True,
                     suppress_header: bool = False):
     """
     Writes a .bib file representing all unique citations from a ProvDAG to disk
-
-    If deduped, collect_citations will attempt some heuristic deduplication
-    of documents, e.g. by comparing DOI fields, which may reduce manual
-    curation of reference lists.
+    If `deduplicate`, refs will be heuristically deduplicated. e.g. by DOI
     """
-    bib_db = collect_citations(dag, deduped=deduped)
+    bib_db = collect_citations(dag, deduplicate=deduplicate)
     boundary = '#' * 79
     header = []
     footer = []

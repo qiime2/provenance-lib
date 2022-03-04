@@ -143,7 +143,7 @@ class ReportCitationsTests(CustomAssertions):
             for record in set(exp):
                 self.assertIn(record, bib_database.entries_dict.keys())
 
-    def test_citations_no_deduped(self):
+    def test_citations_no_deduplicate(self):
         in_fp = TEST_DATA['5']['qzv_fp']
         in_fn = str(in_fp)
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -152,7 +152,7 @@ class ReportCitationsTests(CustomAssertions):
             res = CliRunner().invoke(
                 cli=citations,
                 args=(f"--i-in-fp {in_fn} --o-out-fp {out_fn} "
-                      "--p-no-deduped"))
+                      "--p-no-deduplicate"))
 
             self.assertEqual(res.exit_code, 0)
             self.assertTrue(out_fp.is_file())

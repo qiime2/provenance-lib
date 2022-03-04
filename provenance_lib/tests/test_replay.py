@@ -1163,7 +1163,7 @@ class CitationsTests(unittest.TestCase):
                     'action|phylogeny:2018.11.0|method:fasttree|0',
                     'action|alignment:2018.11.0|method:mask|0',
                     }
-        citations = collect_citations(dag, deduped=False)
+        citations = collect_citations(dag, deduplicate=False)
         keys = set(citations.entries_dict.keys())
         self.assertEqual(len(keys), len(exp_keys))
         self.assertEqual(keys, exp_keys)
@@ -1174,12 +1174,12 @@ class CitationsTests(unittest.TestCase):
                     'view|types:2018.11.0|BIOMV210DirFmt|0',
                     'view|types:2018.11.0|biom.table:Table|0',
                     'plugin|dada2:2018.11.0|0'}
-        citations = collect_citations(v5_tbl, deduped=False)
+        citations = collect_citations(v5_tbl, deduplicate=False)
         keys = set(citations.entries_dict.keys())
         self.assertEqual(len(keys), len(std_keys))
         self.assertEqual(keys, std_keys)
 
-        citations = collect_citations(v5_tbl, deduped=True)
+        citations = collect_citations(v5_tbl, deduplicate=True)
         keys = set(citations.entries_dict.keys())
         # Dedupe by DOI will drop one of the biom.table entries
         self.assertEqual(len(keys), 3)

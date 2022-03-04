@@ -405,6 +405,10 @@ class ReplayPythonUsage(ArtifactAPIUsage):
 class ReplayCLIUsage(CLIUsage):
     shebang = '#!/usr/bin/env bash'
     header_boundary = ('#' * 79)
+    set_ex = [
+        '# This tells bash to -e exit immediately if a command fails',
+        '# and -x show all commands in stdout so you can track progress',
+        'set -e -x', '']
     how_to = pkg_resources.resource_string(
         __package__, 'assets/cli_howto.txt').decode('utf-8').split('\n')
 
@@ -541,7 +545,8 @@ class ReplayCLIUsage(CLIUsage):
             self.header = self.header + ['']
         if self.footer:
             self.footer = [''] + self.footer
-        rendered = '\n'.join(self.header + self.recorder + self.footer)
+        rendered = '\n'.join(
+            self.header +  self.set_ex + self.recorder + self.footer)
         if flush:
             self.header = []
             self.footer = []

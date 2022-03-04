@@ -4,7 +4,9 @@
 #    syntax highlighting can be helpful.
 # 2. Search or scan visually for '<' or '>' characters to find places where
 #    user input (e.g. a filepath or column name) is required. These should be
-#    replaced with your own values. E.g. <column name> -> 'patient_id'
+#    replaced with your own values. E.g. <column name> -> 'patient_id'.
+#    Failure to remove '<' or '>' may result in `No such File or Directory`
+#    errors
 # 3. Search for 'TODO' comments in the script, and respond as directed.
 # 4. Remove all 'TODO' comments from the script. Failure to do so may result in
 #    'Missing Option' errors

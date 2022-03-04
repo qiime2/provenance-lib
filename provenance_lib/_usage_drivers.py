@@ -249,7 +249,8 @@ class ReplayPythonUsage(ArtifactAPIUsage):
                 lines.append('%s = action_results.%s' % (interface_name, k))
 
         lines.append(
-            '# SAVE: comment out the following to skip saving Results to disk')
+            '# SAVE: comment out the following with \'# \' to skip saving '
+            'Results to disk')
 
         for k, v in variables._asdict().items():
             interface_name = v.to_interface_name()
@@ -336,8 +337,8 @@ class ReplayPythonUsage(ArtifactAPIUsage):
 
         lines.extend([
             ')',
-            '# SAVE: comment out the following to skip saving this Result to'
-            ' disk',
+            '# SAVE: comment out the following with \'# \' to skip saving this'
+            'Result to disk',
             '%s.save(\'%s\')' % (interface_name, interface_name,),
             ''])
 

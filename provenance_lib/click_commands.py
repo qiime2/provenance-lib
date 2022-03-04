@@ -14,7 +14,7 @@ def replay():
 
 @replay.command(no_args_is_help=True)
 @click.option('--i-in-fp', required=True,
-              help='The filepath to a QIIME 2 Artifact')
+              help='filepath to a QIIME 2 Archive or directory of Archives')
 @click.option('--p-recurse/--p-no-recurse',
               default=False,
               show_default=True,
@@ -32,7 +32,7 @@ def replay():
 @click.option('--p-parse-metadata/--p-no-parse-metadata',
               default=True,
               show_default=True,
-              help=('parse the original metadata captured by provenance'
+              help=('parse the original metadata captured by provenance '
                     'for review or replay'))
 @click.option('--p-use-recorded-metadata/--p-no-use-recorded-metadata',
               default=False,
@@ -74,7 +74,7 @@ def provenance(i_in_fp: FileName, o_out_fp: FileName,
 
 @replay.command(no_args_is_help=True)
 @click.option('--i-in-fp', required=True,
-              help='The filepath to a QIIME 2 Artifact')
+              help='filepath to a QIIME 2 Archive or directory of Archives')
 @click.option('--p-recurse/--p-no-recurse',
               default=False,
               show_default=True,

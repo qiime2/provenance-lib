@@ -449,6 +449,14 @@ class ReplayCLIUsage(CLIUsage):
             line += ' \\'
             self.recorder.append(line)
 
+    def _make_param(self, value, state):
+        """ wrap metadata filenames in <> to force users to replace them """
+        if state['metadata'] == 'column':
+            value = (f'<{value[0]}>', *value[1:])
+        if state['metadata'] == 'file':
+            value = f'<{value}>'
+        return super()._make_param(value, state)
+
     def import_from_format(self, name, semantic_type, variable,
                            view_type=None):
         """
@@ -546,7 +554,7 @@ class ReplayCLIUsage(CLIUsage):
         if self.footer:
             self.footer = [''] + self.footer
         rendered = '\n'.join(
-            self.header +  self.set_ex + self.recorder + self.footer)
+            self.header + self.set_ex + self.recorder + self.footer)
         if flush:
             self.header = []
             self.footer = []

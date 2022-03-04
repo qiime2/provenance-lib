@@ -876,7 +876,7 @@ class BuildActionUsageTests(CustomAssertions):
             fr"saved at 'recorded_metadata\/{plugin}_{act_undersc}_0\/'")
         self.assertRegex(rendered, f"qiime {plugin} {action}")
         self.assertRegex(rendered, "--i-seqs imported-seqs-0.qza")
-        self.assertRegex(rendered, "--m-barcodes-file barcodes-0.tsv")
+        self.assertRegex(rendered, "--m-barcodes-file <barcodes-0.tsv>")
         self.assertRegex(rendered, r"--m-barcodes-column <column name>")
         self.assertRegex(rendered, "--p-no-rev-comp-barcodes")
         self.assertRegex(rendered, "--p-no-rev-comp-mapping-barcodes")
@@ -915,7 +915,7 @@ class BuildActionUsageTests(CustomAssertions):
 
         self.assertRegex(rendered, f"qiime {plugin} {action}")
         self.assertRegex(rendered, "--i-pcoa pcoa.qza")
-        self.assertRegex(rendered, "--m-metadata-file metadata-0")
+        self.assertRegex(rendered, "--m-metadata-file <metadata-0.tsv>")
         self.assertRegex(rendered,
                          "(?s)parameter name was not found in your.*env")
         # This has become "custom-axes" since the .qzv was first recorded

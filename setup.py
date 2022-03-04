@@ -25,7 +25,7 @@ setup(
                       'networkx', 'pandas', 'pyyaml>=5.3', 'types-setuptools',
                       ],
     extras_require={
-         'test': ['pytest>=6', 'pytest-cov>=2.0'],
+         'dev': ['pytest>=6', 'pytest-cov>=2.0'],
      },
     entry_points={
         'console_scripts': [

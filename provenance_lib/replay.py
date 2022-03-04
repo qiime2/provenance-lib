@@ -175,7 +175,7 @@ def replay_provdag(dag: ProvDAG, out_fp: FileName,
         cfg.use.build_header()
         cfg.use.build_footer(dag)
     build_usage_examples(dag, cfg)
-    output = cfg.use.render()
+    output = cfg.use.render(flush=True)
     with open(out_fp, mode='w') as out_fh:
         out_fh.write(output)
 

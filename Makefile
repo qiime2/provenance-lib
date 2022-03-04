@@ -33,7 +33,9 @@ cite-everything:
 # https://github.com/qiime2/q2cli/blob/ab0afe7917977c1272cad2d334607f7e6b1f6e41/ci/recipe/meta.yaml#L12
 
 # NOTE: Dev will also need to install testing deps, and mypy should prob. move
-# over to extras
+# over to extras. These are all referenced by the [dev] key in extras
+# dev:
+# 	pip install -e .[dev]
 
 lint:
 	flake8

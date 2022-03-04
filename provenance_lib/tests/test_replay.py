@@ -583,8 +583,6 @@ class InitializerTests(unittest.TestCase):
         self.assertIsInstance(var, UsageVariable)
         self.assertEqual(var.var_type, 'metadata')
 
-        # NOTE: This tests against current expected behavior, which is pretty
-        # janky and will probably be updated per the comment in the docstring
         rendered = cfg.use.render()
         self.assertRegex(rendered, 'from qiime2 import Metadata')
         self.assertRegex(

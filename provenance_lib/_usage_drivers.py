@@ -537,6 +537,7 @@ class ReplayCLIUsage(CLIUsage):
             self._append_action_line(signature, param_name, value)
 
         max_collection_size = self.action_collection_size
+        # NOTE: Losing coverage here until this "lumping" behavior is supported
         if max_collection_size is not None and len(outs) > max_collection_size:
             dir_name = self._build_output_dir_name(plugin_name, action_name)
             self.recorder.append(

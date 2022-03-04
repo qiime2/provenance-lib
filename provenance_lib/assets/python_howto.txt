@@ -13,4 +13,4 @@
 #    changes may be required. (e.g. sample ids or rarefaction depth)
 # 6. Activate your replay conda environment, and confirm you have installed all
 #    plugins used by the script.
-# 8. Run this script with `python <path to this script>`1
+# 8. Run this script with `python <path to this script>`

@@ -338,7 +338,7 @@ class ReplayPythonUsage(ArtifactAPIUsage):
         lines.extend([
             ')',
             '# SAVE: comment out the following with \'# \' to skip saving this'
-            'Result to disk',
+            ' Result to disk',
             '%s.save(\'%s\')' % (interface_name, interface_name,),
             ''])
 

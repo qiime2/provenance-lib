@@ -20,7 +20,7 @@ from ..parse import (
 from ..util import UUID
 from .._archive_parser import (
     ParserV0, ParserV1, ParserV2, ParserV3, ParserV4, ParserV5,
-    Config, ProvNode, ParserResults, ArtifactParser,
+    Config, ProvNode, ParserResults, ArchiveParser,
 )
 
 from .testing_utilities import (
@@ -157,7 +157,7 @@ class ProvDAGTests(unittest.TestCase):
         fp = os.path.join(DATA_DIR, fn)
         with self.assertRaisesRegex(
             UnparseableDataError,
-                f'FileNotFoundError.*ArtifactParser.*{fn}'):
+                f'FileNotFoundError.*ArchiveParser.*{fn}'):
             ProvDAG(fp)
 
     def test_insufficient_permissions(self):
@@ -167,7 +167,7 @@ class ProvDAGTests(unittest.TestCase):
         os.chmod(fp, 0o000)
         with self.assertRaisesRegex(
             UnparseableDataError,
-                f"PermissionError.*ArtifactParser.*denied.*{fn}"):
+                f"PermissionError.*ArchiveParser.*denied.*{fn}"):
             ProvDAG(fp)
         os.chmod(fp, 0o644)
 
@@ -175,7 +175,7 @@ class ProvDAGTests(unittest.TestCase):
         fp = os.path.join(DATA_DIR, 'not_a_zip.txt')
         with self.assertRaisesRegex(
             UnparseableDataError,
-                "zipfile.BadZipFile.*ArtifactParser.*File is not a zip file"):
+                "zipfile.BadZipFile.*ArchiveParser.*File is not a zip file"):
             ProvDAG(fp)
 
     def test_has_digraph(self):
@@ -1018,7 +1018,7 @@ class SelectParserTests(unittest.TestCase):
 
         test_arch_fp = TEST_DATA['5']['qzv_fp']
         archive = select_parser(test_arch_fp)
-        self.assertIsInstance(archive, ArtifactParser)
+        self.assertIsInstance(archive, ArchiveParser)
 
         dag = ProvDAG()
         pdag = select_parser(dag)
@@ -1130,7 +1130,7 @@ class ParseProvenanceTests(unittest.TestCase):
         with self.assertRaisesRegex(
             UnparseableDataError,
             f"(?s)Input data {input_data}.*not supported.*"
-            "AttributeError.*ArtifactParser.*dict.*no attribute.*seek.*"
+            "AttributeError.*ArchiveParser.*dict.*no attribute.*seek.*"
             "DirectoryParser.*expects a directory.*"
             "ProvDAGParser.*is not a ProvDAG.*"
             "EmptyParser.*is not None"

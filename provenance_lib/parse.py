@@ -11,7 +11,7 @@ import zipfile
 
 from . import _checksum_validator
 from ._archive_parser import (
-    Config, ParserResults, ProvNode, Parser, ArtifactParser
+    Config, ParserResults, ProvNode, Parser, ArchiveParser
 )
 from .util import UUID, get_root_uuid
 
@@ -447,7 +447,7 @@ def select_parser(payload: Any) -> Parser:
     Selects a parser that can_handle some given payload.
     """
     _PARSER_TYPE_REGISTRY = [
-        ArtifactParser,
+        ArchiveParser,
         DirectoryParser,
         ProvDAGParser,
         EmptyParser,

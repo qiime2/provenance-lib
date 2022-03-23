@@ -448,7 +448,7 @@ class Parser(metaclass=abc.ABCMeta):
         """
 
 
-class ArtifactParser(Parser):
+class ArchiveParser(Parser):
     # description from (and more details available at)
     # https://docs.python.org/3/library/zipfile.html#zipfile-objects
     accepted_data_types = ("a path to a file (a string) or a file-like object")
@@ -464,7 +464,7 @@ class ArtifactParser(Parser):
             is_dir = False
 
         if is_dir:
-            raise ValueError("ArtifactParser expects a file, not a directory")
+            raise ValueError("ArchiveParser expects a file, not a directory")
 
         try:
             # By trying to open artifact_data directly, we get more
@@ -476,7 +476,7 @@ class ArtifactParser(Parser):
         except Exception as e:
             # Re-raise after appending the name of this parser to the error
             # message, so we can figure out which parser it's coming from
-            raise type(e)(f" in ArtifactParser: {str(e)}")
+            raise type(e)(f" in ArchiveParser: {str(e)}")
 
     def parse_prov(cls, cfg: Config, data: Any) -> ParserResults:
         raise NotImplementedError(
@@ -484,7 +484,7 @@ class ArtifactParser(Parser):
         )
 
 
-class ParserV0(ArtifactParser):
+class ParserV0(ArchiveParser):
     """
     Parser for V0 archives. These have no provenance, so we only parse metadata
     """

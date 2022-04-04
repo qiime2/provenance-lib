@@ -19,7 +19,7 @@ def replay():
               default=False,
               show_default=True,
               help=('if in-fp is a directory, will also search sub-directories'
-                    'when finding .qza/.qzv files to parse'))
+                    ' when finding .qza/.qzv files to parse'))
 @click.option('--p-usage-driver',
               default='cli',
               show_default=True,
@@ -79,7 +79,7 @@ def provenance(i_in_fp: FileName, o_out_fp: FileName,
               default=False,
               show_default=True,
               help=('if in-fp is a directory, will also search sub-directories'
-                    'when finding .qza/.qzv files to parse'))
+                    ' when finding .qza/.qzv files to parse'))
 @click.option('--p-deduplicate/--p-no-deduplicate',
               default=True,
               show_default=True,

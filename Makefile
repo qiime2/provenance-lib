@@ -51,10 +51,13 @@ mypy:
 
 uml:
 	# pyreverse is packaged with pylint, and installable with `pip install pylint`
-	pyreverse -ASmy -k -o png provenance_lib/ --ignore tests
+	pyreverse -ASmy -k -o puml provenance_lib/ --ignore tests -p packages
 
 uml-full:
-	pyreverse -ASmy -o png provenance_lib/ --ignore tests
+	pyreverse -ASmy --colorized -o puml provenance_lib/ --ignore tests -p classes
+
+uml-archive-parser:
+	pyreverse -ASmy --colorized -o puml provenance_lib/_archive_parser.py
 
 dev:
 	pip install -e .

@@ -68,7 +68,8 @@ class ActionCollections():
 class UsageVarsDict(UserDict):
     """
     A dict where values are also unique. Used here as a UUID-queryable
-    "namespace" of strings that will be evaluated into python variable names.
+    "namespace" of strings that can be passed to usage drivers for rendering
+    into unique variable names.
     Non-unique values would cause namespace collisions.
 
     For consistency and simplicity, all str values are suffixed with _n when
@@ -78,7 +79,7 @@ class UsageVarsDict(UserDict):
 
     Best practice is generally to add the UUID: variable-name pair to this,
     create the usage variable using the stored name,
-    then store the usage variable in a separate {UUID: UsagVar}. This
+    then store the usage variable in a separate {UUID: UsageVar}. This
     ensures that UsageVariable.name is unique, preventing namespace collisions.
     NamespaceCollections (below) exist to group these related structures.
 
@@ -121,6 +122,9 @@ class UsageVarsDict(UserDict):
         raise KeyError(f"passed value '{value}' does not exist in this dict.")
 
     def wrap_val_in_angle_brackets(self, key: UUID):
+        # TODO: Kinda unsafe. If we run it twice, it breaks uniquify.
+        # Can we refactor this to behave like a repr instead of modifying the
+        # value in the dict?
         super().__setitem__(key, f'<{self.data[key]}>')
 
 

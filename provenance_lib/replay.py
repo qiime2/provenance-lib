@@ -359,6 +359,9 @@ def build_action_usage(node: ProvNode,
             ns.usg_var_namespace.update(
                 {unique_md_id: camel_to_snake(param_name)})
             md_fn = ns.usg_var_namespace[unique_md_id] + '.tsv'
+            # TODO: When no_parse_metadata, we're still calling this
+            # which raises an error. We shouldn't be dumping md if we're not
+            # parsing it. Clean that up!
             dump_recorded_md_file(node, plg_action_name, param_name, md_fn)
 
             if cfg.use_recorded_metadata:
@@ -487,6 +490,8 @@ def dump_recorded_md_file(
 
     Raises a ValueError if the node has no metadata
     """
+    # TODO: node.metadata will also be None if no-parse-metadata is passed.
+    # Fix that!
     if node.metadata is None:
         raise ValueError(
             'This function should only be called if the node has metadata.')

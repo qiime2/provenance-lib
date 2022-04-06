@@ -46,7 +46,7 @@ def replay():
               show_default=True,
               help='do not write header/footer blocks in the output script')
 @click.option('--p-verbose/--p-no-verbose',
-              default=False,
+              default=True,
               show_default=True,
               help='print status messages to stdout while processing')
 @click.option('--o-out-fp',
@@ -59,7 +59,7 @@ def provenance(i_in_fp: FileName, o_out_fp: FileName,
                p_parse_metadata: bool = True,
                p_use_recorded_metadata: bool = False,
                p_suppress_header: bool = False,
-               p_verbose: bool = False):
+               p_verbose: bool = True):
     """
     Replay provenance from a QIIME 2 Artifact filepath to a written executable
     """
@@ -95,7 +95,7 @@ def provenance(i_in_fp: FileName, o_out_fp: FileName,
               show_default=True,
               help='do not write header/footer blocks in the output file')
 @click.option('--p-verbose/--p-no-verbose',
-              default=False,
+              default=True,
               show_default=True,
               help='print status messages to stdout while processing')
 @click.option('--o-out-fp',
@@ -106,7 +106,7 @@ def citations(i_in_fp: FileName,
               p_recurse: bool = False,
               p_deduplicate: bool = True,
               p_suppress_header: bool = False,
-              p_verbose: bool = False):
+              p_verbose: bool = True):
     """
     Reports all citations from a QIIME 2 Artifact or directory of Artifacts,
     with the goal of improving and simplifying attribution of/in published

@@ -691,38 +691,6 @@ def write_citations(dag: ProvDAG, out_fp: FileName, deduplicate: bool = True,
             bibfile.write('\n'.join(footer))
 
 
-# def write_reproducibility_supplement_from_fp(
-#     in_fp: FileName,
-#     out_fp: FileName,
-#     validate_checksums: bool = True,
-#     parse_metadata: bool = True,
-#     use_recorded_metadata: bool = False,
-#     recurse: bool = False,
-#     deduplicate: bool = True,
-#     suppress_header: bool = False,
-#         verbose: bool = True):
-#     """
-#     Produces a zipfile package of useful documentation for enabling in silico
-#     reproducibility of some QIIME 2 Result(s) from a QIIME 2 Artifact or
-#     directory of Artifacts, including:
-#     - replay scripts for all supported interfaces
-#     - a bibtex-formatted collection of all citations
-#     """
-#     dag = ProvDAG(artifact_data=in_fp, validate_checksums=validate_checksums,
-#                   parse_metadata=parse_metadata, recursive=recurse,
-#                   verbose=verbose)
-#     write_reproducibility_supplement(
-#         payload=dag,
-#         out_fp=out_fp,
-#         validate_checksums=validate_checksums,
-#         parse_metadata=parse_metadata,
-#         use_recorded_metadata=use_recorded_metadata,
-#         recurse=recurse,
-#         deduplicate=deduplicate,
-#         suppress_header=suppress_header,
-#         verbose=verbose)
-
-
 def write_reproducibility_supplement(payload: Union[FileName, ProvDAG],
                                      out_fp: FileName,
                                      validate_checksums: bool = True,

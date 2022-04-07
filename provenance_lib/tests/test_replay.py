@@ -7,6 +7,7 @@ import re
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
+import zipfile
 
 from qiime2 import Artifact
 from qiime2.sdk import PluginManager
@@ -23,6 +24,7 @@ from ..replay import (
     dump_recorded_md_file, group_by_action, init_md_from_artifacts,
     init_md_from_md_file, init_md_from_recorded_md, param_is_metadata_column,
     replay_fp, replay_provdag, uniquify_action_name, write_citations,
+    write_reproducibility_supplement,
     SUPPORTED_USAGE_DRIVERS,
     )
 from .test_parse import DATA_DIR, TEST_DATA
@@ -1244,3 +1246,60 @@ class CitationsTests(unittest.TestCase):
             with open(out_fn, 'r') as fp:
                 written = fp.read()
                 self.assertIn(exp, written)
+
+
+class WriteReproducibilitySupplementTests(CustomAssertions):
+    def test_write_reproducibility_supplement_from_fp(self):
+        """
+        Do we get expected zipfile contents when the supplement is
+        created from a filepath
+        """
+        in_fp = TEST_DATA['5']['qzv_fp']
+        in_fn = str(in_fp)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_fp = pathlib.Path(tmpdir) / 'supplement.zip'
+            out_fn = str(out_fp)
+            write_reproducibility_supplement(
+                payload=in_fn,
+                out_fp=out_fn,
+            )
+
+            self.assertTrue(out_fp.is_file())
+            self.assertTrue(zipfile.is_zipfile(out_fp))
+
+            exp = {'python3_replay.py',
+                   'cli_replay.sh',
+                   'citations.bib',
+                   }
+
+            with zipfile.ZipFile(out_fp, 'r') as myzip:
+                self.assertEqual(exp, set(myzip.namelist()))
+
+    def test_write_reproducibility_supplement_from_provdag(self):
+        """
+        Do we get expected zipfile contents when the supplement is
+        created from a ProvDAG
+        """
+        in_fp = TEST_DATA['5']['qzv_fp']
+        in_fn = str(in_fp)
+
+        dag = ProvDAG(artifact_data=in_fn)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_fp = pathlib.Path(tmpdir) / 'supplement.zip'
+            out_fn = str(out_fp)
+            write_reproducibility_supplement(
+                payload=dag,
+                out_fp=out_fn,
+            )
+
+            self.assertTrue(out_fp.is_file())
+            self.assertTrue(zipfile.is_zipfile(out_fp))
+
+            exp = {'python3_replay.py',
+                   'cli_replay.sh',
+                   'citations.bib',
+                   }
+
+            with zipfile.ZipFile(out_fp, 'r') as myzip:
+                self.assertEqual(exp, set(myzip.namelist()))

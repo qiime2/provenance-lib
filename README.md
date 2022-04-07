@@ -59,7 +59,7 @@ The basic workflow proceeds as follows:
 - create ProvDAG objects from QIIME 2 archives
 - combine or manipulate these ProvDAGs as needed
 - Pass your ProvDAG to tools from the `replay` module
-  (`replay_provenance`, `write_citations`, etc.) to produce your desired results.
+  (`replay_provdag`, `write_citations`, etc.) to produce your desired results.
 
 Full API documentation pending. Thanks for your patience!
 

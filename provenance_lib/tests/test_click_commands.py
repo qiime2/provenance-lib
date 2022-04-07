@@ -2,9 +2,8 @@ import bibtexparser as bp
 from click.testing import CliRunner
 import pathlib
 import tempfile
-import zipfile
 
-from ..click_commands import citations, provenance, reproducibility_supplement
+from ..click_commands import citations, provenance
 from .test_parse import DATA_DIR, TEST_DATA
 from .testing_utilities import CustomAssertions
 
@@ -200,27 +199,3 @@ class ReportCitationsTests(CustomAssertions):
 
             for record in set(exp):
                 self.assertIn(record, bib_database.entries_dict.keys())
-
-
-class ReproducibilitySupplementTests(CustomAssertions):
-    def test_write_reproducibility_supplement(self):
-        in_fp = TEST_DATA['5']['qzv_fp']
-        in_fn = str(in_fp)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            out_fp = pathlib.Path(tmpdir) / 'supplement.zip'
-            out_fn = str(out_fp)
-            res = CliRunner().invoke(
-                cli=reproducibility_supplement,
-                args=(f"--i-in-fp {in_fn} --o-out-fp {out_fn}"))
-
-            self.assertEqual(res.exit_code, 0)
-            self.assertTrue(out_fp.is_file())
-            self.assertTrue(zipfile.is_zipfile(out_fp))
-
-            exp = {'python3_replay.py',
-                   'cli_replay.sh',
-                   'citations.bib',
-                   }
-
-            with zipfile.ZipFile(out_fp, 'r') as myzip:
-                self.assertEqual(exp, set(myzip.namelist()))

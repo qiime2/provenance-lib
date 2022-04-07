@@ -291,7 +291,7 @@ class ProvDAG:
     def get_outer_provenance_nodes(self, _node_id: UUID = None) -> Set[UUID]:
         """
         Selective depth-first traversal of this node_id's ancestors.
-        Returns the set of "outer" nodes that represent "collapsed" provenance
+        Returns the set of "outer" nodes that represent "nested" provenance
         like that seen in q2view (i.e. all standalone Actions and Visualizers,
         and a single node for each Pipeline).
 
@@ -299,8 +299,7 @@ class ProvDAG:
         inputs, this recursion skips over all inner nodes.
 
         NOTE: _node_id exists to support recursive calls and may produce
-        unexpected results if e.g. an "inner" node ID is passed by an external
-        caller.
+        unexpected results if e.g. an "inner" node ID is passed.
         """
         nodes = set() if _node_id is None else {_node_id}
         parents = [edge_pair[0] for edge_pair in self.dag.in_edges(_node_id)]

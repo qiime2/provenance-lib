@@ -5,17 +5,14 @@ import os
 import pathlib
 import pkg_resources
 import re
-import shutil
-import tempfile
 from collections import UserDict
 from dataclasses import dataclass, field
-from typing import Dict, Iterator, List, Optional, Set, Union
+from typing import Dict, Iterator, List, Optional, Set
 
 from ._archive_parser import ProvNode
 from .parse import ProvDAG, UUID
 from ._usage_drivers import (
-    DRIVER_CHOICES, DRIVER_NAMES, SUPPORTED_USAGE_DRIVERS, Usage,
-    build_header, build_footer,
+    DRIVER_CHOICES, SUPPORTED_USAGE_DRIVERS, Usage, build_header, build_footer,
 )
 from .util import FileName, camel_to_snake
 from ._yaml_constructors import MetadataInfo
@@ -71,8 +68,7 @@ class ActionCollections():
 class UsageVarsDict(UserDict):
     """
     A dict where values are also unique. Used here as a UUID-queryable
-    "namespace" of strings that can be passed to usage drivers for rendering
-    into unique variable names.
+    "namespace" of strings that will be evaluated into python variable names.
     Non-unique values would cause namespace collisions.
 
     For consistency and simplicity, all str values are suffixed with _n when
@@ -82,7 +78,7 @@ class UsageVarsDict(UserDict):
 
     Best practice is generally to add the UUID: variable-name pair to this,
     create the usage variable using the stored name,
-    then store the usage variable in a separate {UUID: UsageVar}. This
+    then store the usage variable in a separate {UUID: UsagVar}. This
     ensures that UsageVariable.name is unique, preventing namespace collisions.
     NamespaceCollections (below) exist to group these related structures.
 
@@ -125,9 +121,6 @@ class UsageVarsDict(UserDict):
         raise KeyError(f"passed value '{value}' does not exist in this dict.")
 
     def wrap_val_in_angle_brackets(self, key: UUID):
-        # TODO: Kinda unsafe. If we run it twice, it breaks uniquify.
-        # Can we refactor this to behave like a repr instead of modifying the
-        # value in the dict?
         super().__setitem__(key, f'<{self.data[key]}>')
 
 
@@ -138,40 +131,41 @@ class NamespaceCollections:
     action_namespace: Set[str] = field(default_factory=set)
 
 
-def replay_provenance(payload: Union[FileName, ProvDAG],
-                      out_fp: FileName,
-                      usage_driver: DRIVER_CHOICES = 'python3',
-                      validate_checksums: bool = True,
-                      parse_metadata: bool = True,
-                      recursive: bool = False,
-                      use_recorded_metadata: bool = False,
-                      suppress_header: bool = False,
-                      verbose: bool = False):
+def replay_fp(in_fp: FileName, out_fp: FileName,
+              usage_driver_name: DRIVER_CHOICES = 'python3',
+              validate_checksums: bool = True,
+              parse_metadata: bool = True,
+              recursive: bool = False,
+              use_recorded_metadata: bool = False,
+              suppress_header: bool = False,
+              verbose: bool = False):
+    """
+    One-shot replay from a filepath string, through a ProvDAG to a written
+    executable
+    """
+    if use_recorded_metadata and not parse_metadata:
+        raise ValueError(
+            "Metadata not parsed for replay. Re-run with parse_metadata = "
+            "True or use_recorded_metadata = False")
+    dag = ProvDAG(
+        in_fp, validate_checksums, parse_metadata, recursive, verbose)
+    replay_provdag(dag, out_fp, usage_driver_name, use_recorded_metadata,
+                   suppress_header, verbose)
+
+
+def replay_provdag(dag: ProvDAG, out_fp: FileName,
+                   usage_driver: DRIVER_CHOICES = 'python3',
+                   use_recorded_metadata: bool = False,
+                   suppress_header: bool = False,
+                   verbose: bool = False):
     """
     Renders usage examples describing a ProvDAG, producing an interface-
     specific executable.
-
-    Passed ProvDAGs retain their original config values.
-    The following parameters are disregarded if payload is a ProvDAG,
-    so may be left as default:
-      - validate_checksums
-      - parse_metadata
-      - recursive
-      - verbose
     """
-    # Grab the right parse_metadata if the payload is already ProvDAG
-    if hasattr(payload, 'cfg'):
-        parse_metadata = payload.cfg.parse_study_metadata
-
-    if use_recorded_metadata and not parse_metadata:
+    if use_recorded_metadata and not dag.cfg.parse_study_metadata:
         raise ValueError(
-            "Metadata not parsed for replay. Re-run with parse_metadata, or "
-            "set use_recorded_metadata to False")
-
-    # The ProvDAGParser handles ProvDAGs quickly, so we can just throw whatever
-    # payload we get at this instead of maintaining per-data-type functions
-    dag = ProvDAG(
-        payload, validate_checksums, parse_metadata, recursive, verbose)
+            "Metadata not captured for replay. Re-parse metadata, or set "
+            "use_recorded_metadata to False")
 
     cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS[usage_driver](),
                        use_recorded_metadata=use_recorded_metadata,
@@ -361,9 +355,6 @@ def build_action_usage(node: ProvNode,
             ns.usg_var_namespace.update(
                 {unique_md_id: camel_to_snake(param_name)})
             md_fn = ns.usg_var_namespace[unique_md_id] + '.tsv'
-            # TODO: When no_parse_metadata, we're still calling this
-            # which raises an error. We shouldn't be dumping md if we're not
-            # parsing it. Clean that up!
             dump_recorded_md_file(node, plg_action_name, param_name, md_fn)
 
             if cfg.use_recorded_metadata:
@@ -492,8 +483,6 @@ def dump_recorded_md_file(
 
     Raises a ValueError if the node has no metadata
     """
-    # TODO: node.metadata will also be None if no-parse-metadata is passed.
-    # Fix that!
     if node.metadata is None:
         raise ValueError(
             'This function should only be called if the node has metadata.')
@@ -662,8 +651,6 @@ def write_citations(dag: ProvDAG, out_fp: FileName, deduplicate: bool = True,
     """
     Writes a .bib file representing all unique citations from a ProvDAG to disk
     If `deduplicate`, refs will be heuristically deduplicated. e.g. by DOI
-
-    TODO: write_citations_from_fp
     """
     bib_db = collect_citations(dag, deduplicate=deduplicate)
     boundary = '#' * 79
@@ -688,68 +675,3 @@ def write_citations(dag: ProvDAG, out_fp: FileName, deduplicate: bool = True,
             bibfile.write('\n'.join(header))
             bibfile.write(BibTexWriter().write(bib_db))
             bibfile.write('\n'.join(footer))
-
-
-def write_reproducibility_supplement(payload: Union[FileName, ProvDAG],
-                                     out_fp: FileName,
-                                     validate_checksums: bool = True,
-                                     parse_metadata: bool = True,
-                                     use_recorded_metadata: bool = False,
-                                     recurse: bool = False,
-                                     deduplicate: bool = True,
-                                     suppress_header: bool = False,
-                                     verbose: bool = True):
-    """
-    Produces a zipfile package of useful documentation for enabling in silico
-    reproducibility of some QIIME 2 Result(s) from a ProvDAG, a QIIME 2
-    Artifact, or a directory of Artifacts.
-
-    Package includes:
-    - replay scripts for all supported interfaces
-    - a bibtex-formatted collection of all citations
-
-    Passed ProvDAGs retain their original config values.
-    The following parameters are disregarded if payload is a ProvDAG,
-    so may be left as default:
-      - validate_checksums
-      - parse_metadata
-      - recursive
-
-    TODO: include metadata dump?
-    """
-    # The ProvDAGParser handles ProvDAGs quickly, so we can just throw whatever
-    # we get at this initializer instead of maintaining per-data-type functions
-    dag = ProvDAG(artifact_data=payload, validate_checksums=validate_checksums,
-                  parse_metadata=parse_metadata, recursive=recurse,
-                  verbose=verbose)
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmpdir_path = pathlib.Path(tmpdir)
-        filenames = {
-            'python3': 'python3_replay.py',
-            'cli': 'cli_replay.sh',
-        }
-
-        for usage_driver in DRIVER_NAMES:
-            rel_fp = filenames[usage_driver]
-            tmp_fp = pathlib.Path(tmpdir_path) / rel_fp
-            replay_provenance(
-                payload=dag,
-                out_fp=str(tmp_fp),
-                usage_driver=usage_driver,
-                use_recorded_metadata=use_recorded_metadata,
-                suppress_header=suppress_header,
-                verbose=verbose)
-            print(f'{usage_driver} replay script written to {rel_fp}')
-
-        tmp_fp = tmpdir_path / 'citations.bib'
-        write_citations(dag, out_fp=str(tmp_fp), deduplicate=deduplicate,
-                        suppress_header=suppress_header)
-        print('Citations bibtex file written to citations.bib')
-
-        out_fp = pathlib.Path(os.path.realpath(out_fp))
-        # Drop .zip suffix if any so that we don't get some_file.zip.zip
-        if out_fp.suffix == '.zip':
-            out_fp = out_fp.with_suffix('')
-
-        shutil.make_archive(out_fp, 'zip', tmpdir)
-        print(f'Reproducibility package written to {out_fp}.zip')

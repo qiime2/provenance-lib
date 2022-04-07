@@ -9,7 +9,7 @@ import shutil
 import tempfile
 from collections import UserDict
 from dataclasses import dataclass, field
-from typing import Dict, Iterator, List, Optional, Set
+from typing import Dict, Iterator, List, Optional, Set, Union
 
 from ._archive_parser import ProvNode
 from .parse import ProvDAG, UUID
@@ -691,49 +691,63 @@ def write_citations(dag: ProvDAG, out_fp: FileName, deduplicate: bool = True,
             bibfile.write('\n'.join(footer))
 
 
-def write_reproducibility_supplement_from_fp(
-    in_fp: FileName,
-    out_fp: FileName,
-    validate_checksums: bool = True,
-    parse_metadata: bool = True,
-    use_recorded_metadata: bool = False,
-    recurse: bool = False,
-    deduplicate: bool = True,
-    suppress_header: bool = False,
-        verbose: bool = True):
-    """
-    Produces a zipfile package of useful documentation for enabling in silico
-    reproducibility of some QIIME 2 Result(s) from a QIIME 2 Artifact or
-    directory of Artifacts, including:
-    - replay scripts for all supported interfaces
-    - a bibtex-formatted collection of all citations
-    """
-    dag = ProvDAG(artifact_data=in_fp, validate_checksums=validate_checksums,
-                  parse_metadata=parse_metadata, recursive=recurse,
-                  verbose=verbose)
-    write_reproducibility_supplement(
-        dag=dag,
-        out_fp=out_fp,
-        use_recorded_metadata=use_recorded_metadata,
-        deduplicate=deduplicate,
-        suppress_header=suppress_header,
-        verbose=verbose)
+# def write_reproducibility_supplement_from_fp(
+#     in_fp: FileName,
+#     out_fp: FileName,
+#     validate_checksums: bool = True,
+#     parse_metadata: bool = True,
+#     use_recorded_metadata: bool = False,
+#     recurse: bool = False,
+#     deduplicate: bool = True,
+#     suppress_header: bool = False,
+#         verbose: bool = True):
+#     """
+#     Produces a zipfile package of useful documentation for enabling in silico
+#     reproducibility of some QIIME 2 Result(s) from a QIIME 2 Artifact or
+#     directory of Artifacts, including:
+#     - replay scripts for all supported interfaces
+#     - a bibtex-formatted collection of all citations
+#     """
+#     dag = ProvDAG(artifact_data=in_fp, validate_checksums=validate_checksums,
+#                   parse_metadata=parse_metadata, recursive=recurse,
+#                   verbose=verbose)
+#     write_reproducibility_supplement(
+#         payload=dag,
+#         out_fp=out_fp,
+#         validate_checksums=validate_checksums,
+#         parse_metadata=parse_metadata,
+#         use_recorded_metadata=use_recorded_metadata,
+#         recurse=recurse,
+#         deduplicate=deduplicate,
+#         suppress_header=suppress_header,
+#         verbose=verbose)
 
 
-def write_reproducibility_supplement(dag: ProvDAG,
+def write_reproducibility_supplement(payload: Union[FileName, ProvDAG],
                                      out_fp: FileName,
+                                     validate_checksums: bool = True,
+                                     parse_metadata: bool = True,
                                      use_recorded_metadata: bool = False,
+                                     recurse: bool = False,
                                      deduplicate: bool = True,
                                      suppress_header: bool = False,
                                      verbose: bool = True):
     """
     Produces a zipfile package of useful documentation for enabling in silico
-    reproducibility of some QIIME 2 Result(s) from a ProvDAG, including:
+    reproducibility of some QIIME 2 Result(s) from a ProvDAG, a QIIME 2
+    Artifact, or a directory of Artifacts.
+
+    Package includes:
     - replay scripts for all supported interfaces
     - a bibtex-formatted collection of all citations
 
     TODO: include metadata dump?
     """
+    # The ProvDAGParser handles ProvDAGs quickly, so we can just throw whatever
+    # we get at this initializer instead of maintaining per-data-type functions
+    dag = ProvDAG(artifact_data=payload, validate_checksums=validate_checksums,
+                  parse_metadata=parse_metadata, recursive=recurse,
+                  verbose=verbose)
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir_path = pathlib.Path(tmpdir)
         filenames = {

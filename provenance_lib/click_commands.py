@@ -4,7 +4,7 @@ import os
 from .parse import ProvDAG
 from .replay import (
     replay_fp, write_citations,
-    write_reproducibility_supplement_from_fp,
+    write_reproducibility_supplement,
 )
 from ._usage_drivers import DRIVER_CHOICES, DRIVER_NAMES
 from .util import FileName
@@ -174,12 +174,14 @@ def reproducibility_supplement(i_in_fp: FileName,
     """
     Produces a zipfile package of useful documentation for enabling in silico
     reproducibility of some QIIME 2 Result(s) from a QIIME 2 Artifact or
-    directory of Artifacts, including:
+    directory of Artifacts.
+
+    Package includes:
     - replay scripts for all supported interfaces
     - a bibtex-formatted collection of all citations
     """
-    write_reproducibility_supplement_from_fp(
-        in_fp=i_in_fp,
+    write_reproducibility_supplement(
+        payload=i_in_fp,
         out_fp=o_out_fp,
         validate_checksums=p_validate_checksums,
         parse_metadata=p_parse_metadata,

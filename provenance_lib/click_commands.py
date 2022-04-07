@@ -1,11 +1,11 @@
 import click
 import os
-import pathlib
-import shutil
-import tempfile
 
 from .parse import ProvDAG
-from .replay import replay_fp, replay_provdag, write_citations
+from .replay import (
+    replay_fp, write_citations,
+    write_reproducibility_supplement_from_fp,
+)
 from ._usage_drivers import DRIVER_CHOICES, DRIVER_NAMES
 from .util import FileName
 
@@ -178,37 +178,13 @@ def reproducibility_supplement(i_in_fp: FileName,
     - replay scripts for all supported interfaces
     - a bibtex-formatted collection of all citations
     """
-    dag = ProvDAG(i_in_fp, validate_checksums=p_validate_checksums,
-                  parse_metadata=p_parse_metadata, recursive=p_recurse,
-                  verbose=p_verbose)
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmpdir_path = pathlib.Path(tmpdir)
-        filenames = {
-            'python3': 'python3_replay.py',
-            'cli': 'cli_replay.sh',
-        }
-
-        for usage_driver in DRIVER_NAMES:
-            rel_fp = filenames[usage_driver]
-            tmp_fp = pathlib.Path(tmpdir_path) / rel_fp
-            replay_provdag(
-                dag=dag,
-                out_fp=str(tmp_fp),
-                usage_driver=usage_driver,
-                use_recorded_metadata=p_use_recorded_metadata,
-                suppress_header=p_suppress_header,
-                verbose=p_verbose)
-            click.echo(f'{usage_driver} replay script written to {rel_fp}')
-
-        tmp_fp = tmpdir_path / 'citations.bib'
-        write_citations(dag, out_fp=str(tmp_fp), deduplicate=p_deduplicate,
-                        suppress_header=p_suppress_header)
-        click.echo('Citations bibtex file written to citations.bib')
-
-        out_fp = pathlib.Path(os.path.realpath(o_out_fp))
-        # Drop .zip suffix if any so that we don't get file.zip.zip
-        if out_fp.suffix == '.zip':
-            out_fp = out_fp.with_suffix('')
-
-        shutil.make_archive(out_fp, 'zip', tmpdir)
-        click.echo(f'Reproducibility package written to {out_fp}.zip')
+    write_reproducibility_supplement_from_fp(
+        in_fp=i_in_fp,
+        out_fp=o_out_fp,
+        validate_checksums=p_validate_checksums,
+        parse_metadata=p_parse_metadata,
+        use_recorded_metadata=p_use_recorded_metadata,
+        recurse=p_recurse,
+        deduplicate=p_deduplicate,
+        suppress_header=p_suppress_header,
+        verbose=p_verbose)

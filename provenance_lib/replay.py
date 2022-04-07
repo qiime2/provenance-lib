@@ -5,6 +5,8 @@ import os
 import pathlib
 import pkg_resources
 import re
+import shutil
+import tempfile
 from collections import UserDict
 from dataclasses import dataclass, field
 from typing import Dict, Iterator, List, Optional, Set
@@ -12,7 +14,8 @@ from typing import Dict, Iterator, List, Optional, Set
 from ._archive_parser import ProvNode
 from .parse import ProvDAG, UUID
 from ._usage_drivers import (
-    DRIVER_CHOICES, SUPPORTED_USAGE_DRIVERS, Usage, build_header, build_footer,
+    DRIVER_CHOICES, DRIVER_NAMES, SUPPORTED_USAGE_DRIVERS, Usage,
+    build_header, build_footer,
 )
 from .util import FileName, camel_to_snake
 from ._yaml_constructors import MetadataInfo
@@ -660,6 +663,8 @@ def write_citations(dag: ProvDAG, out_fp: FileName, deduplicate: bool = True,
     """
     Writes a .bib file representing all unique citations from a ProvDAG to disk
     If `deduplicate`, refs will be heuristically deduplicated. e.g. by DOI
+
+    TODO: write_citations_from_fp
     """
     bib_db = collect_citations(dag, deduplicate=deduplicate)
     boundary = '#' * 79
@@ -684,3 +689,79 @@ def write_citations(dag: ProvDAG, out_fp: FileName, deduplicate: bool = True,
             bibfile.write('\n'.join(header))
             bibfile.write(BibTexWriter().write(bib_db))
             bibfile.write('\n'.join(footer))
+
+
+def write_reproducibility_supplement_from_fp(
+    in_fp: FileName,
+    out_fp: FileName,
+    validate_checksums: bool = True,
+    parse_metadata: bool = True,
+    use_recorded_metadata: bool = False,
+    recurse: bool = False,
+    deduplicate: bool = True,
+    suppress_header: bool = False,
+        verbose: bool = True):
+    """
+    Produces a zipfile package of useful documentation for enabling in silico
+    reproducibility of some QIIME 2 Result(s) from a QIIME 2 Artifact or
+    directory of Artifacts, including:
+    - replay scripts for all supported interfaces
+    - a bibtex-formatted collection of all citations
+    """
+    dag = ProvDAG(artifact_data=in_fp, validate_checksums=validate_checksums,
+                  parse_metadata=parse_metadata, recursive=recurse,
+                  verbose=verbose)
+    write_reproducibility_supplement(
+        dag=dag,
+        out_fp=out_fp,
+        use_recorded_metadata=use_recorded_metadata,
+        deduplicate=deduplicate,
+        suppress_header=suppress_header,
+        verbose=verbose)
+
+
+def write_reproducibility_supplement(dag: ProvDAG,
+                                     out_fp: FileName,
+                                     use_recorded_metadata: bool = False,
+                                     deduplicate: bool = True,
+                                     suppress_header: bool = False,
+                                     verbose: bool = True):
+    """
+    Produces a zipfile package of useful documentation for enabling in silico
+    reproducibility of some QIIME 2 Result(s) from a ProvDAG, including:
+    - replay scripts for all supported interfaces
+    - a bibtex-formatted collection of all citations
+
+    TODO: include metadata dump?
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir_path = pathlib.Path(tmpdir)
+        filenames = {
+            'python3': 'python3_replay.py',
+            'cli': 'cli_replay.sh',
+        }
+
+        for usage_driver in DRIVER_NAMES:
+            rel_fp = filenames[usage_driver]
+            tmp_fp = pathlib.Path(tmpdir_path) / rel_fp
+            replay_provdag(
+                dag=dag,
+                out_fp=str(tmp_fp),
+                usage_driver=usage_driver,
+                use_recorded_metadata=use_recorded_metadata,
+                suppress_header=suppress_header,
+                verbose=verbose)
+            print(f'{usage_driver} replay script written to {rel_fp}')
+
+        tmp_fp = tmpdir_path / 'citations.bib'
+        write_citations(dag, out_fp=str(tmp_fp), deduplicate=deduplicate,
+                        suppress_header=suppress_header)
+        print('Citations bibtex file written to citations.bib')
+
+        out_fp = pathlib.Path(os.path.realpath(out_fp))
+        # Drop .zip suffix if any so that we don't get some_file.zip.zip
+        if out_fp.suffix == '.zip':
+            out_fp = out_fp.with_suffix('')
+
+        shutil.make_archive(out_fp, 'zip', tmpdir)
+        print(f'Reproducibility package written to {out_fp}.zip')

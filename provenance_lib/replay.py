@@ -138,22 +138,6 @@ class NamespaceCollections:
     action_namespace: Set[str] = field(default_factory=set)
 
 
-# def replay_fp(in_fp: FileName, out_fp: FileName,
-#               usage_driver_name: DRIVER_CHOICES = 'python3',
-#               validate_checksums: bool = True,
-#               parse_metadata: bool = True,
-#               recursive: bool = False,
-#               use_recorded_metadata: bool = False,
-#               suppress_header: bool = False,
-#               verbose: bool = False):
-#     """
-#     One-shot replay from a filepath string, through a ProvDAG to a written
-#     executable
-#     """
-#     replay_provdag(dag, out_fp, usage_driver_name, use_recorded_metadata,
-#                    suppress_header, verbose)
-
-
 def replay_provenance(payload: Union[FileName, ProvDAG],
                       out_fp: FileName,
                       usage_driver: DRIVER_CHOICES = 'python3',

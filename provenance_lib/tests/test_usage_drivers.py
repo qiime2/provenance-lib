@@ -3,7 +3,7 @@ import pathlib
 import tempfile
 import unittest
 
-from ..replay import replay_provenance
+from ..replay import replay_fp
 from .test_parse import DATA_DIR
 
 
@@ -28,7 +28,7 @@ class ReplayPythonUsageTests(unittest.TestCase):
                'unweighted_unifrac_emperor.*action_results.unweighted_unifrac')
         with tempfile.TemporaryDirectory() as tmpdir:
             out_path = pathlib.Path(tmpdir) / 'action_collection.txt'
-            replay_provenance(in_fp, out_path, driver)
+            replay_fp(in_fp, out_path, driver)
 
             with open(out_path, 'r') as fp:
                 rendered = fp.read()
@@ -54,7 +54,7 @@ class ReplayPythonUsageTests(unittest.TestCase):
         exp = ('(?s)_, _, _, rooted_tree_0 = phylogeny_actions.align_to_tre.*')
         with tempfile.TemporaryDirectory() as tmpdir:
             out_path = pathlib.Path(tmpdir) / 'action_collection.txt'
-            replay_provenance(in_fp, out_path, driver)
+            replay_fp(in_fp, out_path, driver)
 
             with open(out_path, 'r') as fp:
                 rendered = fp.read()
@@ -86,7 +86,7 @@ class ReplayPythonUsageTests(unittest.TestCase):
         e4 = ('table_0 = action_results.table')
         with tempfile.TemporaryDirectory() as tmpdir:
             out_path = pathlib.Path(tmpdir) / 'action_collection.txt'
-            replay_provenance(in_fp, out_path, driver)
+            replay_fp(in_fp, out_path, driver)
 
             with open(out_path, 'r') as fp:
                 rendered = fp.read()
@@ -115,7 +115,7 @@ class ReplayPythonUsageTests(unittest.TestCase):
         exp = ('(?s)table_0, representative_sequences_0, _ = dada2_actions.*')
         with tempfile.TemporaryDirectory() as tmpdir:
             out_path = pathlib.Path(tmpdir) / 'action_collection.txt'
-            replay_provenance(in_fp, out_path, driver)
+            replay_fp(in_fp, out_path, driver)
 
             with open(out_path, 'r') as fp:
                 rendered = fp.read()

@@ -26,11 +26,6 @@ cite-everything:
 	--p-verbose \
 	--o-out-fp ./replay_scripts/every-citation-2.bib
 
-repro-supp:
-	replay reproducibility-supplement \
-	--i-in-fp provenance_lib/tests/data/v5_uu_emperor.qzv \
-	--o-out-fp ./replay_scripts/supplement.zip
-
 # TODO: install and dev targets
 # Conda recipe will use make install and will copy the tab-complete language
 # https://github.com/qiime2/q2cli/blob/master/hooks/50_activate_q2cli_tab_completion.sh

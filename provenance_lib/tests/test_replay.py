@@ -7,7 +7,6 @@ import re
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
-import zipfile
 
 from qiime2 import Artifact
 from qiime2.sdk import PluginManager
@@ -23,8 +22,7 @@ from ..replay import (
     build_usage_examples, collect_citations, dedupe_citations,
     dump_recorded_md_file, group_by_action, init_md_from_artifacts,
     init_md_from_md_file, init_md_from_recorded_md, param_is_metadata_column,
-    replay_provenance, uniquify_action_name, write_citations,
-    write_reproducibility_supplement,
+    replay_fp, replay_provdag, uniquify_action_name, write_citations,
     SUPPORTED_USAGE_DRIVERS,
     )
 from .test_parse import DATA_DIR, TEST_DATA
@@ -90,13 +88,13 @@ class NamespaceCollectionTests(unittest.TestCase):
         self.assertEqual(ns.usg_vars[uuid].name, exp_name)
 
 
-class ReplayProvenanceTests(unittest.TestCase):
-    def test_replay_from_fp(self):
+class ReplayFPTests(unittest.TestCase):
+    def test_replay_fp(self):
         in_fn = TEST_DATA['5']['qzv_fp']
         with tempfile.TemporaryDirectory() as tmpdir:
             out_fp = pathlib.Path(tmpdir) / 'rendered.txt'
             out_fn = str(out_fp)
-            replay_provenance(in_fn, out_fn, 'python3')
+            replay_fp(in_fn, out_fn, 'python3')
 
             self.assertTrue(out_fp.is_file())
 
@@ -120,19 +118,20 @@ class ReplayProvenanceTests(unittest.TestCase):
             self.assertIn('diversity_actions.core_metrics_phylogenetic',
                           rendered)
 
-    def test_replay_from_fp_use_md_without_parse(self):
+    def test_replay_fp_use_md_without_parse(self):
         in_fp = TEST_DATA['5']['qzv_fp']
         with self.assertRaisesRegex(
                 ValueError, "Metadata not parsed for replay. Re-run"):
-            replay_provenance(
-                in_fp, 'unused_fp', 'python3', parse_metadata=False,
-                use_recorded_metadata=True)
+            replay_fp(in_fp, 'unused_fp', 'python3',
+                      parse_metadata=False, use_recorded_metadata=True)
 
-    def test_replay_from_provdag(self):
+
+class ReplayProvDAGTests(unittest.TestCase):
+    def test_replay_provdag(self):
         v5_dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
         with tempfile.TemporaryDirectory() as tmpdir:
             out_path = pathlib.Path(tmpdir) / 'rendered.txt'
-            replay_provenance(v5_dag, out_path, 'python3')
+            replay_provdag(v5_dag, out_path, 'python3')
 
             self.assertTrue(out_path.is_file())
 
@@ -156,16 +155,16 @@ class ReplayProvenanceTests(unittest.TestCase):
             self.assertIn('diversity_actions.core_metrics_phylogenetic',
                           rendered)
 
-    def test_replay_from_provdag_use_md_without_parse(self):
+    def test_replay_provdag_use_md_without_parse(self):
         v5_dag = ProvDAG(TEST_DATA['5']['qzv_fp'],
                          validate_checksums=False,
                          parse_metadata=False)
         with self.assertRaisesRegex(
-                ValueError, "Metadata not parsed for replay"):
-            replay_provenance(v5_dag, 'unused', 'python3',
-                              use_recorded_metadata=True)
+                ValueError, "Metadata not captured for replay"):
+            replay_provdag(v5_dag, 'unused', 'python3',
+                           use_recorded_metadata=True)
 
-    def test_replay_from_provdag_ns_collision(self):
+    def test_replay_provdag_ns_collision(self):
         """
         This artifact's dag contains a few results with the output-name
         filtered-table, so is a good check for namespace collisions if
@@ -177,7 +176,7 @@ class ReplayProvenanceTests(unittest.TestCase):
         for driver in drivers:
             with tempfile.TemporaryDirectory() as tmpdir:
                 out_path = pathlib.Path(tmpdir) / 'ns_coll.txt'
-                replay_provenance(dag, out_path, driver)
+                replay_provdag(dag, out_path, driver)
 
                 with open(out_path, 'r') as fp:
                     rendered = fp.read()
@@ -206,7 +205,7 @@ class ReplayProvenanceTests(unittest.TestCase):
         for driver in drivers:
             with tempfile.TemporaryDirectory() as tmpdir:
                 out_path = pathlib.Path(tmpdir) / 'ns_coll.txt'
-                replay_provenance(dag, out_path, driver)
+                replay_provdag(dag, out_path, driver)
 
                 with open(out_path, 'r') as fp:
                     rendered = fp.read()
@@ -232,7 +231,7 @@ class ReplayProvenanceTests(unittest.TestCase):
         for driver in drivers:
             with tempfile.TemporaryDirectory() as tmpdir:
                 out_path = pathlib.Path(tmpdir) / 'ns_coll.txt'
-                replay_provenance(dag, out_path, driver)
+                replay_provdag(dag, out_path, driver)
 
                 with open(out_path, 'r') as fp:
                     rendered = fp.read()
@@ -264,7 +263,7 @@ class ReplayProvDAGDirectoryTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as tmpdir:
             out_path = pathlib.Path(tmpdir) / 'rendered.txt'
-            replay_provenance(dir_dag, out_path, 'python3')
+            replay_provdag(dir_dag, out_path, 'python3')
             self.assertTrue(out_path.is_file())
 
             with open(out_path, 'r') as fp:
@@ -1245,60 +1244,3 @@ class CitationsTests(unittest.TestCase):
             with open(out_fn, 'r') as fp:
                 written = fp.read()
                 self.assertIn(exp, written)
-
-
-class WriteReproducibilitySupplementTests(CustomAssertions):
-    def test_write_reproducibility_supplement_from_fp(self):
-        """
-        Do we get expected zipfile contents when the supplement is
-        created from a filepath
-        """
-        in_fp = TEST_DATA['5']['qzv_fp']
-        in_fn = str(in_fp)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            out_fp = pathlib.Path(tmpdir) / 'supplement.zip'
-            out_fn = str(out_fp)
-            write_reproducibility_supplement(
-                payload=in_fn,
-                out_fp=out_fn,
-            )
-
-            self.assertTrue(out_fp.is_file())
-            self.assertTrue(zipfile.is_zipfile(out_fp))
-
-            exp = {'python3_replay.py',
-                   'cli_replay.sh',
-                   'citations.bib',
-                   }
-
-            with zipfile.ZipFile(out_fp, 'r') as myzip:
-                self.assertEqual(exp, set(myzip.namelist()))
-
-    def test_write_reproducibility_supplement_from_provdag(self):
-        """
-        Do we get expected zipfile contents when the supplement is
-        created from a ProvDAG
-        """
-        in_fp = TEST_DATA['5']['qzv_fp']
-        in_fn = str(in_fp)
-
-        dag = ProvDAG(artifact_data=in_fn)
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            out_fp = pathlib.Path(tmpdir) / 'supplement.zip'
-            out_fn = str(out_fp)
-            write_reproducibility_supplement(
-                payload=dag,
-                out_fp=out_fn,
-            )
-
-            self.assertTrue(out_fp.is_file())
-            self.assertTrue(zipfile.is_zipfile(out_fp))
-
-            exp = {'python3_replay.py',
-                   'cli_replay.sh',
-                   'citations.bib',
-                   }
-
-            with zipfile.ZipFile(out_fp, 'r') as myzip:
-                self.assertEqual(exp, set(myzip.namelist()))

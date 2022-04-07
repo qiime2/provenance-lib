@@ -3,7 +3,7 @@ import os
 
 from .parse import ProvDAG
 from .replay import (
-    replay_fp, write_citations,
+    replay_provenance, write_citations,
     write_reproducibility_supplement,
 )
 from ._usage_drivers import DRIVER_CHOICES, DRIVER_NAMES
@@ -63,14 +63,15 @@ def provenance(i_in_fp: FileName, o_out_fp: FileName,
     """
     Replay provenance from a QIIME 2 Artifact filepath to a written executable
     """
-    replay_fp(in_fp=i_in_fp, out_fp=o_out_fp,
-              usage_driver_name=p_usage_driver,
-              validate_checksums=p_validate_checksums,
-              parse_metadata=p_parse_metadata,
-              recursive=p_recurse,
-              use_recorded_metadata=p_use_recorded_metadata,
-              suppress_header=p_suppress_header,
-              verbose=p_verbose)
+    replay_provenance(payload=i_in_fp,
+                      out_fp=o_out_fp,
+                      usage_driver=p_usage_driver,
+                      validate_checksums=p_validate_checksums,
+                      parse_metadata=p_parse_metadata,
+                      recursive=p_recurse,
+                      use_recorded_metadata=p_use_recorded_metadata,
+                      suppress_header=p_suppress_header,
+                      verbose=p_verbose)
     filename = os.path.realpath(o_out_fp)
     click.echo(f'Replay script written to {filename}')
 

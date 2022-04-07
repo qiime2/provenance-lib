@@ -138,41 +138,56 @@ class NamespaceCollections:
     action_namespace: Set[str] = field(default_factory=set)
 
 
-def replay_fp(in_fp: FileName, out_fp: FileName,
-              usage_driver_name: DRIVER_CHOICES = 'python3',
-              validate_checksums: bool = True,
-              parse_metadata: bool = True,
-              recursive: bool = False,
-              use_recorded_metadata: bool = False,
-              suppress_header: bool = False,
-              verbose: bool = False):
-    """
-    One-shot replay from a filepath string, through a ProvDAG to a written
-    executable
-    """
-    if use_recorded_metadata and not parse_metadata:
-        raise ValueError(
-            "Metadata not parsed for replay. Re-run with parse_metadata = "
-            "True or use_recorded_metadata = False")
-    dag = ProvDAG(
-        in_fp, validate_checksums, parse_metadata, recursive, verbose)
-    replay_provdag(dag, out_fp, usage_driver_name, use_recorded_metadata,
-                   suppress_header, verbose)
+# def replay_fp(in_fp: FileName, out_fp: FileName,
+#               usage_driver_name: DRIVER_CHOICES = 'python3',
+#               validate_checksums: bool = True,
+#               parse_metadata: bool = True,
+#               recursive: bool = False,
+#               use_recorded_metadata: bool = False,
+#               suppress_header: bool = False,
+#               verbose: bool = False):
+#     """
+#     One-shot replay from a filepath string, through a ProvDAG to a written
+#     executable
+#     """
+#     replay_provdag(dag, out_fp, usage_driver_name, use_recorded_metadata,
+#                    suppress_header, verbose)
 
 
-def replay_provdag(dag: ProvDAG, out_fp: FileName,
-                   usage_driver: DRIVER_CHOICES = 'python3',
-                   use_recorded_metadata: bool = False,
-                   suppress_header: bool = False,
-                   verbose: bool = False):
+def replay_provenance(payload: Union[FileName, ProvDAG],
+                      out_fp: FileName,
+                      usage_driver: DRIVER_CHOICES = 'python3',
+                      validate_checksums: bool = True,
+                      parse_metadata: bool = True,
+                      recursive: bool = False,
+                      use_recorded_metadata: bool = False,
+                      suppress_header: bool = False,
+                      verbose: bool = False):
     """
     Renders usage examples describing a ProvDAG, producing an interface-
     specific executable.
+
+    Passed ProvDAGs retain their original config values.
+    The following parameters are disregarded if payload is a ProvDAG,
+    so may be left as default:
+      - validate_checksums
+      - parse_metadata
+      - recursive
+      - verbose
     """
-    if use_recorded_metadata and not dag.cfg.parse_study_metadata:
+    # Grab the right parse_metadata if the payload is already ProvDAG
+    if hasattr(payload, 'cfg'):
+        parse_metadata = payload.cfg.parse_study_metadata
+
+    if use_recorded_metadata and not parse_metadata:
         raise ValueError(
-            "Metadata not captured for replay. Re-parse metadata, or set "
-            "use_recorded_metadata to False")
+            "Metadata not parsed for replay. Re-run with parse_metadata, or "
+            "set use_recorded_metadata to False")
+
+    # The ProvDAGParser handles ProvDAGs quickly, so we can just throw whatever
+    # payload we get at this instead of maintaining per-data-type functions
+    dag = ProvDAG(
+        payload, validate_checksums, parse_metadata, recursive, verbose)
 
     cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS[usage_driver](),
                        use_recorded_metadata=use_recorded_metadata,
@@ -709,6 +724,13 @@ def write_reproducibility_supplement(payload: Union[FileName, ProvDAG],
     - replay scripts for all supported interfaces
     - a bibtex-formatted collection of all citations
 
+    Passed ProvDAGs retain their original config values.
+    The following parameters are disregarded if payload is a ProvDAG,
+    so may be left as default:
+      - validate_checksums
+      - parse_metadata
+      - recursive
+
     TODO: include metadata dump?
     """
     # The ProvDAGParser handles ProvDAGs quickly, so we can just throw whatever
@@ -726,8 +748,8 @@ def write_reproducibility_supplement(payload: Union[FileName, ProvDAG],
         for usage_driver in DRIVER_NAMES:
             rel_fp = filenames[usage_driver]
             tmp_fp = pathlib.Path(tmpdir_path) / rel_fp
-            replay_provdag(
-                dag=dag,
+            replay_provenance(
+                payload=dag,
                 out_fp=str(tmp_fp),
                 usage_driver=usage_driver,
                 use_recorded_metadata=use_recorded_metadata,

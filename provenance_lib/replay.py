@@ -385,7 +385,7 @@ def build_action_usage(node: ProvNode,
                     cfg.use.comment(
                         "The following command may have received additional "
                         "metadata .tsv files. To confirm you have covered "
-                        "your metadata needs adequately, review the original"
+                        "your metadata needs adequately, review the original "
                         f"metadata, saved at '{fp}'")
 
                 if not param_val.input_artifact_uuids:

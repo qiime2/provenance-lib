@@ -16,7 +16,8 @@ provenance_lib lets you:
 
 ## Installation
 - `git clone` or otherwise download this repo
-- [Install QIIME 2](https://docs.qiime2.org/2021.11/install/) in a conda environment
+- [Install QIIME 2](https://docs.qiime2.org/2022.2/install/) within a conda
+  environment. QIIME 2 versions 2021.11 and newer are supported.
 - `conda activate` your QIIME 2 environment
 - `pip install -e .` from the repo root directory
 

@@ -590,7 +590,6 @@ class ParserV1(ParserV0):
     """
     Parser for V1 archives. These track provenance, so we parse it.
     """
-    version_string = 1
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames should not be included here.
     expected_files_root_only = ParserV0.expected_files_root_only
@@ -718,7 +717,6 @@ class ParserV2(ParserV1):
     Parser for V2 archives. Directory structure identical to V1
     action.yaml changes to support Pipelines
     """
-    version_string = 2
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames should not be included here.
     expected_files_in_all_nodes = ParserV1.expected_files_in_all_nodes
@@ -730,7 +728,6 @@ class ParserV3(ParserV2):
     Parser for V3 archives. Directory structure identical to V1 & V2
     action.yaml now supports variadic inputs, so !set tags in action.yaml
     """
-    version_string = 3
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames should not be included here.
     expected_files_in_all_nodes = ParserV2.expected_files_in_all_nodes
@@ -742,7 +739,6 @@ class ParserV4(ParserV3):
     Parser for V4 archives. Adds citations to dir structure, changes to
     action.yaml incl transformers
     """
-    version_string = 4
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames should not be included here.
     expected_files_in_all_nodes = ParserV3.expected_files_in_all_nodes + \
@@ -754,7 +750,6 @@ class ParserV5(ParserV4):
     """
     Parser for V5 archives. Adds checksum validation with checksums.md5
     """
-    version_string = 5
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames should not be included here.
     expected_files_in_all_nodes = ParserV4.expected_files_in_all_nodes

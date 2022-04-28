@@ -255,11 +255,11 @@ class ReplayProvDAGDirectoryTests(unittest.TestCase):
 
         exp = (
             '(?s)from qiime2 import Artifact.*'
-            'emp_single_end_sequences_0 = Artifact.import_data.*'
-            'EMPSingleEndSequences.*'
-            '<your data here>.*'
             'multiplexed_single_end_barcode_in_sequence_0 = Artifact.import.*'
             'MultiplexedSingleEndBarcodeInSequence.*'
+            '<your data here>.*'
+            'emp_single_end_sequences_0 = Artifact.import_data.*'
+            'EMPSingleEndSequences.*'
             '<your data here>.*'
         )
         with tempfile.TemporaryDirectory() as tmpdir:

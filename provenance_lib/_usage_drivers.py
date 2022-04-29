@@ -18,6 +18,13 @@ from .parse import ProvDAG
 from .util import camel_to_snake
 
 
+class MissingPluginError(Exception):
+    """
+    an exception class we can use to aggregate missing plugin names
+    """
+    pass
+
+
 def action_patch(self,
                  action: 'UsageAction',
                  inputs: 'UsageInputs',
@@ -47,7 +54,12 @@ def action_patch(self,
                          'received %r.' % (UsageOutputNames,
                                            type(outputs)))
 
-    action_f = action.get_action()
+    try:
+        action_f = action.get_action()
+    except KeyError as e:
+        if "No plugin currently registered with id" in (msg := str(e)):
+            id = msg.split()[-1].strip('."\'')
+            raise MissingPluginError(f"plugin_id: {id}")
 
     @functools.lru_cache(maxsize=None)
     def memoized_action():  # pragma: no cover

@@ -14,8 +14,8 @@ from typing import Dict, Iterator, List, Optional, Set, Union
 from ._archive_parser import ProvNode
 from .parse import ProvDAG, UUID
 from ._usage_drivers import (
-    DRIVER_CHOICES, DRIVER_NAMES, SUPPORTED_USAGE_DRIVERS, Usage,
-    build_header, build_footer,
+    DRIVER_CHOICES, DRIVER_NAMES, SUPPORTED_USAGE_DRIVERS, MissingPluginError,
+    Usage, build_header, build_footer
 )
 from .util import FileName, camel_to_snake
 from ._yaml_constructors import MetadataInfo
@@ -397,10 +397,14 @@ def build_action_usage(node: ProvNode,
             param_val = md
         inputs.update({param_name: param_val})
 
-    usg_var = cfg.use.action(
-        cfg.use.UsageAction(plugin_id=plugin, action_id=action),
-        cfg.use.UsageInputs(**inputs),
-        cfg.use.UsageOutputNames(**outputs))
+    try:
+        usg_var = cfg.use.action(
+            cfg.use.UsageAction(plugin_id=plugin, action_id=action),
+            cfg.use.UsageInputs(**inputs),
+            cfg.use.UsageOutputNames(**outputs))
+    except MissingPluginError as e:
+        id = str(e).split()[-1]
+        cfg.use.
 
     # write the usage vars into the UsageVars dict so we can use em downstream
     for res in usg_var:

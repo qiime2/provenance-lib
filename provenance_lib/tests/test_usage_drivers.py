@@ -5,6 +5,7 @@ import unittest
 
 from ..replay import replay_provenance
 from .test_parse import DATA_DIR
+from .._usage_drivers import MissingPluginError
 
 
 class ReplayPythonUsageTests(unittest.TestCase):
@@ -120,3 +121,18 @@ class ReplayPythonUsageTests(unittest.TestCase):
             with open(out_path, 'r') as fp:
                 rendered = fp.read()
         self.assertRegex(rendered, exp)
+
+
+class ActionPatchTests(unittest.TestCase):
+    def test_missing_plugin(self):
+        """
+        action_patch raises a MissingPluginError if a plugin from provenance
+        is missing in the Env. The test .qza requires rescript, which is not
+        included in the test env.
+        """
+        in_fp = os.path.join(DATA_DIR, 'rescript-based-taxonomy.qza')
+        exp = ('(?s)QIIME 2 deployment.*missing.*plugins.*rescript')
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_path = pathlib.Path(tmpdir) / 'whatever.thing'
+            with self.assertRaisesRegex(MissingPluginError, exp):
+                replay_provenance(in_fp, out_path)

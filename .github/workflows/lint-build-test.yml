@@ -38,7 +38,7 @@ jobs:
         conda env create -n prov --file qiime2-2021.11-py38-osx-conda.yml
         source ${CONDA}/etc/profile.d/conda.sh
         conda activate prov
-        pip install -e .
+        pip install .
     - name: test
       run: |
         source ${CONDA}/etc/profile.d/conda.sh

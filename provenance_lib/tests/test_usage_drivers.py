@@ -133,6 +133,6 @@ class ActionPatchTests(unittest.TestCase):
         in_fp = os.path.join(DATA_DIR, 'rescript-based-taxonomy.qza')
         exp = ('(?s)QIIME 2 deployment.*missing.*plugins.*rescript')
         with tempfile.TemporaryDirectory() as tmpdir:
-            out_path = pathlib.Path(tmpdir) / 'action_collection.txt'
+            out_path = pathlib.Path(tmpdir) / 'whatever.thing'
             with self.assertRaisesRegex(MissingPluginError, exp):
                 replay_provenance(in_fp, out_path)

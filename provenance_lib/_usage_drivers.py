@@ -25,6 +25,21 @@ class MissingPluginError(Exception):
     pass
 
 
+def _get_action_if_plugin_present(action):
+    try:
+        return action.get_action()
+    except KeyError as e:
+        if "No plugin currently registered with id" in (msg := str(e)):
+            plugin_id = msg.split()[-1].strip('."\'')
+            raise MissingPluginError(
+                f"Your QIIME 2 deployment is \n"
+                "missing one or more plugins. "
+                f"The plugin '{plugin_id}' must be installed to \n"
+                "support provenance replay of these Results. "
+                "Please install and re-run your command.\n"
+                "Many plugins are available at https://library.qiime2.org")
+
+
 def action_patch(self,
                  action: 'UsageAction',
                  inputs: 'UsageInputs',
@@ -54,18 +69,7 @@ def action_patch(self,
                          'received %r.' % (UsageOutputNames,
                                            type(outputs)))
 
-    try:
-        action_f = action.get_action()
-    except KeyError as e:
-        if "No plugin currently registered with id" in (msg := str(e)):
-            plugin_id = msg.split()[-1].strip('."\'')
-            raise MissingPluginError(
-                f"Your QIIME 2 deployment is \n"
-                "missing one or more plugins. "
-                f"The plugin '{plugin_id}' must be installed to \n"
-                "support provenance replay of these Results. "
-                "Please install and re-run your command.\n"
-                "Many plugins are available at https://library.qiime2.org")
+    action_f = _get_action_if_plugin_present(action)
 
     @functools.lru_cache(maxsize=None)
     def memoized_action():  # pragma: no cover
@@ -208,7 +212,7 @@ class ReplayPythonUsage(ArtifactAPIUsage):
 
     def __init__(self, enable_assertions: bool = False,
                  action_collection_size: int = 2):
-        """Constructor for ReplayPythonUsage
+        """Initializer for ReplayPythonUsage
         Identical to ArtifactAPIUsage, but with smaller action_collection_size
         """
         super().__init__()

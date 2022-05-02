@@ -14,8 +14,8 @@ from typing import Dict, Iterator, List, Optional, Set, Union
 from ._archive_parser import ProvNode
 from .parse import ProvDAG, UUID
 from ._usage_drivers import (
-    DRIVER_CHOICES, DRIVER_NAMES, SUPPORTED_USAGE_DRIVERS, MissingPluginError,
-    Usage, build_header, build_footer
+    DRIVER_CHOICES, DRIVER_NAMES, SUPPORTED_USAGE_DRIVERS, Usage,
+    build_header, build_footer
 )
 from .util import FileName, camel_to_snake
 from ._yaml_constructors import MetadataInfo

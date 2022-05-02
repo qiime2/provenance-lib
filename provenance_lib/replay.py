@@ -397,14 +397,10 @@ def build_action_usage(node: ProvNode,
             param_val = md
         inputs.update({param_name: param_val})
 
-    try:
-        usg_var = cfg.use.action(
-            cfg.use.UsageAction(plugin_id=plugin, action_id=action),
-            cfg.use.UsageInputs(**inputs),
-            cfg.use.UsageOutputNames(**outputs))
-    except MissingPluginError as e:
-        id = str(e).split()[-1]
-        cfg.use.
+    usg_var = cfg.use.action(
+        cfg.use.UsageAction(plugin_id=plugin, action_id=action),
+        cfg.use.UsageInputs(**inputs),
+        cfg.use.UsageOutputNames(**outputs))
 
     # write the usage vars into the UsageVars dict so we can use em downstream
     for res in usg_var:

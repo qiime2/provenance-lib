@@ -58,8 +58,14 @@ def action_patch(self,
         action_f = action.get_action()
     except KeyError as e:
         if "No plugin currently registered with id" in (msg := str(e)):
-            id = msg.split()[-1].strip('."\'')
-            raise MissingPluginError(f"plugin_id: {id}")
+            plugin_id = msg.split()[-1].strip('."\'')
+            raise MissingPluginError(
+                f"Your QIIME 2 deployment is \n"
+                "missing one or more plugins. "
+                f"The plugin '{plugin_id}' must be installed to \n"
+                "support provenance replay of these Results. "
+                "Please install and re-run your command.\n"
+                "Many plugins are available at https://library.qiime2.org")
 
     @functools.lru_cache(maxsize=None)
     def memoized_action():  # pragma: no cover

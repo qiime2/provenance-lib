@@ -13,7 +13,7 @@ setup(
     description=short_descr,
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/ChrisKeefe/provenance_py.git',
+    url='https://github.com/qiime2/provenance_lib',
     author='Chris Keefe',
     author_email='crk239@nau.edu',
     license='BSD-3-clause',

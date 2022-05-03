@@ -253,15 +253,19 @@ class ReplayProvDAGDirectoryTests(unittest.TestCase):
         self.assertIn(s1_id, dir_dag.dag)
         self.assertIn(s2_id, dir_dag.dag)
 
-        exp = (
+        exp_1 = (
             '(?s)from qiime2 import Artifact.*'
-            'multiplexed_single_end_barcode_in_sequence_0 = Artifact.import.*'
-            'MultiplexedSingleEndBarcodeInSequence.*'
-            '<your data here>.*'
             'emp_single_end_sequences_0 = Artifact.import_data.*'
             'EMPSingleEndSequences.*'
             '<your data here>.*'
         )
+
+        exp_2 = (
+            '(?s)multiplexed_single_end_barcode_in_sequence_0 = Artifact.imp.*'
+            'MultiplexedSingleEndBarcodeInSequence.*'
+            '<your data here>.*'
+        )
+
         with tempfile.TemporaryDirectory() as tmpdir:
             out_path = pathlib.Path(tmpdir) / 'rendered.txt'
             replay_provenance(dir_dag, out_path, 'python3')
@@ -269,7 +273,8 @@ class ReplayProvDAGDirectoryTests(unittest.TestCase):
 
             with open(out_path, 'r') as fp:
                 rendered = fp.read()
-                self.assertRegex(rendered, exp)
+                self.assertRegex(rendered, exp_1)
+                self.assertRegex(rendered, exp_2)
 
 
 class BuildUsageExamplesTests(unittest.TestCase):

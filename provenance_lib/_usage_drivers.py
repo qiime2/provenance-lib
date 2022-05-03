@@ -263,7 +263,7 @@ class ReplayPythonUsage(ArtifactAPIUsage):
             line = ''
             if k not in all_inputs:
                 line = self.INDENT + (
-                    "# TODO: The following parameter name was not found in "
+                    "# FIXME: The following parameter name was not found in "
                     "your current\n    # QIIME 2 environment. This may occur "
                     "when the plugin version you have\n    # installed does "
                     "not match the version used in the original analysis.\n   "
@@ -485,7 +485,7 @@ class ReplayCLIUsage(CLIUsage):
                 self.recorder.append(line)
         else:  # no matching param name
             line = self.INDENT + (
-                "# TODO: The following parameter name was not found in "
+                "# FIXME: The following parameter name was not found in "
                 "your current\n  # QIIME 2 environment. This may occur "
                 "when the plugin version you have\n  # installed does not "
                 "match the version used in the original analysis.\n  # "

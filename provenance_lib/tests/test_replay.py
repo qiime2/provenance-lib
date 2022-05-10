@@ -128,6 +128,23 @@ class ReplayProvenanceTests(unittest.TestCase):
                 in_fp, 'unused_fp', 'python3', parse_metadata=False,
                 use_recorded_metadata=True)
 
+    def test_replay_dump_md_without_parse(self):
+        in_fp = TEST_DATA['5']['qzv_fp']
+        with self.assertRaisesRegex(
+                ValueError, "(?s)Metadata not parsed,.*dump_recorded_met"):
+            replay_provenance(
+                in_fp, 'unused_fp', 'python3', parse_metadata=False,
+                dump_recorded_metadata=True)
+
+    def test_replay_md_out_fp_without_parse(self):
+        in_fp = TEST_DATA['5']['qzv_fp']
+        with self.assertRaisesRegex(
+                ValueError, "(?s)Metadata not parsed,.*not.*metadata output"):
+            replay_provenance(
+                in_fp, 'unused_fp', 'python3', parse_metadata=False,
+                dump_recorded_metadata=False,
+                md_out_fp='/user/dumb/some_filepath')
+
     def test_replay_from_provdag(self):
         v5_dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -440,6 +457,29 @@ class MiscHelperFnTests(unittest.TestCase):
             param_is_metadata_column(
                 cfg, 'custom_axes', 'princeling', 'plot')
 
+    def test_dump_recorded_md_file_to_custom_dir(self):
+        v5_dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
+        root_uuid = TEST_DATA['5']['uuid']
+        out_dir = 'custom_dir'
+        provnode = v5_dag.get_node_data(root_uuid)
+        og_md = provnode.metadata['metadata']
+        act_nm = 'emperor_plot_0'
+        md_id = 'metadata'
+        fn = 'metadata_0.tsv'
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['cli'](), pm=pm,
+                               md_out_fp=(tmpdir + '/' + out_dir))
+            dump_recorded_md_file(cfg, provnode, act_nm, md_id, fn)
+            out_path = pathlib.Path(tmpdir) / out_dir / act_nm / fn
+
+            # was the file written where expected?
+            self.assertTrue(out_path.is_file())
+
+            # is it the same df?
+            dumped_df = pd.read_csv(out_path, sep='\t')
+            pd.testing.assert_frame_equal(dumped_df, og_md)
+
     def test_dump_recorded_md_file(self):
         mixed_uuid = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
         with self.assertWarnsRegex(
@@ -448,6 +488,7 @@ class MiscHelperFnTests(unittest.TestCase):
                                          'mixed_v0_v1_uu_emperor.qzv'))
         root_uuid = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
         out_dir = 'recorded_metadata'
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['cli'](), pm=pm)
         provnode = mixed.get_node_data(root_uuid)
         og_md = provnode.metadata['metadata']
         act_nm = 'emperor_plot_0'
@@ -456,7 +497,7 @@ class MiscHelperFnTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pathlib.Path.cwd = MagicMock(return_value=pathlib.Path(tmpdir))
-            dump_recorded_md_file(provnode, act_nm, md_id, fn)
+            dump_recorded_md_file(cfg, provnode, act_nm, md_id, fn)
             out_path = pathlib.Path(tmpdir) / out_dir / act_nm / fn
 
             # was the file written where expected?
@@ -471,7 +512,7 @@ class MiscHelperFnTests(unittest.TestCase):
             act_nm2 = 'emperor_plot_1'
             md_id2 = 'metadata'
             fn2 = 'metadata_1.tsv'
-            dump_recorded_md_file(provnode, act_nm2, md_id2, fn2)
+            dump_recorded_md_file(cfg, provnode, act_nm2, md_id2, fn2)
             out_path2 = pathlib.Path(tmpdir) / out_dir / act_nm2 / fn2
 
             # are both files where expected?
@@ -485,6 +526,7 @@ class MiscHelperFnTests(unittest.TestCase):
                 UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
             v0 = ProvDAG(os.path.join(DATA_DIR, 'v0_uu_emperor.qzv'))
         root_uuid = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](), pm=pm)
         provnode = v0.get_node_data(root_uuid)
         act_nm = 'emperor_plot_0'
         md_id = 'metadata'
@@ -492,7 +534,7 @@ class MiscHelperFnTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError,
                                     "should only be called.*if.*metadata"):
-            dump_recorded_md_file(provnode, act_nm, md_id, fn)
+            dump_recorded_md_file(cfg, provnode, act_nm, md_id, fn)
 
 
 class GroupByActionTests(unittest.TestCase):

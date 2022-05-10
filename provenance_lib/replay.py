@@ -29,8 +29,15 @@ class ReplayConfig():
     """
     fields:
 
+    -use
+      the usage driver to be used for provenance replay
+    - dump_recorded_metadata
+      If True, replay should write the metadata recorded in provenance to disk
+      in .tsv format
     - use_recorded_metadata
-      If true, replay should use the metadata recorded in provenance
+      If True, replay should use the metadata recorded in provenance
+    - pm
+      an instance of the QIIME 2 PluginManager
     - md_context_has_been_printed
       TODO: if this was no_md_context, True would prevent context from printing
       a flag set by default and used internally, allows context to be printed
@@ -42,14 +49,19 @@ class ReplayConfig():
       if True, an introductory how-to header should be rendered to the script
     - verbose
       if True, progress will be reported to stdout
+    - md_out_fp
+      the directory path where caputred metadata should be written
+
     """
     use: Usage
-    use_recorded_metadata: bool
+    use_recorded_metadata: bool = False
     pm: PluginManager = PluginManager()
     md_context_has_been_printed: bool = False
     no_provenance_context_has_been_printed: bool = False
     header: bool = True
     verbose: bool = False
+    dump_recorded_metadata: bool = True
+    md_out_fp: FileName = ''
 
 
 @dataclass(frozen=False)
@@ -146,7 +158,9 @@ def replay_provenance(payload: Union[FileName, ProvDAG],
                       recursive: bool = False,
                       use_recorded_metadata: bool = False,
                       suppress_header: bool = False,
-                      verbose: bool = False):
+                      verbose: bool = False,
+                      dump_recorded_metadata: bool = True,
+                      md_out_fp: FileName = '',):
     """
     Renders usage examples describing a ProvDAG, producing an interface-
     specific executable.
@@ -168,6 +182,17 @@ def replay_provenance(payload: Union[FileName, ProvDAG],
             "Metadata not parsed for replay. Re-run with parse_metadata, or "
             "set use_recorded_metadata to False")
 
+    if dump_recorded_metadata and not parse_metadata:
+        raise ValueError(
+            "Metadata not parsed, so cannot be written to disk. Re-run with "
+            "parse_metadata, or set dump_recorded_metadata to False")
+
+    if md_out_fp and not parse_metadata:
+        raise ValueError(
+            "Metadata not parsed, so cannot be written to disk. Re-run with "
+            "parse_metadata, or do not pass a metadata output filepath "
+            "argument.")
+
     # The ProvDAGParser handles ProvDAGs quickly, so we can just throw whatever
     # payload we get at this instead of maintaining per-data-type functions
     dag = ProvDAG(
@@ -175,7 +200,8 @@ def replay_provenance(payload: Union[FileName, ProvDAG],
 
     cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS[usage_driver](),
                        use_recorded_metadata=use_recorded_metadata,
-                       verbose=verbose)
+                       dump_recorded_metadata=dump_recorded_metadata,
+                       verbose=verbose, md_out_fp=md_out_fp)
     # build order is handled by use.render, so doesn't matter here
     if not suppress_header:
         cfg.use.build_header()
@@ -363,8 +389,10 @@ def build_action_usage(node: ProvNode,
             md_fn = ns.usg_var_namespace[unique_md_id] + '.tsv'
             # TODO: When no_parse_metadata, we're still calling this
             # which raises an error. We shouldn't be dumping md if we're not
-            # parsing it. Clean that up!
-            dump_recorded_md_file(node, plg_action_name, param_name, md_fn)
+            # parsing it. This should be safe now, but needs testing
+            if cfg.dump_recorded_metadata:
+                dump_recorded_md_file(
+                    cfg, node, plg_action_name, param_name, md_fn)
 
             if cfg.use_recorded_metadata:
                 md = init_md_from_recorded_md(
@@ -484,8 +512,8 @@ def init_md_from_artifacts(md_inf: MetadataInfo,
     return art_as_md
 
 
-def dump_recorded_md_file(
-        node: ProvNode, action_name: str, md_id: str, fn: str):
+def dump_recorded_md_file(cfg: ReplayConfig, node: ProvNode, action_name: str,
+                          md_id: str, fn: FileName):
     """
     Writes one metadata DataFrame passed to an action to .tsv
     Each action gets its own directory containing relevant md files.
@@ -494,12 +522,18 @@ def dump_recorded_md_file(
     """
     # TODO: node.metadata will also be None if no-parse-metadata is passed.
     # Fix that!
+
+    # The problem above is probably an unreachable case now, but needs testing
     if node.metadata is None:
         raise ValueError(
             'This function should only be called if the node has metadata.')
 
-    cwd = pathlib.Path.cwd()
-    md_out_fp_base = cwd / 'recorded_metadata'
+    if cfg.md_out_fp:
+        md_out_fp_base = pathlib.Path(cfg.md_out_fp)
+    else:
+        cwd = pathlib.Path.cwd()
+        md_out_fp_base = cwd / 'recorded_metadata'
+
     action_dir = md_out_fp_base / action_name
     action_dir.mkdir(parents=True, exist_ok=True)
 
@@ -698,7 +732,9 @@ def write_reproducibility_supplement(payload: Union[FileName, ProvDAG],
                                      recurse: bool = False,
                                      deduplicate: bool = True,
                                      suppress_header: bool = False,
-                                     verbose: bool = True):
+                                     verbose: bool = True,
+                                     dump_recorded_metadata: bool = False,
+                                     md_out_fp: FileName = '',):
     """
     Produces a zipfile package of useful documentation for enabling in silico
     reproducibility of some QIIME 2 Result(s) from a ProvDAG, a QIIME 2
@@ -714,8 +750,6 @@ def write_reproducibility_supplement(payload: Union[FileName, ProvDAG],
       - validate_checksums
       - parse_metadata
       - recursive
-
-    TODO: include metadata dump?
     """
     # The ProvDAGParser handles ProvDAGs quickly, so we can just throw whatever
     # we get at this initializer instead of maintaining per-data-type functions
@@ -738,7 +772,11 @@ def write_reproducibility_supplement(payload: Union[FileName, ProvDAG],
                 usage_driver=usage_driver,
                 use_recorded_metadata=use_recorded_metadata,
                 suppress_header=suppress_header,
-                verbose=verbose)
+                verbose=verbose,
+                dump_recorded_metadata=dump_recorded_metadata,
+                md_out_fp=md_out_fp)
+            # don't duplicate captured metadata .tsvs files
+            dump_recorded_metadata = False
             print(f'{usage_driver} replay script written to {rel_fp}')
 
         tmp_fp = tmpdir_path / 'citations.bib'

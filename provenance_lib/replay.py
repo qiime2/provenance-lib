@@ -258,6 +258,7 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
         build_no_provenance_node_usage(n_data, node_id, usg_ns, cfg)
 
     for action_id in (std_actions := actions.std_actions):
+        # We are replaying actions not nodes, so any associated node works
         some_node_id_from_this_action = next(iter(std_actions[action_id]))
         n_data = dag.get_node_data(some_node_id_from_this_action)
         if n_data.action.action_type == 'import':

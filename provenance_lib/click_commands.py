@@ -35,12 +35,12 @@ def replay():
 @click.option('--p-parse-metadata/--p-no-parse-metadata',
               default=True,
               show_default=True,
-              help=('parse the original metadata captured by provenance '
+              help=('parse the original metadata captured in provenance '
                     'for review or replay'))
 @click.option('--p-use-recorded-metadata/--p-no-use-recorded-metadata',
               default=False,
               show_default=True,
-              help='re-use the original metadata captured by provenance')
+              help='re-use the original metadata captured in provenance')
 @click.option('--p-suppress-header/--p-no-suppress-header',
               default=False,
               show_default=True,
@@ -164,12 +164,12 @@ def citations(i_in_fp: FileName,
 @click.option('--p-parse-metadata/--p-no-parse-metadata',
               default=True,
               show_default=True,
-              help=('parse the original metadata captured by provenance '
+              help=('parse the original metadata captured in provenance '
                     'for review or replay'))
 @click.option('--p-use-recorded-metadata/--p-no-use-recorded-metadata',
               default=False,
               show_default=True,
-              help='re-use the original metadata captured by provenance')
+              help='re-use the original metadata captured in provenance')
 @click.option('--p-suppress-header/--p-no-suppress-header',
               default=False,
               show_default=True,

@@ -735,7 +735,7 @@ def write_reproducibility_supplement(payload: Union[FileName, ProvDAG],
                                      suppress_header: bool = False,
                                      verbose: bool = True,
                                      dump_recorded_metadata: bool = False,
-                                     md_out_fp: FileName = '',):
+                                     ):
     """
     Produces a zipfile package of useful documentation for enabling in silico
     reproducibility of some QIIME 2 Result(s) from a ProvDAG, a QIIME 2
@@ -765,8 +765,9 @@ def write_reproducibility_supplement(payload: Union[FileName, ProvDAG],
         }
 
         for usage_driver in DRIVER_NAMES:
+            md_out_fp = tmpdir_path / 'recorded_metadata'
             rel_fp = filenames[usage_driver]
-            tmp_fp = pathlib.Path(tmpdir_path) / rel_fp
+            tmp_fp = tmpdir_path / rel_fp
             replay_provenance(
                 payload=dag,
                 out_fp=str(tmp_fp),

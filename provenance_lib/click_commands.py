@@ -182,16 +182,7 @@ def citations(i_in_fp: FileName,
               default=True,
               show_default=True,
               help='write the original metadata captured in provenance to '
-                   'disk in the --o-metadata-out-fp directory')
-@click.option('--o-metadata-out-fp',
-              default='',
-              show_default=True,
-              help=('the directory where captured study metadata '
-                    'should be written if --p-dump-recorded-metadata. This '
-                    'often produces many outputs, so a dedicated directory '
-                    'should generally be used. Creates the directory if it '
-                    'does not already exist. By default, metadata is written '
-                    'to `${PWD}/recorded_metadata/`'))
+                   'disk in the --o-out-fp archive')
 @click.option('--o-out-fp',
               required=True,
               help='the filepath where your reproduciblity supplement zipfile '
@@ -206,7 +197,7 @@ def reproducibility_supplement(i_in_fp: FileName,
                                p_suppress_header: bool = False,
                                p_verbose: bool = True,
                                p_dump_recorded_metadata: bool = True,
-                               o_metadata_out_fp: FileName = '',):
+                               ):
     """
     Produces a zipfile package of useful documentation for enabling in silico
     reproducibility of some QIIME 2 Result(s) from a QIIME 2 Artifact or
@@ -227,4 +218,4 @@ def reproducibility_supplement(i_in_fp: FileName,
         suppress_header=p_suppress_header,
         verbose=p_verbose,
         dump_recorded_metadata=p_dump_recorded_metadata,
-        md_out_fp=o_metadata_out_fp,)
+        )

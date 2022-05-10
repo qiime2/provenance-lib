@@ -220,7 +220,36 @@ class ReproducibilitySupplementTests(CustomAssertions):
             exp = {'python3_replay.py',
                    'cli_replay.sh',
                    'citations.bib',
+                   'recorded_metadata/',
+                   'recorded_metadata/demux_emp_single_0/',
+                   ('recorded_metadata/diversity_core_metrics_phylogenetic_0/'
+                    'metadata_0.tsv'),
+                   'recorded_metadata/diversity_core_metrics_phylogenetic_0/',
+                   'recorded_metadata/demux_emp_single_0/barcodes_0.tsv',
                    }
 
             with zipfile.ZipFile(out_fp, 'r') as myzip:
                 self.assertEqual(exp, set(myzip.namelist()))
+
+    def test_write_reproducibility_supplement_no_metadata_dump(self):
+        """
+        Confirms that metadata dumping does not occur when user opts out
+        """
+        in_fp = TEST_DATA['5']['qzv_fp']
+        in_fn = str(in_fp)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_fp = pathlib.Path(tmpdir) / 'supplement.zip'
+            out_fn = str(out_fp)
+            res = CliRunner().invoke(
+                cli=reproducibility_supplement,
+                args=(f"--i-in-fp {in_fn} --o-out-fp {out_fn} "
+                      "--p-no-dump-recorded-metadata"))
+
+            self.assertEqual(res.exit_code, 0)
+            self.assertTrue(out_fp.is_file())
+            self.assertTrue(zipfile.is_zipfile(out_fp))
+
+            exp = 'recorded_metadata/'
+
+            with zipfile.ZipFile(out_fp, 'r') as myzip:
+                self.assertNotIn(exp, set(myzip.namelist()))

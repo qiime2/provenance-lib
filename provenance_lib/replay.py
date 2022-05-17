@@ -193,6 +193,15 @@ def replay_provenance(payload: Union[FileName, ProvDAG],
             "parse_metadata, or do not pass a metadata output filepath "
             "argument.")
 
+    if use_recorded_metadata and not dump_recorded_metadata:
+        raise NotImplementedError(
+            "In order to produce a replay script from that uses metadata "
+            "captured in provenance, that metadata must first be written to "
+            "disk. Re-run with dump-recorded-metadata set to True, or "
+            "use-recorded-metadata set to False. Possible future support for "
+            "'touchless' replay from provenance is tracked in "
+            "https://github.com/qiime2/provenance-lib/issues/63")
+
     # The ProvDAGParser handles ProvDAGs quickly, so we can just throw whatever
     # payload we get at this instead of maintaining per-data-type functions
     dag = ProvDAG(
@@ -396,8 +405,11 @@ def build_action_usage(node: ProvNode,
                     cfg, node, plg_action_name, param_name, md_fn)
 
             if cfg.use_recorded_metadata:
+                # the local dir and fp where md will be saved (if at all) is:
+                md_fn = f'{plg_action_name}/{md_fn}'
                 md = init_md_from_recorded_md(
-                    node, unique_md_id, ns.usg_var_namespace, cfg)
+                    node, param_name, unique_md_id, ns.usg_var_namespace, cfg,
+                    md_fn)
             else:
                 if not cfg.md_context_has_been_printed:
                     cfg.md_context_has_been_printed = True
@@ -410,6 +422,7 @@ def build_action_usage(node: ProvNode,
                         "to enable visual inspection.")
 
                 if not command_specific_md_context_has_been_printed:
+                    # TODO: This needs to be a custom fp
                     fp = f'recorded_metadata/{plg_action_name}/'
                     cfg.use.comment(
                         "The following command may have received additional "
@@ -437,26 +450,41 @@ def build_action_usage(node: ProvNode,
         ns.usg_vars[uuid_key] = res
 
 
-def init_md_from_recorded_md(node: ProvNode, unique_md_id: str,
-                             namespace: UsageVarsDict, cfg: ReplayConfig) -> \
+def init_md_from_recorded_md(node: ProvNode, param_name: str, md_id: str,
+                             ns: UsageVarsDict, cfg: ReplayConfig,
+                             md_fn: FileName) -> \
                                  UsageVariable:
     """
-    initializes and returns a Metadata UsageVariable from a pandas.DataFrame
-    scraped from provenance
+    initializes and returns a Metadata UsageVariable with Metadata scraped 
+    and dumped to disk from provenance
 
     Raises a ValueError if the node has no metadata
     """
     if not node.metadata:
         raise ValueError(
             'This function should only be called if the node has metadata.')
-    parameter_name = namespace[unique_md_id][:-2]
+    parameter_name = ns[md_id][:-2]
     md_df = node.metadata[parameter_name]
 
     def factory():  # pragma: no cover
         from qiime2 import Metadata
         return Metadata(md_df)
 
-    return cfg.use.init_metadata(namespace[unique_md_id], factory)
+    cwd = pathlib.Path.cwd()
+    if cfg.md_out_fp:
+        fn = str(cwd / cfg.md_out_fp / md_fn)
+    else:
+        fn = str(cwd / 'recorded_metadata' / md_fn)
+
+    md = cfg.use.init_metadata(ns[md_id], factory, dumped_md_fn=fn)
+    plugin = node.action.plugin
+    action = node.action.action_name
+    if param_is_metadata_column(cfg, param_name, plugin, action):
+        mdc_id = node._uuid + '_mdc'
+        mdc_name = ns[md_id] + '_mdc'
+        ns.update({mdc_id: mdc_name})
+        md = cfg.use.get_metadata_column(ns[mdc_id], '<column name>', md)
+    return md
 
 
 def init_md_from_md_file(node: ProvNode, param_name: str, md_id: str,

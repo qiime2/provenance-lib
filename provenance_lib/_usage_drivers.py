@@ -315,18 +315,26 @@ class ReplayPythonUsage(ArtifactAPIUsage):
 
         return ', '.join(output_vars).strip()
 
-    def init_metadata(self, name, factory):
+    def init_metadata(self, name, factory, dumped_md_fn: str = ''):
         """
         ArtifactAPIUsage doesn't render Metadata loading, so we do it here.
+
+        dumped_md_fn is an optional parameter used only by
+        init_md_from_recorded_md. It allows us to produce scripts that pass
+        metadata dumped from provenance to dumped_md_fn
         """
         var = super().init_metadata(name, factory)
         self._update_imports(from_='qiime2', import_='Metadata')
         input_fp = var.to_interface_name()
-        self.comment(
-            'NOTE: You may substitute already-loaded Metadata for the '
-            'following, or cast a pandas.DataFrame to Metadata as needed.'
-        )
-        lines = [f'{input_fp} = Metadata.load(<your metadata filepath>)']
+        if not dumped_md_fn:
+            self.comment(
+                'NOTE: You may substitute already-loaded Metadata for the '
+                'following, or cast a pandas.DataFrame to Metadata as needed.'
+            )
+            lines = [f'{input_fp} = Metadata.load(<your metadata filepath>)']
+        else:
+            lines = [f'{input_fp} = Metadata.load(\'{dumped_md_fn}\')']
+
         self._add(lines)
         return var
 

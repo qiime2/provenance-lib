@@ -3,14 +3,18 @@
 run:
 	replay provenance \
 	--i-in-fp provenance_lib/tests/data/v5_uu_emperor.qzv \
+	--p-use-recorded-metadata \
 	--p-verbose \
+	--o-metadata-out-fp './gerbils-time' \
 	--o-out-fp ./replay_scripts/sample_replay.sh
 
 run-py:
 	replay provenance \
 	--i-in-fp provenance_lib/tests/data/v5_uu_emperor.qzv \
 	--p-usage-driver python3 \
+	--p-use-recorded-metadata \
 	--p-verbose \
+	--o-metadata-out-fp './gerbils-time' \
 	--o-out-fp ./replay_scripts/sample_replay.py
 
 run-cite:

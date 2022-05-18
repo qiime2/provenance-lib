@@ -397,9 +397,6 @@ def build_action_usage(node: ProvNode,
             ns.usg_var_namespace.update(
                 {unique_md_id: camel_to_snake(param_name)})
             md_fn = ns.usg_var_namespace[unique_md_id]
-            # TODO: When no_parse_metadata, we're still calling this
-            # which raises an error. We shouldn't be dumping md if we're not
-            # parsing it. This should be safe now, but needs testing
             if cfg.dump_recorded_metadata:
                 md_with_ext = md_fn + '.tsv'
                 dump_recorded_md_file(
@@ -424,8 +421,11 @@ def build_action_usage(node: ProvNode,
                         "to enable visual inspection.")
 
                 if not command_specific_md_context_has_been_printed:
-                    # TODO: This needs to be a custom fp
-                    fp = f'recorded_metadata/{plg_action_name}/'
+                    if cfg.md_out_fp:
+                        fp = f'{cfg.md_out_fp}/{plg_action_name}'
+                    else:
+                        fp = f'./recorded_metadata/{plg_action_name}/'
+
                     cfg.use.comment(
                         "The following command may have received additional "
                         "metadata .tsv files. To confirm you have covered "

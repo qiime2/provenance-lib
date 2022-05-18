@@ -428,7 +428,6 @@ class MiscHelperFnTests(unittest.TestCase):
     def test_param_is_metadata_col(self):
         """
         Assumes q2-demux and q2-diversity are installed in the active env.
-        TODO: replace with dummy plugin if we integrate this into the framework
         """
         cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['cli'](),
                            use_recorded_metadata=False, pm=pm)

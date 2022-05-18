@@ -39,11 +39,9 @@ class ReplayConfig():
     - pm
       an instance of the QIIME 2 PluginManager
     - md_context_has_been_printed
-      TODO: if this was no_md_context, True would prevent context from printing
       a flag set by default and used internally, allows context to be printed
       once and only once.
     - no_provenance_context_has_been_printed
-      TODO: if this was no_no_pr_context, True would stop context from printing
       indicates the no-provenance context documentation has not been printed
     - header
       if True, an introductory how-to header should be rendered to the script
@@ -554,10 +552,9 @@ def dump_recorded_md_file(cfg: ReplayConfig, node: ProvNode, action_name: str,
 
     Raises a ValueError if the node has no metadata
     """
-    # TODO: node.metadata will also be None if no-parse-metadata is passed.
-    # Fix that!
-
-    # The problem above is probably an unreachable case now, but needs testing
+    # NOTE: node.metadata will also be None if no-parse-metadata is passed,
+    # which would error unpredictably if the check preventing md dumping with
+    # no-parse-provenance was removed from replay_provenance
     if node.metadata is None:
         raise ValueError(
             'This function should only be called if the node has metadata.')

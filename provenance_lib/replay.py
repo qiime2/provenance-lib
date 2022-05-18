@@ -396,13 +396,15 @@ def build_action_usage(node: ProvNode,
             unique_md_id = ns.usg_var_namespace[node._uuid] + '_' + param_name
             ns.usg_var_namespace.update(
                 {unique_md_id: camel_to_snake(param_name)})
-            md_fn = ns.usg_var_namespace[unique_md_id] + '.tsv'
+            md_fn = ns.usg_var_namespace[unique_md_id]
             # TODO: When no_parse_metadata, we're still calling this
             # which raises an error. We shouldn't be dumping md if we're not
             # parsing it. This should be safe now, but needs testing
             if cfg.dump_recorded_metadata:
+                md_with_ext = md_fn + '.tsv'
                 dump_recorded_md_file(
-                    cfg, node, plg_action_name, param_name, md_fn)
+                    cfg, node, plg_action_name, param_name, md_with_ext
+                )
 
             if cfg.use_recorded_metadata:
                 # the local dir and fp where md will be saved (if at all) is:

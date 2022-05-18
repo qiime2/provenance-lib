@@ -544,6 +544,19 @@ class ReplayCLIUsage(CLIUsage):
 
         return imported_var
 
+    def init_metadata(self, name, factory, dumped_md_fn: str = ''):
+        """
+        Like parent, but optionally handles file prefixes for recorded md fps
+        """
+        variable = super().init_metadata(name, factory)
+
+        self.init_data.append(variable)
+
+        if dumped_md_fn:
+            variable.name = dumped_md_fn
+
+        return variable
+
     def comment(self, text):
         """
         Identical to parent, but pads comments with an extra newline

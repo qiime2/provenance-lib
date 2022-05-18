@@ -456,6 +456,18 @@ class ReplayPythonUsage(ArtifactAPIUsage):
 
 
 class ReplayCLIUsageVariable(CLIUsageVariable):
+    EXT = {
+        'artifact': '.qza',
+        'visualization': '.qzv',
+        'metadata': '',
+        'column': '',
+        'format': '',
+    }
+
+    @property
+    def ext(self):
+        return self.EXT[self.var_type]
+
     def to_interface_name(self):
         """
         Like parent, but does not kebab-case metadata. Filepaths are preserved.
@@ -528,9 +540,9 @@ class ReplayCLIUsage(CLIUsage):
     def _make_param(self, value, state):
         """ wrap metadata filenames in <> to force users to replace them """
         if state['metadata'] == 'column':
-            value = (f'<{value[0]}>', *value[1:])
+            value = (f'{value[0]}', *value[1:])
         if state['metadata'] == 'file':
-            value = f'<{value}>'
+            value = f'{value}'
         return super()._make_param(value, state)
 
     def import_from_format(self, name, semantic_type, variable,
@@ -574,7 +586,9 @@ class ReplayCLIUsage(CLIUsage):
         self.init_data.append(variable)
 
         if dumped_md_fn:
-            variable.name = dumped_md_fn
+            variable.name = f'"{dumped_md_fn}.tsv"'
+        else:
+            variable.name = '<your metadata filepath>'
 
         return variable
 

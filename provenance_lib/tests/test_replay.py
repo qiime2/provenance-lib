@@ -145,6 +145,15 @@ class ReplayProvenanceTests(unittest.TestCase):
                 dump_recorded_metadata=False,
                 md_out_fp='/user/dumb/some_filepath')
 
+    def test_replay_use_md_without_dump_md(self):
+        in_fp = TEST_DATA['5']['qzv_fp']
+        with self.assertRaisesRegex(
+                NotImplementedError,
+                "(?s)uses.*metadata.*must.*written to disk"):
+            replay_provenance(
+                in_fp, 'unused_fp', 'python3', use_recorded_metadata=True,
+                dump_recorded_metadata=False)
+
     def test_replay_from_provdag(self):
         v5_dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
         with tempfile.TemporaryDirectory() as tmpdir:

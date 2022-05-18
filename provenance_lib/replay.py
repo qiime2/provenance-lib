@@ -193,7 +193,7 @@ def replay_provenance(payload: Union[FileName, ProvDAG],
 
     if use_recorded_metadata and not dump_recorded_metadata:
         raise NotImplementedError(
-            "In order to produce a replay script from that uses metadata "
+            "In order to produce a replay script that uses metadata "
             "captured in provenance, that metadata must first be written to "
             "disk. Re-run with dump-recorded-metadata set to True, or "
             "use-recorded-metadata set to False. Possible future support for "

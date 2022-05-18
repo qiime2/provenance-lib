@@ -648,6 +648,31 @@ class InitializerTests(unittest.TestCase):
                r"recorded_metadata/demux_emp_single_0/barcodes_0.tsv'")
         self.assertRegex(rendered, exp)
 
+    def test_init_md_from_recorded_md_user_passed_fp(self):
+        has_md_id = '99fa3670-aa1a-45f6-ba8e-803c976a1163'
+        dag = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
+        md_node = dag.get_node_data(has_md_id)
+
+        var_nm = 'per_sample_sequences_0_barcodes'
+        param_nm = 'barcodes'
+        # the variable name should already be added to the namespace
+        ns = UsageVarsDict({var_nm: param_nm})
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
+                           use_recorded_metadata=False, pm=pm,
+                           md_out_fp='./md_out')
+        md_fn = 'test_a/test_o'
+
+        var = init_md_from_recorded_md(
+            md_node, param_nm, var_nm, ns, cfg, md_fn)
+        self.assertIsInstance(var, UsageVariable)
+        self.assertEqual(var.var_type, 'column')
+
+        rendered = cfg.use.render()
+        print(rendered)
+        self.assertRegex(rendered, 'from qiime2 import Metadata')
+        exp = (r"barcodes_0_md = Metadata.load\('.*md_out/test_a/test_o.tsv'")
+        self.assertRegex(rendered, exp)
+
     def test_init_md_from_artifacts_no_artifacts(self):
         cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
                            use_recorded_metadata=False, pm=pm)

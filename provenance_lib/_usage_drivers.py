@@ -327,7 +327,7 @@ class ReplayPythonUsage(ArtifactAPIUsage):
         self._update_imports(from_='qiime2', import_='Metadata')
         input_fp = var.to_interface_name()
         if dumped_md_fn:
-            lines = [f'{input_fp} = Metadata.load(\'{dumped_md_fn}\')']
+            lines = [f'{input_fp} = Metadata.load(\'{dumped_md_fn}.tsv\')']
         else:
             self.comment(
                 'NOTE: You may substitute already-loaded Metadata for the '

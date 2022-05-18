@@ -200,7 +200,7 @@ def replay_provenance(payload: Union[FileName, ProvDAG],
             "disk. Re-run with dump-recorded-metadata set to True, or "
             "use-recorded-metadata set to False. Possible future support for "
             "'touchless' replay from provenance is tracked in "
-            "https://github.com/qiime2/provenance-lib/issues/63")
+            "https://github.com/qiime2/provenance-lib/issues/98")
 
     # The ProvDAGParser handles ProvDAGs quickly, so we can just throw whatever
     # payload we get at this instead of maintaining per-data-type functions
@@ -767,7 +767,7 @@ def write_reproducibility_supplement(payload: Union[FileName, ProvDAG],
                                      deduplicate: bool = True,
                                      suppress_header: bool = False,
                                      verbose: bool = True,
-                                     dump_recorded_metadata: bool = False,
+                                     dump_recorded_metadata: bool = True,
                                      ):
     """
     Produces a zipfile package of useful documentation for enabling in silico
@@ -810,8 +810,6 @@ def write_reproducibility_supplement(payload: Union[FileName, ProvDAG],
                 verbose=verbose,
                 dump_recorded_metadata=dump_recorded_metadata,
                 md_out_fp=md_out_fp)
-            # don't duplicate captured metadata .tsvs files
-            dump_recorded_metadata = False
             print(f'{usage_driver} replay script written to {rel_fp}')
 
         tmp_fp = tmpdir_path / 'citations.bib'

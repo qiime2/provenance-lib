@@ -326,14 +326,14 @@ class ReplayPythonUsage(ArtifactAPIUsage):
         var = super().init_metadata(name, factory)
         self._update_imports(from_='qiime2', import_='Metadata')
         input_fp = var.to_interface_name()
-        if not dumped_md_fn:
+        if dumped_md_fn:
+            lines = [f'{input_fp} = Metadata.load(\'{dumped_md_fn}\')']
+        else:
             self.comment(
                 'NOTE: You may substitute already-loaded Metadata for the '
                 'following, or cast a pandas.DataFrame to Metadata as needed.'
             )
             lines = [f'{input_fp} = Metadata.load(<your metadata filepath>)']
-        else:
-            lines = [f'{input_fp} = Metadata.load(\'{dumped_md_fn}\')']
 
         self._add(lines)
         return var

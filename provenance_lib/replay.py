@@ -455,7 +455,7 @@ def init_md_from_recorded_md(node: ProvNode, param_name: str, md_id: str,
                              md_fn: FileName) -> \
                                  UsageVariable:
     """
-    initializes and returns a Metadata UsageVariable with Metadata scraped 
+    initializes and returns a Metadata UsageVariable with Metadata scraped
     and dumped to disk from provenance
 
     Raises a ValueError if the node has no metadata

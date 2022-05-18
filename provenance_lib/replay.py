@@ -171,10 +171,6 @@ def replay_provenance(payload: Union[FileName, ProvDAG],
       - recursive
       - verbose
     """
-    # Grab the right parse_metadata if the payload is already ProvDAG
-    if hasattr(payload, 'cfg'):
-        parse_metadata = payload.cfg.parse_study_metadata
-
     if use_recorded_metadata and not parse_metadata:
         raise ValueError(
             "Metadata not parsed for replay. Re-run with parse_metadata, or "
@@ -199,6 +195,10 @@ def replay_provenance(payload: Union[FileName, ProvDAG],
             "use-recorded-metadata set to False. Possible future support for "
             "'touchless' replay from provenance is tracked in "
             "https://github.com/qiime2/provenance-lib/issues/98")
+
+    # Grab the right parse_metadata if the payload is already ProvDAG
+    if hasattr(payload, 'cfg'):
+        parse_metadata = payload.cfg.parse_study_metadata
 
     # The ProvDAGParser handles ProvDAGs quickly, so we can just throw whatever
     # payload we get at this instead of maintaining per-data-type functions
@@ -722,7 +722,12 @@ def dedupe_citations(citations: List[Dict]) -> List[Dict]:
     return dd_cits
 
 
-def write_citations(dag: ProvDAG, out_fp: FileName, deduplicate: bool = True,
+def write_citations(payload: Union[FileName, ProvDAG],
+                    out_fp: FileName,
+                    validate_checksums: bool = True,
+                    recursive: bool = False,
+                    verbose: bool = True,
+                    deduplicate: bool = True,
                     suppress_header: bool = False):
     """
     Writes a .bib file representing all unique citations from a ProvDAG to disk
@@ -730,6 +735,15 @@ def write_citations(dag: ProvDAG, out_fp: FileName, deduplicate: bool = True,
 
     TODO: write_citations_from_fp
     """
+    # Grab the right parse_metadata if the payload is already ProvDAG
+    if hasattr(payload, 'cfg'):
+        parse_metadata = payload.cfg.parse_study_metadata
+
+    # The ProvDAGParser handles ProvDAGs quickly, so we can just throw whatever
+    # payload we get at this instead of maintaining per-data-type functions
+    dag = ProvDAG(
+        payload, validate_checksums, parse_metadata, recursive, verbose)
+
     bib_db = collect_citations(dag, deduplicate=deduplicate)
     boundary = '#' * 79
     header = []

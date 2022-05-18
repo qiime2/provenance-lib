@@ -1,7 +1,6 @@
 import click
 import os
 
-from .parse import ProvDAG
 from .replay import (
     replay_provenance, write_citations,
     write_reproducibility_supplement,
@@ -135,8 +134,8 @@ def citations(i_in_fp: FileName,
     Not for use in reporting e.g. software versions used in an analysis, as
     deduplication removes duplicate references with different plugin versions.
     """
-    dag = ProvDAG(i_in_fp, verbose=p_verbose, recursive=p_recurse)
-    write_citations(dag, out_fp=o_out_fp, deduplicate=p_deduplicate,
+    write_citations(i_in_fp, out_fp=o_out_fp, deduplicate=p_deduplicate,
+                    verbose=p_verbose, recursive=p_recurse,
                     suppress_header=p_suppress_header)
     filename = os.path.realpath(o_out_fp)
     click.echo(f'Citations bibtex file written to {filename}')

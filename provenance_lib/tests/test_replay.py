@@ -935,7 +935,7 @@ class BuildActionUsageTests(CustomAssertions):
         pcoa_id = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
         n_id = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
         cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['cli'](),
-                           use_recorded_metadata=True, pm=pm)
+                           use_recorded_metadata=False, pm=pm)
         ns = NamespaceCollections()
         import_var = CLIUsageVariable(
             'pcoa', lambda: None, 'artifact', cfg.use)

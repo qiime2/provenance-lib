@@ -7,7 +7,7 @@ import textwrap
 from typing import List, Literal
 
 from q2cli.core.state import get_action_state
-from q2cli.core.usage import CLIUsage
+from q2cli.core.usage import CLIUsage, CLIUsageVariable
 import q2cli.util
 from qiime2.core.type import is_semantic_type, is_visualization_type
 from qiime2.plugins import ArtifactAPIUsage, ArtifactAPIUsageVariable
@@ -455,6 +455,24 @@ class ReplayPythonUsage(ArtifactAPIUsage):
         self.footer.extend(build_footer(dag, self.header_boundary))
 
 
+class ReplayCLIUsageVariable(CLIUsageVariable):
+    def to_interface_name(self):
+        """
+        Like parent, but does not kebab-case metadata. Filepaths are preserved.
+        """
+        if hasattr(self, '_q2cli_ref'):
+            return self._q2cli_ref
+
+        cli_name = '%s%s' % (self.name, self.ext)
+
+        # don't disturb file names, this will break importing where QIIME 2
+        # relies on specific filenames being present in a dir
+        if self.var_type not in ('format', 'column', 'metadata'):
+            cli_name = self.to_cli_name(cli_name)
+
+        return cli_name
+
+
 class ReplayCLIUsage(CLIUsage):
     shebang = '#!/usr/bin/env bash'
     header_boundary = ('#' * 79)
@@ -476,6 +494,9 @@ class ReplayCLIUsage(CLIUsage):
         self.footer = []
         self.enable_assertions = enable_assertions
         self.action_collection_size = action_collection_size
+
+    def usage_variable(self, name, factory, var_type):
+        return ReplayCLIUsageVariable(name, factory, var_type, self)
 
     def _append_action_line(self, signature, param_name, value):
         """
@@ -546,7 +567,7 @@ class ReplayCLIUsage(CLIUsage):
 
     def init_metadata(self, name, factory, dumped_md_fn: str = ''):
         """
-        Like parent, but optionally handles file prefixes for recorded md fps
+        Like parent, but appropriately handles filepaths for recorded md fps
         """
         variable = super().init_metadata(name, factory)
 

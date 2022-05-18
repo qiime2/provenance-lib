@@ -460,6 +460,9 @@ def init_md_from_recorded_md(node: ProvNode, param_name: str, md_id: str,
     initializes and returns a Metadata UsageVariable with Metadata scraped
     and dumped to disk from provenance
 
+    Assumes it will not be called if no metadata has been dumped to disk.
+    This is enforced above in replay_provenance for faster failure
+
     Raises a ValueError if the node has no metadata
     """
     if not node.metadata:

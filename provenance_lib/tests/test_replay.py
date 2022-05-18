@@ -622,19 +622,22 @@ class InitializerTests(unittest.TestCase):
         ns = UsageVarsDict({var_nm: param_nm})
         cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
                            use_recorded_metadata=False, pm=pm)
+        md_fn = 'demux_emp_single_0/barcodes_0'
 
         with self.assertRaisesRegex(ValueError, 'only.*call.*if.*metadata'):
-            init_md_from_recorded_md(no_md_node, var_nm, ns, cfg)
+            init_md_from_recorded_md(
+                no_md_node, param_nm, var_nm, ns, cfg, md_fn)
 
-        var = init_md_from_recorded_md(md_node, var_nm, ns, cfg)
+        var = init_md_from_recorded_md(
+            md_node, param_nm, var_nm, ns, cfg, md_fn)
         self.assertIsInstance(var, UsageVariable)
-        self.assertEqual(var.var_type, 'metadata')
+        self.assertEqual(var.var_type, 'column')
 
         rendered = cfg.use.render()
         self.assertRegex(rendered, 'from qiime2 import Metadata')
-        self.assertRegex(
-            rendered,
-            r"barcodes_0_md = Metadata.load\(\<your metadata filepath\>\)")
+        exp = (r"barcodes_0_md = Metadata.load\('.*/"
+               r"recorded_metadata/demux_emp_single_0/barcodes_0.tsv'")
+        self.assertRegex(rendered, exp)
 
     def test_init_md_from_artifacts_no_artifacts(self):
         cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
@@ -918,10 +921,11 @@ class BuildActionUsageTests(CustomAssertions):
         act_undersc = re.sub('-', '_', action)
         self.assertREAppearsOnlyOnce(
             rendered,
-            fr"saved at 'recorded_metadata\/{plugin}_{act_undersc}_0\/'")
+            fr"saved at '.\/recorded_metadata\/{plugin}_{act_undersc}_0\/'")
         self.assertRegex(rendered, f"qiime {plugin} {action}")
         self.assertRegex(rendered, "--i-seqs imported-seqs-0.qza")
-        self.assertRegex(rendered, "--m-barcodes-file <barcodes-0.tsv>")
+        self.assertRegex(rendered,
+                         "--m-barcodes-file <your metadata filepath>")
         self.assertRegex(rendered, r"--m-barcodes-column <column name>")
         self.assertRegex(rendered, "--p-no-rev-comp-barcodes")
         self.assertRegex(rendered, "--p-no-rev-comp-mapping-barcodes")
@@ -960,7 +964,8 @@ class BuildActionUsageTests(CustomAssertions):
 
         self.assertRegex(rendered, f"qiime {plugin} {action}")
         self.assertRegex(rendered, "--i-pcoa pcoa.qza")
-        self.assertRegex(rendered, "--m-metadata-file <metadata-0.tsv>")
+        self.assertRegex(rendered,
+                         "--m-metadata-file <your metadata filepath>")
         self.assertRegex(rendered,
                          "(?s)parameter name was not found in your.*env")
         # This has become "custom-axes" since the .qzv was first recorded
@@ -1000,7 +1005,7 @@ class BuildActionUsageTests(CustomAssertions):
         self.assertREAppearsOnlyOnce(rendered, "command may have received")
         self.assertREAppearsOnlyOnce(
             rendered,
-            fr"saved at 'recorded_metadata\/{plugin}_{action}_0\/'")
+            fr"saved at '.\/recorded_metadata\/{plugin}_{action}_0\/'")
         self.assertREAppearsOnlyOnce(rendered, "NOTE:.*substitute.*Metadata")
         md_name = 'barcodes_0_md'
         mdc_name = 'barcodes_0_mdc_0'
@@ -1051,7 +1056,8 @@ class BuildActionUsageTests(CustomAssertions):
             rendered, f"import.*{plugin}.actions as {plugin}_actions")
 
         md_name = f'{md_param}_0_md'
-        self.assertRegex(rendered, rf'{md_name} = Metadata.load\(<.*filepath>')
+        self.assertRegex(rendered,
+                         rf'{md_name} = Metadata.load\(.*metadata_0.tsv')
 
         self.assertRegex(rendered,
                          rf'{out_name}, = {plugin}_actions.{action}\(')
@@ -1315,10 +1321,14 @@ class WriteReproducibilitySupplementTests(CustomAssertions):
             exp = {'python3_replay.py',
                    'cli_replay.sh',
                    'citations.bib',
+                   'recorded_metadata/',
+                   'recorded_metadata/demux_emp_single_0/barcodes_0.tsv',
                    }
 
             with zipfile.ZipFile(out_fp, 'r') as myzip:
-                self.assertEqual(exp, set(myzip.namelist()))
+                namelist_set = set(myzip.namelist())
+                for item in exp:
+                    self.assertIn(item, namelist_set)
 
     def test_write_reproducibility_supplement_from_provdag(self):
         """
@@ -1344,7 +1354,11 @@ class WriteReproducibilitySupplementTests(CustomAssertions):
             exp = {'python3_replay.py',
                    'cli_replay.sh',
                    'citations.bib',
+                   'recorded_metadata/',
+                   'recorded_metadata/demux_emp_single_0/barcodes_0.tsv',
                    }
 
             with zipfile.ZipFile(out_fp, 'r') as myzip:
-                self.assertEqual(exp, set(myzip.namelist()))
+                namelist_set = set(myzip.namelist())
+                for item in exp:
+                    self.assertIn(item, namelist_set)

@@ -452,8 +452,7 @@ def build_action_usage(node: ProvNode,
 
 def init_md_from_recorded_md(node: ProvNode, param_name: str, md_id: str,
                              ns: UsageVarsDict, cfg: ReplayConfig,
-                             md_fn: FileName) -> \
-                                 UsageVariable:
+                             md_fn: FileName) -> UsageVariable:
     """
     initializes and returns a Metadata UsageVariable with Metadata scraped
     and dumped to disk from provenance

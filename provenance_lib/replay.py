@@ -362,27 +362,12 @@ def build_action_usage(node: ProvNode,
     action = node.action.action_name
     plg_action_name = uniquify_action_name(plugin, action, ns.action_namespace)
 
-    inputs = {}
-    for input_name, uuids in node.action.inputs.items():
-        # Some optional inputs take None as a default
-        if uuids is not None:
-            # Some inputs take collections of input strings, so:
-            if type(uuids) is str:
-                inputs.update({input_name: ns.usg_vars[uuids]})
-            else:  # it's a collection
-                input_vars = []
-                for uuid in uuids:
-                    input_vars.append(ns.usg_vars[uuid])
-                inputs.update({input_name: input_vars})
+    inputs = _collect_action_inputs(ns, node)
 
     # Process outputs before params so we can access the unique output name
     # from the namespace when dumping metadata to files below
     raw_outputs = std_actions[action_id].items()
-    outputs = {}
-    for uuid, output_name in raw_outputs:
-        ns.usg_var_namespace.update({uuid: output_name})
-        uniquified_output_name = ns.usg_var_namespace[uuid]
-        outputs.update({output_name: uniquified_output_name})
+    outputs = _uniquify_output_names(ns, raw_outputs)
 
     for param_name, param_val in node.action.parameters.items():
         # We can currently assume that None arguments are only passed to params
@@ -448,6 +433,39 @@ def build_action_usage(node: ProvNode,
     for res in usg_var:
         uuid_key = ns.usg_var_namespace.get_key(value=res.name)
         ns.usg_vars[uuid_key] = res
+
+
+def _collect_action_inputs(ns: NamespaceCollections, node: ProvNode) -> dict:
+    """
+    Returns a dict containing the action Inputs from a ProvNode
+    {input_name: input_vars}
+    """
+    inputs_dict = {}
+    for input_name, uuids in node.action.inputs.items():
+        # Some optional inputs take None as a default
+        if uuids is not None:
+            # Some inputs take collections of input strings, so:
+            if type(uuids) is str:
+                inputs_dict.update({input_name: ns.usg_vars[uuids]})
+            else:  # it's a collection
+                input_vars = []
+                for uuid in uuids:
+                    input_vars.append(ns.usg_vars[uuid])
+                inputs_dict.update({input_name: input_vars})
+    return inputs_dict
+
+
+def _uniquify_output_names(ns: NamespaceCollections, raw_outputs) -> dict:
+    """
+    Returns a dict containing the uniquified output names from a ProvNode
+    {output_name: uniquified_output_name}
+    """
+    outputs = {}
+    for uuid, output_name in raw_outputs:
+        ns.usg_var_namespace.update({uuid: output_name})
+        uniquified_output_name = ns.usg_var_namespace[uuid]
+        outputs.update({output_name: uniquified_output_name})
+    return outputs
 
 
 def init_md_from_recorded_md(node: ProvNode, param_name: str, md_id: str,

@@ -74,5 +74,5 @@ Please *do not* raise user support questions as issues on the Github repository.
 They may be closed without response as off topic.
 
 ## Contributing
-I look forward to accepting developer contributions in the near future.
-In the meantime, bug reports and feature request issues will be warmly welcomed.
+Please open an issue to report bugs, request features, or propose a new feature or enhancement.
+Contributions will be warmly welcomed.

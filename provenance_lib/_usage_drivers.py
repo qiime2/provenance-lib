@@ -7,7 +7,7 @@ import textwrap
 from typing import List, Literal
 
 from q2cli.core.state import get_action_state
-from q2cli.core.usage import CLIUsage
+from q2cli.core.usage import CLIUsage, CLIUsageVariable
 import q2cli.util
 from qiime2.core.type import is_semantic_type, is_visualization_type
 from qiime2.plugins import ArtifactAPIUsage, ArtifactAPIUsageVariable
@@ -204,10 +204,10 @@ class ReplayPythonUsageVariable(ArtifactAPIUsageVariable):
             # No format here - it shouldn't be possible to make it this far
         }[self.var_type]
         var_name = '_'.join(parts)
-        # NOTE: This will no longer guarantee valid python identifiers,
-        # because it allows <>. We get more human-readable no-prov node names.
-        # Alternately, we could replace < and > with e.g. ___, which is
-        # unlikely to occur and is still a valid python identifier
+        # NOTE: unlike the parent method, this does not guarantee valid python
+        # identifiers, because it allows <>. We get more human-readable no-prov
+        # node names. Alternately, we could replace < and > with e.g. ___,
+        # which is unlikely to occur and is still a valid python identifier
         var_name = re.sub(r'[^a-zA-Z0-9_<>]|^(?=\d)', '_', var_name)
         return self.repr_raw_variable_name(var_name)
 
@@ -315,18 +315,26 @@ class ReplayPythonUsage(ArtifactAPIUsage):
 
         return ', '.join(output_vars).strip()
 
-    def init_metadata(self, name, factory):
+    def init_metadata(self, name, factory, dumped_md_fn: str = ''):
         """
         ArtifactAPIUsage doesn't render Metadata loading, so we do it here.
+
+        dumped_md_fn is an optional parameter used only by
+        init_md_from_recorded_md. It allows us to produce scripts that pass
+        metadata dumped from provenance to dumped_md_fn
         """
         var = super().init_metadata(name, factory)
         self._update_imports(from_='qiime2', import_='Metadata')
         input_fp = var.to_interface_name()
-        self.comment(
-            'NOTE: You may substitute already-loaded Metadata for the '
-            'following, or cast a pandas.DataFrame to Metadata as needed.'
-        )
-        lines = [f'{input_fp} = Metadata.load(<your metadata filepath>)']
+        if dumped_md_fn:
+            lines = [f'{input_fp} = Metadata.load(\'{dumped_md_fn}.tsv\')']
+        else:
+            self.comment(
+                'NOTE: You may substitute already-loaded Metadata for the '
+                'following, or cast a pandas.DataFrame to Metadata as needed.'
+            )
+            lines = [f'{input_fp} = Metadata.load(<your metadata filepath>)']
+
         self._add(lines)
         return var
 
@@ -447,6 +455,36 @@ class ReplayPythonUsage(ArtifactAPIUsage):
         self.footer.extend(build_footer(dag, self.header_boundary))
 
 
+class ReplayCLIUsageVariable(CLIUsageVariable):
+    EXT = {
+        'artifact': '.qza',
+        'visualization': '.qzv',
+        'metadata': '',
+        'column': '',
+        'format': '',
+    }
+
+    @property
+    def ext(self):
+        return self.EXT[self.var_type]
+
+    def to_interface_name(self):
+        """
+        Like parent, but does not kebab-case metadata. Filepaths are preserved.
+        """
+        if hasattr(self, '_q2cli_ref'):
+            return self._q2cli_ref
+
+        cli_name = '%s%s' % (self.name, self.ext)
+
+        # don't disturb file names, this will break importing where QIIME 2
+        # relies on specific filenames being present in a dir
+        if self.var_type not in ('format', 'column', 'metadata'):
+            cli_name = self.to_cli_name(cli_name)
+
+        return cli_name
+
+
 class ReplayCLIUsage(CLIUsage):
     shebang = '#!/usr/bin/env bash'
     header_boundary = ('#' * 79)
@@ -468,6 +506,9 @@ class ReplayCLIUsage(CLIUsage):
         self.footer = []
         self.enable_assertions = enable_assertions
         self.action_collection_size = action_collection_size
+
+    def usage_variable(self, name, factory, var_type):
+        return ReplayCLIUsageVariable(name, factory, var_type, self)
 
     def _append_action_line(self, signature, param_name, value):
         """
@@ -499,9 +540,9 @@ class ReplayCLIUsage(CLIUsage):
     def _make_param(self, value, state):
         """ wrap metadata filenames in <> to force users to replace them """
         if state['metadata'] == 'column':
-            value = (f'<{value[0]}>', *value[1:])
+            value = (f'{value[0]}', *value[1:])
         if state['metadata'] == 'file':
-            value = f'<{value}>'
+            value = f'{value}'
         return super()._make_param(value, state)
 
     def import_from_format(self, name, semantic_type, variable,
@@ -535,6 +576,21 @@ class ReplayCLIUsage(CLIUsage):
         self.recorder.extend(lines)
 
         return imported_var
+
+    def init_metadata(self, name, factory, dumped_md_fn: str = ''):
+        """
+        Like parent, but appropriately handles filepaths for recorded md fps
+        """
+        variable = super().init_metadata(name, factory)
+
+        self.init_data.append(variable)
+
+        if dumped_md_fn:
+            variable.name = f'"{dumped_md_fn}.tsv"'
+        else:
+            variable.name = '<your metadata filepath>'
+
+        return variable
 
     def comment(self, text):
         """

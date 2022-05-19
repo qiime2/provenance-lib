@@ -128,6 +128,32 @@ class ReplayProvenanceTests(unittest.TestCase):
                 in_fp, 'unused_fp', 'python3', parse_metadata=False,
                 use_recorded_metadata=True)
 
+    def test_replay_dump_md_without_parse(self):
+        in_fp = TEST_DATA['5']['qzv_fp']
+        with self.assertRaisesRegex(
+                ValueError, "(?s)Metadata not parsed,.*dump_recorded_met"):
+            replay_provenance(
+                in_fp, 'unused_fp', 'python3', parse_metadata=False,
+                dump_recorded_metadata=True)
+
+    def test_replay_md_out_fp_without_parse(self):
+        in_fp = TEST_DATA['5']['qzv_fp']
+        with self.assertRaisesRegex(
+                ValueError, "(?s)Metadata not parsed,.*not.*metadata output"):
+            replay_provenance(
+                in_fp, 'unused_fp', 'python3', parse_metadata=False,
+                dump_recorded_metadata=False,
+                md_out_fp='/user/dumb/some_filepath')
+
+    def test_replay_use_md_without_dump_md(self):
+        in_fp = TEST_DATA['5']['qzv_fp']
+        with self.assertRaisesRegex(
+                NotImplementedError,
+                "(?s)uses.*metadata.*must.*written to disk"):
+            replay_provenance(
+                in_fp, 'unused_fp', 'python3', use_recorded_metadata=True,
+                dump_recorded_metadata=False)
+
     def test_replay_from_provdag(self):
         v5_dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -411,7 +437,6 @@ class MiscHelperFnTests(unittest.TestCase):
     def test_param_is_metadata_col(self):
         """
         Assumes q2-demux and q2-diversity are installed in the active env.
-        TODO: replace with dummy plugin if we integrate this into the framework
         """
         cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['cli'](),
                            use_recorded_metadata=False, pm=pm)
@@ -440,6 +465,29 @@ class MiscHelperFnTests(unittest.TestCase):
             param_is_metadata_column(
                 cfg, 'custom_axes', 'princeling', 'plot')
 
+    def test_dump_recorded_md_file_to_custom_dir(self):
+        v5_dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
+        root_uuid = TEST_DATA['5']['uuid']
+        out_dir = 'custom_dir'
+        provnode = v5_dag.get_node_data(root_uuid)
+        og_md = provnode.metadata['metadata']
+        act_nm = 'emperor_plot_0'
+        md_id = 'metadata'
+        fn = 'metadata_0.tsv'
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['cli'](), pm=pm,
+                               md_out_fp=(tmpdir + '/' + out_dir))
+            dump_recorded_md_file(cfg, provnode, act_nm, md_id, fn)
+            out_path = pathlib.Path(tmpdir) / out_dir / act_nm / fn
+
+            # was the file written where expected?
+            self.assertTrue(out_path.is_file())
+
+            # is it the same df?
+            dumped_df = pd.read_csv(out_path, sep='\t')
+            pd.testing.assert_frame_equal(dumped_df, og_md)
+
     def test_dump_recorded_md_file(self):
         mixed_uuid = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
         with self.assertWarnsRegex(
@@ -448,6 +496,7 @@ class MiscHelperFnTests(unittest.TestCase):
                                          'mixed_v0_v1_uu_emperor.qzv'))
         root_uuid = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
         out_dir = 'recorded_metadata'
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['cli'](), pm=pm)
         provnode = mixed.get_node_data(root_uuid)
         og_md = provnode.metadata['metadata']
         act_nm = 'emperor_plot_0'
@@ -456,7 +505,7 @@ class MiscHelperFnTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pathlib.Path.cwd = MagicMock(return_value=pathlib.Path(tmpdir))
-            dump_recorded_md_file(provnode, act_nm, md_id, fn)
+            dump_recorded_md_file(cfg, provnode, act_nm, md_id, fn)
             out_path = pathlib.Path(tmpdir) / out_dir / act_nm / fn
 
             # was the file written where expected?
@@ -471,7 +520,7 @@ class MiscHelperFnTests(unittest.TestCase):
             act_nm2 = 'emperor_plot_1'
             md_id2 = 'metadata'
             fn2 = 'metadata_1.tsv'
-            dump_recorded_md_file(provnode, act_nm2, md_id2, fn2)
+            dump_recorded_md_file(cfg, provnode, act_nm2, md_id2, fn2)
             out_path2 = pathlib.Path(tmpdir) / out_dir / act_nm2 / fn2
 
             # are both files where expected?
@@ -485,6 +534,7 @@ class MiscHelperFnTests(unittest.TestCase):
                 UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
             v0 = ProvDAG(os.path.join(DATA_DIR, 'v0_uu_emperor.qzv'))
         root_uuid = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](), pm=pm)
         provnode = v0.get_node_data(root_uuid)
         act_nm = 'emperor_plot_0'
         md_id = 'metadata'
@@ -492,7 +542,7 @@ class MiscHelperFnTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError,
                                     "should only be called.*if.*metadata"):
-            dump_recorded_md_file(provnode, act_nm, md_id, fn)
+            dump_recorded_md_file(cfg, provnode, act_nm, md_id, fn)
 
 
 class GroupByActionTests(unittest.TestCase):
@@ -581,19 +631,47 @@ class InitializerTests(unittest.TestCase):
         ns = UsageVarsDict({var_nm: param_nm})
         cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
                            use_recorded_metadata=False, pm=pm)
+        md_fn = 'demux_emp_single_0/barcodes_0'
 
         with self.assertRaisesRegex(ValueError, 'only.*call.*if.*metadata'):
-            init_md_from_recorded_md(no_md_node, var_nm, ns, cfg)
+            init_md_from_recorded_md(
+                no_md_node, param_nm, var_nm, ns, cfg, md_fn)
 
-        var = init_md_from_recorded_md(md_node, var_nm, ns, cfg)
+        var = init_md_from_recorded_md(
+            md_node, param_nm, var_nm, ns, cfg, md_fn)
         self.assertIsInstance(var, UsageVariable)
-        self.assertEqual(var.var_type, 'metadata')
+        self.assertEqual(var.var_type, 'column')
 
         rendered = cfg.use.render()
         self.assertRegex(rendered, 'from qiime2 import Metadata')
-        self.assertRegex(
-            rendered,
-            r"barcodes_0_md = Metadata.load\(\<your metadata filepath\>\)")
+        exp = (r"barcodes_0_md = Metadata.load\('.*/"
+               r"recorded_metadata/demux_emp_single_0/barcodes_0.tsv'")
+        self.assertRegex(rendered, exp)
+
+    def test_init_md_from_recorded_md_user_passed_fp(self):
+        has_md_id = '99fa3670-aa1a-45f6-ba8e-803c976a1163'
+        dag = ProvDAG(os.path.join(DATA_DIR, 'v5_table.qza'))
+        md_node = dag.get_node_data(has_md_id)
+
+        var_nm = 'per_sample_sequences_0_barcodes'
+        param_nm = 'barcodes'
+        # the variable name should already be added to the namespace
+        ns = UsageVarsDict({var_nm: param_nm})
+        cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
+                           use_recorded_metadata=False, pm=pm,
+                           md_out_fp='./md_out')
+        md_fn = 'test_a/test_o'
+
+        var = init_md_from_recorded_md(
+            md_node, param_nm, var_nm, ns, cfg, md_fn)
+        self.assertIsInstance(var, UsageVariable)
+        self.assertEqual(var.var_type, 'column')
+
+        rendered = cfg.use.render()
+        print(rendered)
+        self.assertRegex(rendered, 'from qiime2 import Metadata')
+        exp = (r"barcodes_0_md = Metadata.load\('.*md_out/test_a/test_o.tsv'")
+        self.assertRegex(rendered, exp)
 
     def test_init_md_from_artifacts_no_artifacts(self):
         cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
@@ -877,10 +955,11 @@ class BuildActionUsageTests(CustomAssertions):
         act_undersc = re.sub('-', '_', action)
         self.assertREAppearsOnlyOnce(
             rendered,
-            fr"saved at 'recorded_metadata\/{plugin}_{act_undersc}_0\/'")
+            fr"saved at '.\/recorded_metadata\/{plugin}_{act_undersc}_0\/'")
         self.assertRegex(rendered, f"qiime {plugin} {action}")
         self.assertRegex(rendered, "--i-seqs imported-seqs-0.qza")
-        self.assertRegex(rendered, "--m-barcodes-file <barcodes-0.tsv>")
+        self.assertRegex(rendered,
+                         "--m-barcodes-file <your metadata filepath>")
         self.assertRegex(rendered, r"--m-barcodes-column <column name>")
         self.assertRegex(rendered, "--p-no-rev-comp-barcodes")
         self.assertRegex(rendered, "--p-no-rev-comp-mapping-barcodes")
@@ -893,7 +972,7 @@ class BuildActionUsageTests(CustomAssertions):
         pcoa_id = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
         n_id = '0b8b47bd-f2f8-4029-923c-0e37a68340c3'
         cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['cli'](),
-                           use_recorded_metadata=True, pm=pm)
+                           use_recorded_metadata=False, pm=pm)
         ns = NamespaceCollections()
         import_var = CLIUsageVariable(
             'pcoa', lambda: None, 'artifact', cfg.use)
@@ -919,7 +998,8 @@ class BuildActionUsageTests(CustomAssertions):
 
         self.assertRegex(rendered, f"qiime {plugin} {action}")
         self.assertRegex(rendered, "--i-pcoa pcoa.qza")
-        self.assertRegex(rendered, "--m-metadata-file <metadata-0.tsv>")
+        self.assertRegex(rendered,
+                         "--m-metadata-file <your metadata filepath>")
         self.assertRegex(rendered,
                          "(?s)parameter name was not found in your.*env")
         # This has become "custom-axes" since the .qzv was first recorded
@@ -959,7 +1039,7 @@ class BuildActionUsageTests(CustomAssertions):
         self.assertREAppearsOnlyOnce(rendered, "command may have received")
         self.assertREAppearsOnlyOnce(
             rendered,
-            fr"saved at 'recorded_metadata\/{plugin}_{action}_0\/'")
+            fr"saved at '.\/recorded_metadata\/{plugin}_{action}_0\/'")
         self.assertREAppearsOnlyOnce(rendered, "NOTE:.*substitute.*Metadata")
         md_name = 'barcodes_0_md'
         mdc_name = 'barcodes_0_mdc_0'
@@ -1010,7 +1090,8 @@ class BuildActionUsageTests(CustomAssertions):
             rendered, f"import.*{plugin}.actions as {plugin}_actions")
 
         md_name = f'{md_param}_0_md'
-        self.assertRegex(rendered, rf'{md_name} = Metadata.load\(<.*filepath>')
+        self.assertRegex(rendered,
+                         rf'{md_name} = Metadata.load\(.*metadata_0.tsv')
 
         self.assertRegex(rendered,
                          rf'{out_name}, = {plugin}_actions.{action}\(')
@@ -1274,10 +1355,14 @@ class WriteReproducibilitySupplementTests(CustomAssertions):
             exp = {'python3_replay.py',
                    'cli_replay.sh',
                    'citations.bib',
+                   'recorded_metadata/',
+                   'recorded_metadata/demux_emp_single_0/barcodes_0.tsv',
                    }
 
             with zipfile.ZipFile(out_fp, 'r') as myzip:
-                self.assertEqual(exp, set(myzip.namelist()))
+                namelist_set = set(myzip.namelist())
+                for item in exp:
+                    self.assertIn(item, namelist_set)
 
     def test_write_reproducibility_supplement_from_provdag(self):
         """
@@ -1303,7 +1388,11 @@ class WriteReproducibilitySupplementTests(CustomAssertions):
             exp = {'python3_replay.py',
                    'cli_replay.sh',
                    'citations.bib',
+                   'recorded_metadata/',
+                   'recorded_metadata/demux_emp_single_0/barcodes_0.tsv',
                    }
 
             with zipfile.ZipFile(out_fp, 'r') as myzip:
-                self.assertEqual(exp, set(myzip.namelist()))
+                namelist_set = set(myzip.namelist())
+                for item in exp:
+                    self.assertIn(item, namelist_set)

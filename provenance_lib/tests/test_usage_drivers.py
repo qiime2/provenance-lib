@@ -3,9 +3,44 @@ import pathlib
 import tempfile
 import unittest
 
+from qiime2.sdk.usage import UsageAction
+
 from ..replay import replay_provenance
 from .test_parse import DATA_DIR
-from .._usage_drivers import MissingPluginError
+from .._usage_drivers import (
+    MissingPluginError, ReplayCLIUsage, _get_action_if_plugin_present,
+)
+
+
+class MiscHelperFunctionTests(unittest.TestCase):
+    def test_get_action_if_plugin_present_plugin_present(self):
+        real_action = UsageAction('diversity', 'core_metrics')
+        action = _get_action_if_plugin_present(real_action)
+        self.assertEqual('diversity', action.plugin_id)
+        self.assertEqual('core_metrics', action.id)
+
+    def test_get_action_if_plugin_present_plugin_missing(self):
+        fake_action = UsageAction('imaginary', 'action')
+        with self.assertRaisesRegex(
+                MissingPluginError,
+                "(?s)missing one or more plugins.*library"):
+            _get_action_if_plugin_present(fake_action)
+
+
+class ReplayCLIUsageTests(unittest.TestCase):
+    def test_init_metadata(self):
+        use = ReplayCLIUsage()
+        var = use.init_metadata(name='testing', factory=lambda: None)
+        print(var)
+        self.assertEqual(var.name, '<your metadata filepath>')
+        self.assertEqual(var.var_type, 'metadata')
+
+    def test_init_metadata_with_dumped_md_fn(self):
+        use = ReplayCLIUsage()
+        var = use.init_metadata(
+            name='testing', factory=lambda: None, dumped_md_fn='some_md')
+        self.assertEqual(var.var_type, 'metadata')
+        self.assertEqual(var.name, '"some_md.tsv"')
 
 
 class ReplayPythonUsageTests(unittest.TestCase):

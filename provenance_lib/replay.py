@@ -29,27 +29,37 @@ class ReplayConfig():
     """
     fields:
 
+    -use
+      the usage driver to be used for provenance replay
+    - dump_recorded_metadata
+      If True, replay should write the metadata recorded in provenance to disk
+      in .tsv format
     - use_recorded_metadata
-      If true, replay should use the metadata recorded in provenance
+      If True, replay should use the metadata recorded in provenance
+    - pm
+      an instance of the QIIME 2 PluginManager
     - md_context_has_been_printed
-      TODO: if this was no_md_context, True would prevent context from printing
       a flag set by default and used internally, allows context to be printed
       once and only once.
     - no_provenance_context_has_been_printed
-      TODO: if this was no_no_pr_context, True would stop context from printing
       indicates the no-provenance context documentation has not been printed
     - header
       if True, an introductory how-to header should be rendered to the script
     - verbose
       if True, progress will be reported to stdout
+    - md_out_fp
+      the directory path where caputred metadata should be written
+
     """
     use: Usage
-    use_recorded_metadata: bool
+    use_recorded_metadata: bool = False
     pm: PluginManager = PluginManager()
     md_context_has_been_printed: bool = False
     no_provenance_context_has_been_printed: bool = False
     header: bool = True
     verbose: bool = False
+    dump_recorded_metadata: bool = True
+    md_out_fp: FileName = ''
 
 
 @dataclass(frozen=False)
@@ -146,7 +156,9 @@ def replay_provenance(payload: Union[FileName, ProvDAG],
                       recursive: bool = False,
                       use_recorded_metadata: bool = False,
                       suppress_header: bool = False,
-                      verbose: bool = False):
+                      verbose: bool = False,
+                      dump_recorded_metadata: bool = True,
+                      md_out_fp: FileName = '',):
     """
     Renders usage examples describing a ProvDAG, producing an interface-
     specific executable.
@@ -168,6 +180,26 @@ def replay_provenance(payload: Union[FileName, ProvDAG],
             "Metadata not parsed for replay. Re-run with parse_metadata, or "
             "set use_recorded_metadata to False")
 
+    if dump_recorded_metadata and not parse_metadata:
+        raise ValueError(
+            "Metadata not parsed, so cannot be written to disk. Re-run with "
+            "parse_metadata, or set dump_recorded_metadata to False")
+
+    if md_out_fp and not parse_metadata:
+        raise ValueError(
+            "Metadata not parsed, so cannot be written to disk. Re-run with "
+            "parse_metadata, or do not pass a metadata output filepath "
+            "argument.")
+
+    if use_recorded_metadata and not dump_recorded_metadata:
+        raise NotImplementedError(
+            "In order to produce a replay script that uses metadata "
+            "captured in provenance, that metadata must first be written to "
+            "disk. Re-run with dump-recorded-metadata set to True, or "
+            "use-recorded-metadata set to False. Possible future support for "
+            "'touchless' replay from provenance is tracked in "
+            "https://github.com/qiime2/provenance-lib/issues/98")
+
     # The ProvDAGParser handles ProvDAGs quickly, so we can just throw whatever
     # payload we get at this instead of maintaining per-data-type functions
     dag = ProvDAG(
@@ -175,7 +207,8 @@ def replay_provenance(payload: Union[FileName, ProvDAG],
 
     cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS[usage_driver](),
                        use_recorded_metadata=use_recorded_metadata,
-                       verbose=verbose)
+                       dump_recorded_metadata=dump_recorded_metadata,
+                       verbose=verbose, md_out_fp=md_out_fp)
     # build order is handled by use.render, so doesn't matter here
     if not suppress_header:
         cfg.use.build_header()
@@ -232,6 +265,7 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
         build_no_provenance_node_usage(n_data, node_id, usg_ns, cfg)
 
     for action_id in (std_actions := actions.std_actions):
+        # We are replaying actions not nodes, so any associated node works
         some_node_id_from_this_action = next(iter(std_actions[action_id]))
         n_data = dag.get_node_data(some_node_id_from_this_action)
         if n_data.action.action_type == 'import':
@@ -328,27 +362,12 @@ def build_action_usage(node: ProvNode,
     action = node.action.action_name
     plg_action_name = uniquify_action_name(plugin, action, ns.action_namespace)
 
-    inputs = {}
-    for input_name, uuids in node.action.inputs.items():
-        # Some optional inputs take None as a default
-        if uuids is not None:
-            # Some inputs take collections of input strings, so:
-            if type(uuids) is str:
-                inputs.update({input_name: ns.usg_vars[uuids]})
-            else:  # it's a collection
-                input_vars = []
-                for uuid in uuids:
-                    input_vars.append(ns.usg_vars[uuid])
-                inputs.update({input_name: input_vars})
+    inputs = _collect_action_inputs(ns, node)
 
     # Process outputs before params so we can access the unique output name
     # from the namespace when dumping metadata to files below
     raw_outputs = std_actions[action_id].items()
-    outputs = {}
-    for uuid, output_name in raw_outputs:
-        ns.usg_var_namespace.update({uuid: output_name})
-        uniquified_output_name = ns.usg_var_namespace[uuid]
-        outputs.update({output_name: uniquified_output_name})
+    outputs = _uniquify_output_names(ns, raw_outputs)
 
     for param_name, param_val in node.action.parameters.items():
         # We can currently assume that None arguments are only passed to params
@@ -360,15 +379,19 @@ def build_action_usage(node: ProvNode,
             unique_md_id = ns.usg_var_namespace[node._uuid] + '_' + param_name
             ns.usg_var_namespace.update(
                 {unique_md_id: camel_to_snake(param_name)})
-            md_fn = ns.usg_var_namespace[unique_md_id] + '.tsv'
-            # TODO: When no_parse_metadata, we're still calling this
-            # which raises an error. We shouldn't be dumping md if we're not
-            # parsing it. Clean that up!
-            dump_recorded_md_file(node, plg_action_name, param_name, md_fn)
+            md_fn = ns.usg_var_namespace[unique_md_id]
+            if cfg.dump_recorded_metadata:
+                md_with_ext = md_fn + '.tsv'
+                dump_recorded_md_file(
+                    cfg, node, plg_action_name, param_name, md_with_ext
+                )
 
             if cfg.use_recorded_metadata:
+                # the local dir and fp where md will be saved (if at all) is:
+                md_fn = f'{plg_action_name}/{md_fn}'
                 md = init_md_from_recorded_md(
-                    node, unique_md_id, ns.usg_var_namespace, cfg)
+                    node, param_name, unique_md_id, ns.usg_var_namespace, cfg,
+                    md_fn)
             else:
                 if not cfg.md_context_has_been_printed:
                     cfg.md_context_has_been_printed = True
@@ -381,7 +404,11 @@ def build_action_usage(node: ProvNode,
                         "to enable visual inspection.")
 
                 if not command_specific_md_context_has_been_printed:
-                    fp = f'recorded_metadata/{plg_action_name}/'
+                    if cfg.md_out_fp:
+                        fp = f'{cfg.md_out_fp}/{plg_action_name}'
+                    else:
+                        fp = f'./recorded_metadata/{plg_action_name}/'
+
                     cfg.use.comment(
                         "The following command may have received additional "
                         "metadata .tsv files. To confirm you have covered "
@@ -408,26 +435,76 @@ def build_action_usage(node: ProvNode,
         ns.usg_vars[uuid_key] = res
 
 
-def init_md_from_recorded_md(node: ProvNode, unique_md_id: str,
-                             namespace: UsageVarsDict, cfg: ReplayConfig) -> \
-                                 UsageVariable:
+def _collect_action_inputs(ns: NamespaceCollections, node: ProvNode) -> dict:
     """
-    initializes and returns a Metadata UsageVariable from a pandas.DataFrame
-    scraped from provenance
+    Returns a dict containing the action Inputs from a ProvNode
+    {input_name: input_vars}
+    """
+    inputs_dict = {}
+    for input_name, uuids in node.action.inputs.items():
+        # Some optional inputs take None as a default
+        if uuids is not None:
+            # Some inputs take collections of input strings, so:
+            if type(uuids) is str:
+                inputs_dict.update({input_name: ns.usg_vars[uuids]})
+            else:  # it's a collection
+                input_vars = []
+                for uuid in uuids:
+                    input_vars.append(ns.usg_vars[uuid])
+                inputs_dict.update({input_name: input_vars})
+    return inputs_dict
+
+
+def _uniquify_output_names(ns: NamespaceCollections, raw_outputs) -> dict:
+    """
+    Returns a dict containing the uniquified output names from a ProvNode
+    {output_name: uniquified_output_name}
+    """
+    outputs = {}
+    for uuid, output_name in raw_outputs:
+        ns.usg_var_namespace.update({uuid: output_name})
+        uniquified_output_name = ns.usg_var_namespace[uuid]
+        outputs.update({output_name: uniquified_output_name})
+    return outputs
+
+
+def init_md_from_recorded_md(node: ProvNode, param_name: str, md_id: str,
+                             ns: UsageVarsDict, cfg: ReplayConfig,
+                             md_fn: FileName) -> UsageVariable:
+    """
+    initializes and returns a Metadata UsageVariable with Metadata scraped
+    and dumped to disk from provenance
+
+    Assumes it will not be called if no metadata has been dumped to disk.
+    This is enforced above in replay_provenance for faster failure
 
     Raises a ValueError if the node has no metadata
     """
     if not node.metadata:
         raise ValueError(
             'This function should only be called if the node has metadata.')
-    parameter_name = namespace[unique_md_id][:-2]
+    parameter_name = ns[md_id][:-2]
     md_df = node.metadata[parameter_name]
 
     def factory():  # pragma: no cover
         from qiime2 import Metadata
         return Metadata(md_df)
 
-    return cfg.use.init_metadata(namespace[unique_md_id], factory)
+    cwd = pathlib.Path.cwd()
+    if cfg.md_out_fp:
+        fn = str(cwd / cfg.md_out_fp / md_fn)
+    else:
+        fn = str(cwd / 'recorded_metadata' / md_fn)
+
+    md = cfg.use.init_metadata(ns[md_id], factory, dumped_md_fn=fn)
+    plugin = node.action.plugin
+    action = node.action.action_name
+    if param_is_metadata_column(cfg, param_name, plugin, action):
+        mdc_id = node._uuid + '_mdc'
+        mdc_name = ns[md_id] + '_mdc'
+        ns.update({mdc_id: mdc_name})
+        md = cfg.use.get_metadata_column(ns[mdc_id], '<column name>', md)
+    return md
 
 
 def init_md_from_md_file(node: ProvNode, param_name: str, md_id: str,
@@ -484,22 +561,27 @@ def init_md_from_artifacts(md_inf: MetadataInfo,
     return art_as_md
 
 
-def dump_recorded_md_file(
-        node: ProvNode, action_name: str, md_id: str, fn: str):
+def dump_recorded_md_file(cfg: ReplayConfig, node: ProvNode, action_name: str,
+                          md_id: str, fn: FileName):
     """
     Writes one metadata DataFrame passed to an action to .tsv
     Each action gets its own directory containing relevant md files.
 
     Raises a ValueError if the node has no metadata
     """
-    # TODO: node.metadata will also be None if no-parse-metadata is passed.
-    # Fix that!
+    # NOTE: node.metadata will also be None if no-parse-metadata is passed,
+    # which would error unpredictably if the check preventing md dumping with
+    # no-parse-provenance was removed from replay_provenance
     if node.metadata is None:
         raise ValueError(
             'This function should only be called if the node has metadata.')
 
-    cwd = pathlib.Path.cwd()
-    md_out_fp_base = cwd / 'recorded_metadata'
+    if cfg.md_out_fp:
+        md_out_fp_base = pathlib.Path(cfg.md_out_fp)
+    else:
+        cwd = pathlib.Path.cwd()
+        md_out_fp_base = cwd / 'recorded_metadata'
+
     action_dir = md_out_fp_base / action_name
     action_dir.mkdir(parents=True, exist_ok=True)
 
@@ -698,7 +780,9 @@ def write_reproducibility_supplement(payload: Union[FileName, ProvDAG],
                                      recurse: bool = False,
                                      deduplicate: bool = True,
                                      suppress_header: bool = False,
-                                     verbose: bool = True):
+                                     verbose: bool = True,
+                                     dump_recorded_metadata: bool = True,
+                                     ):
     """
     Produces a zipfile package of useful documentation for enabling in silico
     reproducibility of some QIIME 2 Result(s) from a ProvDAG, a QIIME 2
@@ -714,8 +798,6 @@ def write_reproducibility_supplement(payload: Union[FileName, ProvDAG],
       - validate_checksums
       - parse_metadata
       - recursive
-
-    TODO: include metadata dump?
     """
     # The ProvDAGParser handles ProvDAGs quickly, so we can just throw whatever
     # we get at this initializer instead of maintaining per-data-type functions
@@ -730,15 +812,18 @@ def write_reproducibility_supplement(payload: Union[FileName, ProvDAG],
         }
 
         for usage_driver in DRIVER_NAMES:
+            md_out_fp = tmpdir_path / 'recorded_metadata'
             rel_fp = filenames[usage_driver]
-            tmp_fp = pathlib.Path(tmpdir_path) / rel_fp
+            tmp_fp = tmpdir_path / rel_fp
             replay_provenance(
                 payload=dag,
                 out_fp=str(tmp_fp),
                 usage_driver=usage_driver,
                 use_recorded_metadata=use_recorded_metadata,
                 suppress_header=suppress_header,
-                verbose=verbose)
+                verbose=verbose,
+                dump_recorded_metadata=dump_recorded_metadata,
+                md_out_fp=md_out_fp)
             print(f'{usage_driver} replay script written to {rel_fp}')
 
         tmp_fp = tmpdir_path / 'citations.bib'

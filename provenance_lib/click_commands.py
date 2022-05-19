@@ -35,12 +35,12 @@ def replay():
 @click.option('--p-parse-metadata/--p-no-parse-metadata',
               default=True,
               show_default=True,
-              help=('parse the original metadata captured by provenance '
+              help=('parse the original metadata captured in provenance '
                     'for review or replay'))
 @click.option('--p-use-recorded-metadata/--p-no-use-recorded-metadata',
               default=False,
               show_default=True,
-              help='re-use the original metadata captured by provenance')
+              help='re-use the original metadata captured in provenance')
 @click.option('--p-suppress-header/--p-no-suppress-header',
               default=False,
               show_default=True,
@@ -49,6 +49,20 @@ def replay():
               default=True,
               show_default=True,
               help='print status messages to stdout while processing')
+@click.option('--p-dump-recorded-metadata/--p-no-dump-recorded-metadata',
+              default=True,
+              show_default=True,
+              help='write the original metadata captured in provenance to '
+                   'disk in the --o-metadata-out-fp directory')
+@click.option('--o-metadata-out-fp',
+              default='',
+              show_default=True,
+              help=('the directory where captured study metadata '
+                    'should be written if --p-dump-recorded-metadata. This '
+                    'often produces many outputs, so a dedicated directory '
+                    'should generally be used. Creates the directory if it '
+                    'does not already exist. By default, metadata is written '
+                    'to `${PWD}/recorded_metadata/`'))
 @click.option('--o-out-fp',
               required=True,
               help='the filepath where your replay script should be written.')
@@ -59,7 +73,10 @@ def provenance(i_in_fp: FileName, o_out_fp: FileName,
                p_parse_metadata: bool = True,
                p_use_recorded_metadata: bool = False,
                p_suppress_header: bool = False,
-               p_verbose: bool = True):
+               p_verbose: bool = True,
+               p_dump_recorded_metadata: bool = True,
+               o_metadata_out_fp: FileName = '',
+               ):
     """
     Replay provenance from a QIIME 2 Artifact filepath to a written executable
     """
@@ -71,7 +88,9 @@ def provenance(i_in_fp: FileName, o_out_fp: FileName,
                       recursive=p_recurse,
                       use_recorded_metadata=p_use_recorded_metadata,
                       suppress_header=p_suppress_header,
-                      verbose=p_verbose)
+                      verbose=p_verbose,
+                      dump_recorded_metadata=p_dump_recorded_metadata,
+                      md_out_fp=o_metadata_out_fp,)
     filename = os.path.realpath(o_out_fp)
     click.echo(f'Replay script written to {filename}')
 
@@ -145,12 +164,12 @@ def citations(i_in_fp: FileName,
 @click.option('--p-parse-metadata/--p-no-parse-metadata',
               default=True,
               show_default=True,
-              help=('parse the original metadata captured by provenance '
+              help=('parse the original metadata captured in provenance '
                     'for review or replay'))
 @click.option('--p-use-recorded-metadata/--p-no-use-recorded-metadata',
               default=False,
               show_default=True,
-              help='re-use the original metadata captured by provenance')
+              help='re-use the original metadata captured in provenance')
 @click.option('--p-suppress-header/--p-no-suppress-header',
               default=False,
               show_default=True,
@@ -159,6 +178,11 @@ def citations(i_in_fp: FileName,
               default=True,
               show_default=True,
               help='print status messages to stdout while processing')
+@click.option('--p-dump-recorded-metadata/--p-no-dump-recorded-metadata',
+              default=True,
+              show_default=True,
+              help='write the original metadata captured in provenance to '
+                   'disk in the --o-out-fp archive')
 @click.option('--o-out-fp',
               required=True,
               help='the filepath where your reproduciblity supplement zipfile '
@@ -171,7 +195,9 @@ def reproducibility_supplement(i_in_fp: FileName,
                                p_recurse: bool = False,
                                p_deduplicate: bool = True,
                                p_suppress_header: bool = False,
-                               p_verbose: bool = True):
+                               p_verbose: bool = True,
+                               p_dump_recorded_metadata: bool = True,
+                               ):
     """
     Produces a zipfile package of useful documentation for enabling in silico
     reproducibility of some QIIME 2 Result(s) from a QIIME 2 Artifact or
@@ -190,4 +216,6 @@ def reproducibility_supplement(i_in_fp: FileName,
         recurse=p_recurse,
         deduplicate=p_deduplicate,
         suppress_header=p_suppress_header,
-        verbose=p_verbose)
+        verbose=p_verbose,
+        dump_recorded_metadata=p_dump_recorded_metadata,
+        )

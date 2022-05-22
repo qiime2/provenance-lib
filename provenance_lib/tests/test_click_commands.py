@@ -203,7 +203,7 @@ class ReportCitationsTests(CustomAssertions):
 
 
 class ReproducibilitySupplementTests(CustomAssertions):
-    def test_write_reproducibility_supplement(self):
+    def test_replay_supplement(self):
         in_fp = TEST_DATA['5']['qzv_fp']
         in_fn = str(in_fp)
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -231,7 +231,7 @@ class ReproducibilitySupplementTests(CustomAssertions):
             with zipfile.ZipFile(out_fp, 'r') as myzip:
                 self.assertEqual(exp, set(myzip.namelist()))
 
-    def test_write_reproducibility_supplement_no_metadata_dump(self):
+    def test_replay_supplement_no_metadata_dump(self):
         """
         Confirms that metadata dumping does not occur when user opts out
         """

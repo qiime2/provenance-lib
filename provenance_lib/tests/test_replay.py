@@ -23,8 +23,8 @@ from ..replay import (
     build_usage_examples, collect_citations, dedupe_citations,
     dump_recorded_md_file, group_by_action, init_md_from_artifacts,
     init_md_from_md_file, init_md_from_recorded_md, param_is_metadata_column,
-    replay_provenance, uniquify_action_name, write_citations,
-    write_reproducibility_supplement,
+    replay_provenance, uniquify_action_name, replay_citations,
+    replay_supplement,
     SUPPORTED_USAGE_DRIVERS,
     )
 from .test_parse import DATA_DIR, TEST_DATA
@@ -1289,7 +1289,7 @@ class CitationsTests(unittest.TestCase):
         self.assertEqual(len(keys), 0)
         self.assertEqual(keys, exp_keys)
 
-    def test_write_citations(self):
+    def test_replay_citations(self):
         dag = ProvDAG(TEST_DATA['5']['qzv_fp'])
         exp_keys = ['framework|qiime2:2018.11.0|0',
                     'action|feature-table:2018.11.0|method:rarefy|0',
@@ -1309,14 +1309,14 @@ class CitationsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             out_fp = pathlib.Path(tmpdir) / 'citations.bib'
             out_fn = str(out_fp)
-            write_citations(dag, out_fn)
+            replay_citations(dag, out_fn)
             self.assertTrue(out_fp.is_file())
             with open(out_fn, 'r') as fp:
                 written = fp.read()
                 for key in exp_keys:
                     self.assertIn(key, written)
 
-    def test_write_citations_no_prov(self):
+    def test_replay_citations_no_prov(self):
         v0_uuid = '9f6a0f3e-22e6-4c39-8733-4e672919bbc7'
         with self.assertWarnsRegex(
                 UserWarning, f'(:?)Art.*{v0_uuid}.*prior.*incomplete'):
@@ -1326,7 +1326,7 @@ class CitationsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             out_fp = pathlib.Path(tmpdir) / 'citations.bib'
             out_fn = str(out_fp)
-            write_citations(mixed, out_fn)
+            replay_citations(mixed, out_fn)
             self.assertTrue(out_fp.is_file())
             with open(out_fn, 'r') as fp:
                 written = fp.read()
@@ -1334,7 +1334,7 @@ class CitationsTests(unittest.TestCase):
 
 
 class WriteReproducibilitySupplementTests(CustomAssertions):
-    def test_write_reproducibility_supplement_from_fp(self):
+    def test_replay_supplement_from_fp(self):
         """
         Do we get expected zipfile contents when the supplement is
         created from a filepath
@@ -1344,7 +1344,7 @@ class WriteReproducibilitySupplementTests(CustomAssertions):
         with tempfile.TemporaryDirectory() as tmpdir:
             out_fp = pathlib.Path(tmpdir) / 'supplement.zip'
             out_fn = str(out_fp)
-            write_reproducibility_supplement(
+            replay_supplement(
                 payload=in_fn,
                 out_fp=out_fn,
             )
@@ -1364,7 +1364,7 @@ class WriteReproducibilitySupplementTests(CustomAssertions):
                 for item in exp:
                     self.assertIn(item, namelist_set)
 
-    def test_write_reproducibility_supplement_from_provdag(self):
+    def test_replay_supplement_from_provdag(self):
         """
         Do we get expected zipfile contents when the supplement is
         created from a ProvDAG
@@ -1377,7 +1377,7 @@ class WriteReproducibilitySupplementTests(CustomAssertions):
         with tempfile.TemporaryDirectory() as tmpdir:
             out_fp = pathlib.Path(tmpdir) / 'supplement.zip'
             out_fn = str(out_fp)
-            write_reproducibility_supplement(
+            replay_supplement(
                 payload=dag,
                 out_fp=out_fn,
             )

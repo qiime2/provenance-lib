@@ -739,13 +739,13 @@ def dedupe_citations(citations: List[Dict]) -> List[Dict]:
     return dd_cits
 
 
-def write_citations(dag: ProvDAG, out_fp: FileName, deduplicate: bool = True,
-                    suppress_header: bool = False):
+def replay_citations(dag: ProvDAG, out_fp: FileName, deduplicate: bool = True,
+                     suppress_header: bool = False):
     """
     Writes a .bib file representing all unique citations from a ProvDAG to disk
     If `deduplicate`, refs will be heuristically deduplicated. e.g. by DOI
 
-    TODO: write_citations_from_fp
+    TODO: replay_citations_from_fp
     """
     bib_db = collect_citations(dag, deduplicate=deduplicate)
     boundary = '#' * 79
@@ -772,17 +772,17 @@ def write_citations(dag: ProvDAG, out_fp: FileName, deduplicate: bool = True,
             bibfile.write('\n'.join(footer))
 
 
-def write_reproducibility_supplement(payload: Union[FileName, ProvDAG],
-                                     out_fp: FileName,
-                                     validate_checksums: bool = True,
-                                     parse_metadata: bool = True,
-                                     use_recorded_metadata: bool = False,
-                                     recurse: bool = False,
-                                     deduplicate: bool = True,
-                                     suppress_header: bool = False,
-                                     verbose: bool = True,
-                                     dump_recorded_metadata: bool = True,
-                                     ):
+def replay_supplement(payload: Union[FileName, ProvDAG],
+                      out_fp: FileName,
+                      validate_checksums: bool = True,
+                      parse_metadata: bool = True,
+                      use_recorded_metadata: bool = False,
+                      recurse: bool = False,
+                      deduplicate: bool = True,
+                      suppress_header: bool = False,
+                      verbose: bool = True,
+                      dump_recorded_metadata: bool = True,
+                      ):
     """
     Produces a zipfile package of useful documentation for enabling in silico
     reproducibility of some QIIME 2 Result(s) from a ProvDAG, a QIIME 2
@@ -827,8 +827,8 @@ def write_reproducibility_supplement(payload: Union[FileName, ProvDAG],
             print(f'{usage_driver} replay script written to {rel_fp}')
 
         tmp_fp = tmpdir_path / 'citations.bib'
-        write_citations(dag, out_fp=str(tmp_fp), deduplicate=deduplicate,
-                        suppress_header=suppress_header)
+        replay_citations(dag, out_fp=str(tmp_fp), deduplicate=deduplicate,
+                         suppress_header=suppress_header)
         print('Citations bibtex file written to citations.bib')
 
         out_fp = pathlib.Path(os.path.realpath(out_fp))

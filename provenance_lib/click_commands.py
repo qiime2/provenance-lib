@@ -3,8 +3,7 @@ import os
 
 from .parse import ProvDAG
 from .replay import (
-    replay_provenance, write_citations,
-    write_reproducibility_supplement,
+    replay_provenance, replay_citations, replay_supplement,
 )
 from ._usage_drivers import DRIVER_CHOICES, DRIVER_NAMES
 from .util import FileName
@@ -136,8 +135,8 @@ def citations(i_in_fp: FileName,
     deduplication removes duplicate references with different plugin versions.
     """
     dag = ProvDAG(i_in_fp, verbose=p_verbose, recursive=p_recurse)
-    write_citations(dag, out_fp=o_out_fp, deduplicate=p_deduplicate,
-                    suppress_header=p_suppress_header)
+    replay_citations(dag, out_fp=o_out_fp, deduplicate=p_deduplicate,
+                     suppress_header=p_suppress_header)
     filename = os.path.realpath(o_out_fp)
     click.echo(f'Citations bibtex file written to {filename}')
 
@@ -207,7 +206,7 @@ def reproducibility_supplement(i_in_fp: FileName,
     - replay scripts for all supported interfaces
     - a bibtex-formatted collection of all citations
     """
-    write_reproducibility_supplement(
+    replay_supplement(
         payload=i_in_fp,
         out_fp=o_out_fp,
         validate_checksums=p_validate_checksums,

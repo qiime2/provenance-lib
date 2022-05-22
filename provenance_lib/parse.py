@@ -378,7 +378,7 @@ class DirectoryParser(Parser):
         dag = ProvDAG()
         for archive in artifacts_to_parse:
             if cfg.verbose:
-                print("Parsing", archive)
+                print("parsing", archive)
             with zipfile.ZipFile(archive) as zf:
                 root_id = get_root_uuid(zf)
             if archive_not_parsed(root_id, dag):

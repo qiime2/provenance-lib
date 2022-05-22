@@ -91,7 +91,7 @@ def provenance(i_in_fp: FileName, o_out_fp: FileName,
                       dump_recorded_metadata=p_dump_recorded_metadata,
                       md_out_fp=o_metadata_out_fp,)
     filename = os.path.realpath(o_out_fp)
-    click.echo(f'Replay script written to {filename}')
+    click.echo(f'{p_usage_driver} replay script written to {filename}')
 
 
 @replay.command(no_args_is_help=True)
@@ -138,7 +138,7 @@ def citations(i_in_fp: FileName,
     replay_citations(dag, out_fp=o_out_fp, deduplicate=p_deduplicate,
                      suppress_header=p_suppress_header)
     filename = os.path.realpath(o_out_fp)
-    click.echo(f'Citations bibtex file written to {filename}')
+    click.echo(f'citations bibtex file written to {filename}')
 
 
 @replay.command(no_args_is_help=True)

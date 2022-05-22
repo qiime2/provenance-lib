@@ -214,6 +214,10 @@ def replay_provenance(payload: Union[FileName, ProvDAG],
         cfg.use.build_header()
         cfg.use.build_footer(dag)
     build_usage_examples(dag, cfg)
+
+    if cfg.dump_recorded_metadata:
+        print('metadata written to recorded_metadata/')
+
     output = cfg.use.render(flush=True)
     with open(out_fp, mode='w') as out_fh:
         out_fh.write(output)
@@ -829,7 +833,7 @@ def replay_supplement(payload: Union[FileName, ProvDAG],
         tmp_fp = tmpdir_path / 'citations.bib'
         replay_citations(dag, out_fp=str(tmp_fp), deduplicate=deduplicate,
                          suppress_header=suppress_header)
-        print('Citations bibtex file written to citations.bib')
+        print('citations bibtex file written to citations.bib')
 
         out_fp = pathlib.Path(os.path.realpath(out_fp))
         # Drop .zip suffix if any so that we don't get some_file.zip.zip
@@ -837,4 +841,4 @@ def replay_supplement(payload: Union[FileName, ProvDAG],
             out_fp = out_fp.with_suffix('')
 
         shutil.make_archive(out_fp, 'zip', tmpdir)
-        print(f'Reproducibility package written to {out_fp}.zip')
+        print(f'reproducibility package written to {out_fp}.zip')

@@ -4,7 +4,7 @@ and collaboration on the QIIME 2 platform.
 
 ## About
 provenance_lib parses the computational history ( or "provenance") of QIIME 2
-results into a directed graph structure, enabling study validation and automation,
+results into a directed graph structure, supporting study validation and automation,
 and improving collaboration on and reporting of QIIME 2 analyses.
 
 provenance_lib lets you:

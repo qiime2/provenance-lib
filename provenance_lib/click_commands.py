@@ -198,7 +198,7 @@ def reproducibility_supplement(i_in_fp: FileName,
                                p_dump_recorded_metadata: bool = True,
                                ):
     """
-    Produces a zipfile package of useful documentation for enabling in silico
+    Produces a zipfile package of useful documentation supporting in silico
     reproducibility of some QIIME 2 Result(s) from a QIIME 2 Artifact or
     directory of Artifacts.
 

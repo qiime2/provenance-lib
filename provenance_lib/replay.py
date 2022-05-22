@@ -788,7 +788,7 @@ def replay_supplement(payload: Union[FileName, ProvDAG],
                       dump_recorded_metadata: bool = True,
                       ):
     """
-    Produces a zipfile package of useful documentation for enabling in silico
+    Produces a zipfile package of useful documentation for in silico
     reproducibility of some QIIME 2 Result(s) from a ProvDAG, a QIIME 2
     Artifact, or a directory of Artifacts.
 

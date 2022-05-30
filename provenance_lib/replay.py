@@ -153,7 +153,7 @@ def replay_provenance(payload: Union[FileName, ProvDAG],
                       usage_driver: DRIVER_CHOICES = 'python3',
                       validate_checksums: bool = True,
                       parse_metadata: bool = True,
-                      recursive: bool = False,
+                      recurse: bool = False,
                       use_recorded_metadata: bool = False,
                       suppress_header: bool = False,
                       verbose: bool = False,
@@ -168,7 +168,7 @@ def replay_provenance(payload: Union[FileName, ProvDAG],
     so may be left as default:
       - validate_checksums
       - parse_metadata
-      - recursive
+      - recurse
       - verbose
     """
     # Grab the right parse_metadata if the payload is already ProvDAG
@@ -203,7 +203,7 @@ def replay_provenance(payload: Union[FileName, ProvDAG],
     # The ProvDAGParser handles ProvDAGs quickly, so we can just throw whatever
     # payload we get at this instead of maintaining per-data-type functions
     dag = ProvDAG(
-        payload, validate_checksums, parse_metadata, recursive, verbose)
+        payload, validate_checksums, parse_metadata, recurse, verbose)
 
     cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS[usage_driver](),
                        use_recorded_metadata=use_recorded_metadata,
@@ -214,6 +214,10 @@ def replay_provenance(payload: Union[FileName, ProvDAG],
         cfg.use.build_header()
         cfg.use.build_footer(dag)
     build_usage_examples(dag, cfg)
+
+    if cfg.dump_recorded_metadata:
+        print('metadata written to recorded_metadata/')
+
     output = cfg.use.render(flush=True)
     with open(out_fp, mode='w') as out_fh:
         out_fh.write(output)
@@ -739,13 +743,13 @@ def dedupe_citations(citations: List[Dict]) -> List[Dict]:
     return dd_cits
 
 
-def write_citations(dag: ProvDAG, out_fp: FileName, deduplicate: bool = True,
-                    suppress_header: bool = False):
+def replay_citations(dag: ProvDAG, out_fp: FileName, deduplicate: bool = True,
+                     suppress_header: bool = False):
     """
     Writes a .bib file representing all unique citations from a ProvDAG to disk
     If `deduplicate`, refs will be heuristically deduplicated. e.g. by DOI
 
-    TODO: write_citations_from_fp
+    TODO: replay_citations_from_fp
     """
     bib_db = collect_citations(dag, deduplicate=deduplicate)
     boundary = '#' * 79
@@ -772,19 +776,19 @@ def write_citations(dag: ProvDAG, out_fp: FileName, deduplicate: bool = True,
             bibfile.write('\n'.join(footer))
 
 
-def write_reproducibility_supplement(payload: Union[FileName, ProvDAG],
-                                     out_fp: FileName,
-                                     validate_checksums: bool = True,
-                                     parse_metadata: bool = True,
-                                     use_recorded_metadata: bool = False,
-                                     recurse: bool = False,
-                                     deduplicate: bool = True,
-                                     suppress_header: bool = False,
-                                     verbose: bool = True,
-                                     dump_recorded_metadata: bool = True,
-                                     ):
+def replay_supplement(payload: Union[FileName, ProvDAG],
+                      out_fp: FileName,
+                      validate_checksums: bool = True,
+                      parse_metadata: bool = True,
+                      use_recorded_metadata: bool = False,
+                      recurse: bool = False,
+                      deduplicate: bool = True,
+                      suppress_header: bool = False,
+                      verbose: bool = True,
+                      dump_recorded_metadata: bool = True,
+                      ):
     """
-    Produces a zipfile package of useful documentation for enabling in silico
+    Produces a zipfile package of useful documentation for in silico
     reproducibility of some QIIME 2 Result(s) from a ProvDAG, a QIIME 2
     Artifact, or a directory of Artifacts.
 
@@ -797,12 +801,12 @@ def write_reproducibility_supplement(payload: Union[FileName, ProvDAG],
     so may be left as default:
       - validate_checksums
       - parse_metadata
-      - recursive
+      - recurse
     """
     # The ProvDAGParser handles ProvDAGs quickly, so we can just throw whatever
     # we get at this initializer instead of maintaining per-data-type functions
     dag = ProvDAG(artifact_data=payload, validate_checksums=validate_checksums,
-                  parse_metadata=parse_metadata, recursive=recurse,
+                  parse_metadata=parse_metadata, recurse=recurse,
                   verbose=verbose)
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir_path = pathlib.Path(tmpdir)
@@ -827,9 +831,9 @@ def write_reproducibility_supplement(payload: Union[FileName, ProvDAG],
             print(f'{usage_driver} replay script written to {rel_fp}')
 
         tmp_fp = tmpdir_path / 'citations.bib'
-        write_citations(dag, out_fp=str(tmp_fp), deduplicate=deduplicate,
-                        suppress_header=suppress_header)
-        print('Citations bibtex file written to citations.bib')
+        replay_citations(dag, out_fp=str(tmp_fp), deduplicate=deduplicate,
+                         suppress_header=suppress_header)
+        print('citations bibtex file written to citations.bib')
 
         out_fp = pathlib.Path(os.path.realpath(out_fp))
         # Drop .zip suffix if any so that we don't get some_file.zip.zip
@@ -837,4 +841,4 @@ def write_reproducibility_supplement(payload: Union[FileName, ProvDAG],
             out_fp = out_fp.with_suffix('')
 
         shutil.make_archive(out_fp, 'zip', tmpdir)
-        print(f'Reproducibility package written to {out_fp}.zip')
+        print(f'reproducibility package written to {out_fp}.zip')

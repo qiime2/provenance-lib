@@ -18,12 +18,31 @@ from .util import UUID, get_root_uuid
 
 class ProvDAG:
     """
-    A single-rooted DAG of UUIDs representing a single QIIME 2 Archive.
+    A directed acyclic graph (DAG) representing the provenance of one or more
+    QIIME 2 Archives (.qza or .qzv files). It is safest to manipulate ProvDAGs
+    with the properties and methods exposed here, but advanced users may
+    get value from using native methods of the core networkx.DiGraph at `.dag`.
 
+    ## Parameters
 
-    ## DAG Attributes
+    artifact_data: Any = None - the input data payload for the ProvDAG. Often
+        the path to a file or directory on disk
+    validate_checksums: bool = True - if True, Archives will be validated
+        against their checksums.md5 manifests
+    parse_metadata: bool = True - if True, the metadata captured in the input
+        Archives will be parsed and included in the ProvDAG
+    recurse: bool = False - if True, and if artifact_data is a directory,
+        will recursively parse all .qza and .qzv files within subdirectories
+    verbose: bool = False - if True, will print parsed filenames to stdout,
+        indicating progress
 
-    _parsed_artifact_uuids: Set[UUID] - the set of user-passed terminal node
+    ## Properties
+
+    dag: nx.DiGraph - a Directed Acyclic Graph (DAG) representing the complete
+        provenance of one or more QIIME 2 Artifacts. This DAG is comprehensive,
+        including pipeline "alias" nodes as well as the inner nodes that
+        compose each pipeline.
+    parsed_artifact_uuids: Set[UUID] - the set of user-passed terminal node
         uuids. Used to generate properties like `terminal_uuids`, this is a
         superset of terminal_uuids.
     terminal_uuids: Set[UUID] - the set of terminal node ids present in the
@@ -40,25 +59,28 @@ class ProvDAG:
         ChecksumDiffs over Nonetypes, which will be dropped. For this reason,
         provenance_is_valid is a more reliable indicator of provenance validity
         thank checksum_diff.
-    dag: nx.DiGraph - a Directed Acyclic Graph (DAG) representing the complete
-        provenance of one or more QIIME 2 Artifacts. This DAG includes pipeline
-        "alias" nodes, as well as the inner nodes that compose each pipeline.
 
-    ## Methods/builtin suport
-    `len`: int - ProvDAG supports the builtin len just as nx.DiGraph does,
-        returning the number of nodes in `mydag.dag`
+    ## Methods
+
     nodes: networkx.classes.reportview.NodeView - A NodeView of self.dag
-    relabel_nodes: Optional[ProvDAG]: provided with a mapping, relabels the
-        nodes in self.dag. May be used inplace (returning None) or may return
-        a relabeled copy of self
-    union: ProvDAG - a class method that returns the union of many ProvDAGs
+    relabel_nodes: Optional[ProvDAG]: takes an {old_node: new_node} mapping,
+        and relabels the nodes in self.dag.
+    union: ProvDAG - a class method that returns the union of multiple ProvDAGs
 
-    ## GraphViews
-    Graphviews are subgraphs of networkx graphs. They behave just like DiGraphs
-    unless you take many views of views, at which point they lag.
+    ## Builtin support
+
+    len: int - ProvDAG supports the builtin `len` just as nx.DiGraph does,
+        with `len(mydag)` returning the number of nodes in `mydag.dag`
+    __eq__: bool - checks that self and other are of the same class and
+        have isomorphic DAGs
+    __iter__: iterator over the underlying nx.DiGraph (ProvDAG.dag)
+
+    ## Available GraphViews
+    Graphviews are read-only subgraphs of networkx graphs. They behave just
+    like DiGraphs but are cheaper. If you make many views of views, they lag.
 
     complete: `mydag.dag` is the DiGraph containing all recorded provenance
-               nodes for this ProvDAG
+        nodes for this ProvDAG
     collapsed_view: `mydag.collapsed_view` returns a DiGraph (GraphView)
     containing a node for each standalone Action or Visualizer and one single
     node for each Pipeline (like q2view provenance trees)
@@ -71,7 +93,11 @@ class ProvDAG:
     node_data: Optional[ProvNode]
     has_provenance: bool
 
-    No-provenance nodes:
+    ## No-provenance nodes
+
+    NOTE: The following is only relevant if some of your provenance is from a
+    QIIME 2 version earlier than v2.0.6, which was superseded on 10/24/16.
+
     When parsing v1+ archives, v0 ancestor nodes without tracked provenance
     (e.g. !no-provenance inputs) are discovered only as parents to the current
     inputs. They are added to the DAG when we add in-edges to "real" provenance
@@ -86,25 +112,19 @@ class ProvDAG:
 
     No-provenance nodes with no v1+ children will always appear as disconnected
     members of the DiGraph.
-
-    Custom node objects:
-    Though NetworkX supports the use of custom objects as nodes, querying the
-    DAG for an individual graph node requires keying with object literals,
-    which feels much less intuitive than with e.g. the UUID string of the
-    ProvNode you want to access, and would make testing a bit clunky.
     """
     def __init__(self, artifact_data: Any = None,
                  validate_checksums: bool = True,
                  parse_metadata: bool = True,
-                 recursive: bool = False,
+                 recurse: bool = False,
                  verbose: bool = False,
                  ):
         """
-        Create a ProvDAG (digraph) by getting a parser from the parser
+        Creates a ProvDAG (digraph) by getting a parser from the parser
         dispatcher, using it to parse the incoming data into a ParserResults,
         and then loading those Results into key fields.
         """
-        cfg = Config(validate_checksums, parse_metadata, recursive, verbose)
+        cfg = Config(validate_checksums, parse_metadata, recurse, verbose)
         parser_results = parse_provenance(cfg, artifact_data)
 
         self.cfg = cfg
@@ -138,9 +158,8 @@ class ProvDAG:
     @property
     def terminal_uuids(self) -> Set[UUID]:
         """
-        The UUID of the terminal node of one QIIME 2 Archive, generated by
-        selecting all nodes in a collapsed view of self.dag with an out-degree
-        of zero.
+        The UUIDs of the terminal nodes in the DAG, generated by selecting all
+        nodes in a collapsed view of self.dag with an out-degree of zero.
 
         We memoize the set of terminal UUIDs to prevent unnecessary traversals,
         so must set self._terminal_uuid back to None in any method that
@@ -155,8 +174,16 @@ class ProvDAG:
         return self._terminal_uuids
 
     @property
+    def parsed_artifact_uuids(self) -> Set[UUID]:
+        """
+        The the set of user-passed terminal node uuids. Used to generate
+        properties like `terminal_uuids`, this is a superset of
+        terminal_uuids."""
+        return self._parsed_artifact_uuids
+
+    @property
     def terminal_nodes(self) -> Set[ProvNode]:
-        """The terminal ProvNode of one QIIME 2 Archive"""
+        """The terminal ProvNodes in the DAG's provenance"""
         return {self.get_node_data(uuid) for uuid in self.terminal_uuids}
 
     @property
@@ -367,7 +394,7 @@ class DirectoryParser(Parser):
         within the archives they parse by default.
         """
         dir_name = Path(str(data).rstrip('/') + os.sep)
-        if cfg.recursive:
+        if cfg.recurse:
             # "empty" generators don't fail if not checks, so cast to list
             artifacts_to_parse = list(dir_name.rglob('*.qz[av]'))
         else:
@@ -378,7 +405,7 @@ class DirectoryParser(Parser):
         dag = ProvDAG()
         for archive in artifacts_to_parse:
             if cfg.verbose:
-                print("Parsing", archive)
+                print("parsing", archive)
             with zipfile.ZipFile(archive) as zf:
                 root_id = get_root_uuid(zf)
             if archive_not_parsed(root_id, dag):

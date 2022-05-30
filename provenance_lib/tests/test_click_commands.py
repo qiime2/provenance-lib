@@ -4,7 +4,7 @@ import pathlib
 import tempfile
 import zipfile
 
-from ..click_commands import citations, provenance, reproducibility_supplement
+from ..click_commands import citations, provenance, supplement
 from .test_parse import DATA_DIR, TEST_DATA
 from .testing_utilities import CustomAssertions
 
@@ -68,7 +68,7 @@ class ReplayTests(CustomAssertions):
                 self.assertIn('diversity_actions.core_metrics_phylogenetic',
                               rendered)
 
-    def test_provenance_recursive(self):
+    def test_provenance_recurse(self):
         """
         If the directory under test is parsed recursively, two results will
         be captured from align_to_tree_mafft_fasttree instead of one.
@@ -203,14 +203,14 @@ class ReportCitationsTests(CustomAssertions):
 
 
 class ReproducibilitySupplementTests(CustomAssertions):
-    def test_write_reproducibility_supplement(self):
+    def test_replay_supplement(self):
         in_fp = TEST_DATA['5']['qzv_fp']
         in_fn = str(in_fp)
         with tempfile.TemporaryDirectory() as tmpdir:
             out_fp = pathlib.Path(tmpdir) / 'supplement.zip'
             out_fn = str(out_fp)
             res = CliRunner().invoke(
-                cli=reproducibility_supplement,
+                cli=supplement,
                 args=(f"--i-in-fp {in_fn} --o-out-fp {out_fn}"))
 
             self.assertEqual(res.exit_code, 0)
@@ -231,7 +231,7 @@ class ReproducibilitySupplementTests(CustomAssertions):
             with zipfile.ZipFile(out_fp, 'r') as myzip:
                 self.assertEqual(exp, set(myzip.namelist()))
 
-    def test_write_reproducibility_supplement_no_metadata_dump(self):
+    def test_replay_supplement_no_metadata_dump(self):
         """
         Confirms that metadata dumping does not occur when user opts out
         """
@@ -241,7 +241,7 @@ class ReproducibilitySupplementTests(CustomAssertions):
             out_fp = pathlib.Path(tmpdir) / 'supplement.zip'
             out_fn = str(out_fp)
             res = CliRunner().invoke(
-                cli=reproducibility_supplement,
+                cli=supplement,
                 args=(f"--i-in-fp {in_fn} --o-out-fp {out_fn} "
                       "--p-no-dump-recorded-metadata"))
 

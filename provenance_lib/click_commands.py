@@ -3,8 +3,7 @@ import os
 
 from .parse import ProvDAG
 from .replay import (
-    replay_provenance, write_citations,
-    write_reproducibility_supplement,
+    replay_provenance, replay_citations, replay_supplement,
 )
 from ._usage_drivers import DRIVER_CHOICES, DRIVER_NAMES
 from .util import FileName
@@ -85,14 +84,14 @@ def provenance(i_in_fp: FileName, o_out_fp: FileName,
                       usage_driver=p_usage_driver,
                       validate_checksums=p_validate_checksums,
                       parse_metadata=p_parse_metadata,
-                      recursive=p_recurse,
+                      recurse=p_recurse,
                       use_recorded_metadata=p_use_recorded_metadata,
                       suppress_header=p_suppress_header,
                       verbose=p_verbose,
                       dump_recorded_metadata=p_dump_recorded_metadata,
                       md_out_fp=o_metadata_out_fp,)
     filename = os.path.realpath(o_out_fp)
-    click.echo(f'Replay script written to {filename}')
+    click.echo(f'{p_usage_driver} replay script written to {filename}')
 
 
 @replay.command(no_args_is_help=True)
@@ -135,11 +134,11 @@ def citations(i_in_fp: FileName,
     Not for use in reporting e.g. software versions used in an analysis, as
     deduplication removes duplicate references with different plugin versions.
     """
-    dag = ProvDAG(i_in_fp, verbose=p_verbose, recursive=p_recurse)
-    write_citations(dag, out_fp=o_out_fp, deduplicate=p_deduplicate,
-                    suppress_header=p_suppress_header)
+    dag = ProvDAG(i_in_fp, verbose=p_verbose, recurse=p_recurse)
+    replay_citations(dag, out_fp=o_out_fp, deduplicate=p_deduplicate,
+                     suppress_header=p_suppress_header)
     filename = os.path.realpath(o_out_fp)
-    click.echo(f'Citations bibtex file written to {filename}')
+    click.echo(f'citations bibtex file written to {filename}')
 
 
 @replay.command(no_args_is_help=True)
@@ -187,19 +186,19 @@ def citations(i_in_fp: FileName,
               required=True,
               help='the filepath where your reproduciblity supplement zipfile '
                    'should be written.')
-def reproducibility_supplement(i_in_fp: FileName,
-                               o_out_fp: FileName,
-                               p_validate_checksums: bool = True,
-                               p_parse_metadata: bool = True,
-                               p_use_recorded_metadata: bool = False,
-                               p_recurse: bool = False,
-                               p_deduplicate: bool = True,
-                               p_suppress_header: bool = False,
-                               p_verbose: bool = True,
-                               p_dump_recorded_metadata: bool = True,
-                               ):
+def supplement(i_in_fp: FileName,
+               o_out_fp: FileName,
+               p_validate_checksums: bool = True,
+               p_parse_metadata: bool = True,
+               p_use_recorded_metadata: bool = False,
+               p_recurse: bool = False,
+               p_deduplicate: bool = True,
+               p_suppress_header: bool = False,
+               p_verbose: bool = True,
+               p_dump_recorded_metadata: bool = True,
+               ):
     """
-    Produces a zipfile package of useful documentation for enabling in silico
+    Produces a zipfile package of useful documentation supporting in silico
     reproducibility of some QIIME 2 Result(s) from a QIIME 2 Artifact or
     directory of Artifacts.
 
@@ -207,7 +206,7 @@ def reproducibility_supplement(i_in_fp: FileName,
     - replay scripts for all supported interfaces
     - a bibtex-formatted collection of all citations
     """
-    write_reproducibility_supplement(
+    replay_supplement(
         payload=i_in_fp,
         out_fp=o_out_fp,
         validate_checksums=p_validate_checksums,

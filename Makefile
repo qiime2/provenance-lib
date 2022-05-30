@@ -31,7 +31,7 @@ cite-everything:
 	--o-out-fp ./replay_scripts/every-citation-2.bib
 
 repro-supp:
-	replay reproducibility-supplement \
+	replay supplement \
 	--i-in-fp provenance_lib/tests/data/v5_uu_emperor.qzv \
 	--o-out-fp ./replay_scripts/supplement.zip
 

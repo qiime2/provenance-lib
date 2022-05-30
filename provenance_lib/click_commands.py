@@ -186,17 +186,17 @@ def citations(i_in_fp: FileName,
               required=True,
               help='the filepath where your reproduciblity supplement zipfile '
                    'should be written.')
-def reproducibility_supplement(i_in_fp: FileName,
-                               o_out_fp: FileName,
-                               p_validate_checksums: bool = True,
-                               p_parse_metadata: bool = True,
-                               p_use_recorded_metadata: bool = False,
-                               p_recurse: bool = False,
-                               p_deduplicate: bool = True,
-                               p_suppress_header: bool = False,
-                               p_verbose: bool = True,
-                               p_dump_recorded_metadata: bool = True,
-                               ):
+def supplement(i_in_fp: FileName,
+               o_out_fp: FileName,
+               p_validate_checksums: bool = True,
+               p_parse_metadata: bool = True,
+               p_use_recorded_metadata: bool = False,
+               p_recurse: bool = False,
+               p_deduplicate: bool = True,
+               p_suppress_header: bool = False,
+               p_verbose: bool = True,
+               p_dump_recorded_metadata: bool = True,
+               ):
     """
     Produces a zipfile package of useful documentation supporting in silico
     reproducibility of some QIIME 2 Result(s) from a QIIME 2 Artifact or

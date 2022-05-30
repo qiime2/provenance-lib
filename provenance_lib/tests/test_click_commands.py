@@ -4,7 +4,7 @@ import pathlib
 import tempfile
 import zipfile
 
-from ..click_commands import citations, provenance, reproducibility_supplement
+from ..click_commands import citations, provenance, supplement
 from .test_parse import DATA_DIR, TEST_DATA
 from .testing_utilities import CustomAssertions
 
@@ -210,7 +210,7 @@ class ReproducibilitySupplementTests(CustomAssertions):
             out_fp = pathlib.Path(tmpdir) / 'supplement.zip'
             out_fn = str(out_fp)
             res = CliRunner().invoke(
-                cli=reproducibility_supplement,
+                cli=supplement,
                 args=(f"--i-in-fp {in_fn} --o-out-fp {out_fn}"))
 
             self.assertEqual(res.exit_code, 0)
@@ -241,7 +241,7 @@ class ReproducibilitySupplementTests(CustomAssertions):
             out_fp = pathlib.Path(tmpdir) / 'supplement.zip'
             out_fn = str(out_fp)
             res = CliRunner().invoke(
-                cli=reproducibility_supplement,
+                cli=supplement,
                 args=(f"--i-in-fp {in_fn} --o-out-fp {out_fn} "
                       "--p-no-dump-recorded-metadata"))
 

@@ -174,12 +174,12 @@ class ProvDAG:
         return self._terminal_uuids
 
     @property
-    def parsed_artifact_uuids(self) -> Set[ProvNode]:
+    def parsed_artifact_uuids(self) -> Set[UUID]:
         """
         The the set of user-passed terminal node uuids. Used to generate
         properties like `terminal_uuids`, this is a superset of
         terminal_uuids."""
-        return {self.get_node_data(uuid) for uuid in self.terminal_uuids}
+        return self._parsed_artifact_uuids
 
     @property
     def terminal_nodes(self) -> Set[ProvNode]:

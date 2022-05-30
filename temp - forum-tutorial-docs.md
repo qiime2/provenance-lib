@@ -29,7 +29,7 @@ Results, letting you:
 
 `replay --help` renders a list of available commands.
 Available commands include at least `provenance`, `citations`, and
-`reproducibility-supplement`.
+`supplement`.
 
 `replay <some-command> --help` renders command-specific helptext for `some-command`.
 So does `replay <some-command>` with no arguments.

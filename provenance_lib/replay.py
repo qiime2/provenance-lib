@@ -153,7 +153,7 @@ def replay_provenance(payload: Union[FileName, ProvDAG],
                       usage_driver: DRIVER_CHOICES = 'python3',
                       validate_checksums: bool = True,
                       parse_metadata: bool = True,
-                      recursive: bool = False,
+                      recurse: bool = False,
                       use_recorded_metadata: bool = False,
                       suppress_header: bool = False,
                       verbose: bool = False,
@@ -168,7 +168,7 @@ def replay_provenance(payload: Union[FileName, ProvDAG],
     so may be left as default:
       - validate_checksums
       - parse_metadata
-      - recursive
+      - recurse
       - verbose
     """
     # Grab the right parse_metadata if the payload is already ProvDAG
@@ -203,7 +203,7 @@ def replay_provenance(payload: Union[FileName, ProvDAG],
     # The ProvDAGParser handles ProvDAGs quickly, so we can just throw whatever
     # payload we get at this instead of maintaining per-data-type functions
     dag = ProvDAG(
-        payload, validate_checksums, parse_metadata, recursive, verbose)
+        payload, validate_checksums, parse_metadata, recurse, verbose)
 
     cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS[usage_driver](),
                        use_recorded_metadata=use_recorded_metadata,
@@ -801,12 +801,12 @@ def replay_supplement(payload: Union[FileName, ProvDAG],
     so may be left as default:
       - validate_checksums
       - parse_metadata
-      - recursive
+      - recurse
     """
     # The ProvDAGParser handles ProvDAGs quickly, so we can just throw whatever
     # we get at this initializer instead of maintaining per-data-type functions
     dag = ProvDAG(artifact_data=payload, validate_checksums=validate_checksums,
-                  parse_metadata=parse_metadata, recursive=recurse,
+                  parse_metadata=parse_metadata, recurse=recurse,
                   verbose=verbose)
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir_path = pathlib.Path(tmpdir)

@@ -68,7 +68,7 @@ class ReplayTests(CustomAssertions):
                 self.assertIn('diversity_actions.core_metrics_phylogenetic',
                               rendered)
 
-    def test_provenance_recursive(self):
+    def test_provenance_recurse(self):
         """
         If the directory under test is parsed recursively, two results will
         be captured from align_to_tree_mafft_fasttree instead of one.

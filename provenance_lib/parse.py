@@ -31,7 +31,7 @@ class ProvDAG:
         against their checksums.md5 manifests
     parse_metadata: bool = True - if True, the metadata captured in the input
         Archives will be parsed and included in the ProvDAG
-    recursive: bool = False - if True, and if artifact_data is a directory,
+    recurse: bool = False - if True, and if artifact_data is a directory,
         will recursively parse all .qza and .qzv files within subdirectories
     verbose: bool = False - if True, will print parsed filenames to stdout,
         indicating progress
@@ -116,7 +116,7 @@ class ProvDAG:
     def __init__(self, artifact_data: Any = None,
                  validate_checksums: bool = True,
                  parse_metadata: bool = True,
-                 recursive: bool = False,
+                 recurse: bool = False,
                  verbose: bool = False,
                  ):
         """
@@ -124,7 +124,7 @@ class ProvDAG:
         dispatcher, using it to parse the incoming data into a ParserResults,
         and then loading those Results into key fields.
         """
-        cfg = Config(validate_checksums, parse_metadata, recursive, verbose)
+        cfg = Config(validate_checksums, parse_metadata, recurse, verbose)
         parser_results = parse_provenance(cfg, artifact_data)
 
         self.cfg = cfg
@@ -394,7 +394,7 @@ class DirectoryParser(Parser):
         within the archives they parse by default.
         """
         dir_name = Path(str(data).rstrip('/') + os.sep)
-        if cfg.recursive:
+        if cfg.recurse:
             # "empty" generators don't fail if not checks, so cast to list
             artifacts_to_parse = list(dir_name.rglob('*.qz[av]'))
         else:

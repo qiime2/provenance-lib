@@ -84,7 +84,7 @@ def provenance(i_in_fp: FileName, o_out_fp: FileName,
                       usage_driver=p_usage_driver,
                       validate_checksums=p_validate_checksums,
                       parse_metadata=p_parse_metadata,
-                      recursive=p_recurse,
+                      recurse=p_recurse,
                       use_recorded_metadata=p_use_recorded_metadata,
                       suppress_header=p_suppress_header,
                       verbose=p_verbose,
@@ -134,7 +134,7 @@ def citations(i_in_fp: FileName,
     Not for use in reporting e.g. software versions used in an analysis, as
     deduplication removes duplicate references with different plugin versions.
     """
-    dag = ProvDAG(i_in_fp, verbose=p_verbose, recursive=p_recurse)
+    dag = ProvDAG(i_in_fp, verbose=p_verbose, recurse=p_recurse)
     replay_citations(dag, out_fp=o_out_fp, deduplicate=p_deduplicate,
                      suppress_header=p_suppress_header)
     filename = os.path.realpath(o_out_fp)

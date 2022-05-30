@@ -73,7 +73,9 @@ provenance_lib.replay_supplement(
     '.', './reproducibility-supplement.zip', recurse=True)
 ```
 
-More power and flexibility are available to users of the Python API.
+More power and flexibility are available to users of the Python API,
+through the direct creation and manipulation of provenance digraphs
+(`ProvDAG` objects).
 The basic workflow proceeds as follows:
 - `import provenance_lib`
 - create ProvDAG objects from QIIME 2 archives

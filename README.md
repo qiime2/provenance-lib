@@ -50,7 +50,7 @@ replay citations \
   --o-out-fp ./my_analysis_citations.bib
 ```
 
-See the helptext for complete details, including information on which commands
+See the helptext for complete details, including information on which parameters
 are required and which are optional and/or have default values.
 
 ## Use - Python API
@@ -62,7 +62,38 @@ The basic workflow proceeds as follows:
 - Pass your ProvDAG to tools from the `replay` module
   (`replay_provenance`, `replay_citations`, etc.) to produce your desired results.
 
-Full API documentation pending. Thanks for your patience!
+Basic example:
+```python
+import provenance_lib
+
+# helptext for the package
+help(provenance_lib)
+
+# command-specific helptext
+help(provenance_lib.replay_supplement)
+
+# help alternative for iPython and Jupyter Notebook only
+? provenance_lib.replay_supplement
+
+# Generate a reproducibility supplement for the current directory's
+# Results including all of its subdirectories recursively
+provenance_lib.replay_supplement(
+    '.', './reproducibility-supplement.zip', recurse=True)
+```
+
+A Jupyter Notebook containing additional examples of Python API usage is
+included in this repository's `docs` directory.
+To access it, clone or otherwise download the repository,
+navigate into `docs`, and open the notebook with `jupyter notebook` or your
+preferred `.ipnyb` client software.
+
+Running the notebook commands as is will write files to `docs`,
+and will have no impact on the functionality of the software itself.
+
+## Additional documentation
+- [A tutorial](https://forum.qiime2.org) will be available shortly on the QIIME 2 forum.
+- A video walkthrough will be available shortly on the [QIIME 2 YouTube channel](https://www.youtube.com/c/QIIME2).
+- This tool can be found on the [QIIME 2 Library](https://library.qiime2.org/plugins/provenance_lib/43/)
 
 ## Questions/User Support?
 Please raise user support questions in the [Community Plugin Support category

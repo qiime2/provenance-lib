@@ -54,14 +54,6 @@ See the helptext for complete details, including information on which parameters
 are required and which are optional and/or have default values.
 
 ## Use - Python API
-More power and flexibility are available to users of the Python API.
-The basic workflow proceeds as follows:
-- `import provenance_lib`
-- create ProvDAG objects from QIIME 2 archives
-- combine or manipulate these ProvDAGs as needed
-- Pass your ProvDAG to tools from the `replay` module
-  (`replay_provenance`, `replay_citations`, etc.) to produce your desired results.
-
 Basic example:
 ```python
 import provenance_lib
@@ -80,6 +72,14 @@ help(provenance_lib.replay_supplement)
 provenance_lib.replay_supplement(
     '.', './reproducibility-supplement.zip', recurse=True)
 ```
+
+More power and flexibility are available to users of the Python API.
+The basic workflow proceeds as follows:
+- `import provenance_lib`
+- create ProvDAG objects from QIIME 2 archives
+- combine or manipulate these ProvDAGs as needed
+- Pass your ProvDAG to tools from the `replay` module
+  (`replay_provenance`, `replay_citations`, etc.) to produce your desired results.
 
 A Jupyter Notebook containing additional examples of Python API usage is
 included in this repository's `docs` directory.

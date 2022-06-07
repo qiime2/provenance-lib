@@ -93,8 +93,8 @@ Running the notebook commands as is will write files to `docs`,
 and will have no impact on the functionality of the software itself.
 
 ## Additional documentation
-- [A tutorial](https://forum.qiime2.org) will be available shortly on the QIIME 2 forum.
-- A video walkthrough will be available shortly on the [QIIME 2 YouTube channel](https://www.youtube.com/c/QIIME2).
+- [A tutorial](https://forum.qiime2.org/t/provenance-replay-alpha-release-and-tutorial/23279) is available on the QIIME 2 forum.
+- A video walkthrough is available on the [QIIME 2 YouTube channel](https://youtu.be/KMsacdbQ8hA).
 - This tool can be found on the [QIIME 2 Library](https://library.qiime2.org/plugins/provenance_lib/43/)
 
 ## Questions/User Support?

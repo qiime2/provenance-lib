@@ -31,7 +31,6 @@ class ReplayCLIUsageTests(unittest.TestCase):
     def test_init_metadata(self):
         use = ReplayCLIUsage()
         var = use.init_metadata(name='testing', factory=lambda: None)
-        print(var)
         self.assertEqual(var.name, '<your metadata filepath>')
         self.assertEqual(var.var_type, 'metadata')
 

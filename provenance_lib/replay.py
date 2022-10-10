@@ -264,10 +264,16 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
     sorted_nodes = nx.topological_sort(dag.collapsed_view)
     actions = group_by_action(dag, sorted_nodes)
 
+    # Record usage examples for all no-provenance nodes
+    no_prov_msg = []
     for node_id in actions.no_provenance_nodes:
         n_data = dag.get_node_data(node_id)
-        build_no_provenance_node_usage(n_data, node_id, usg_ns, cfg)
+        no_prov_msg.extend(
+            build_no_provenance_node_usage(n_data, node_id, usg_ns, cfg)
+        )
+    cfg.use.comment('\n'.join(no_prov_msg))
 
+    # Record usage examples for all nodes with provenance
     for action_id in (std_actions := actions.std_actions):
         # We are replaying actions not nodes, so any associated node works
         some_node_id_from_this_action = next(iter(std_actions[action_id]))
@@ -281,24 +287,23 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
 def build_no_provenance_node_usage(node: Optional[ProvNode],
                                    uuid: UUID,
                                    ns: NamespaceCollections,
-                                   cfg: ReplayConfig):
+                                   cfg: ReplayConfig) -> List[str]:
     """
     Given a ProvNode (with no provenance), does something useful with it.
-    Returns nothing, modifying the passed usage instance in place.
-
-    # Basically:
-    use.comment("Some context")
-    use.comment("no-provenance nodes and descriptions")
+    Returns a list of lines for output
     """
+    lines = []
     if not cfg.no_provenance_context_has_been_printed:
         cfg.no_provenance_context_has_been_printed = True
-        cfg.use.comment(
+        lines.append(
             "One or more nodes have no provenance, so full replay is "
             "impossible. Any commands we were able to reconstruct have been "
             "rendered, with the string descriptions below replacing actual "
             "inputs.")
-        cfg.use.comment(
+        lines.append("")
+        lines.append(
             "Original Node ID                       String Description")
+
     if node is None:
         # the node is a !no-provenance input and we have only UUID
         var_name = 'no-provenance-node'
@@ -313,16 +318,19 @@ def build_no_provenance_node_usage(node: Optional[ProvNode],
     ns.usg_vars.update({uuid: empty_var})
 
     # Log the no-prov node
-    cfg.use.comment(f"{uuid}   {ns.usg_vars[uuid].to_interface_name()}")
+    lines.append(f"{uuid}   {ns.usg_vars[uuid].to_interface_name()}")
+    return lines
 
 
 def build_import_usage(node: ProvNode,
                        ns: NamespaceCollections,
                        cfg: ReplayConfig):
     """
-    Given a ProvNode, adds an import usage example for it, roughly
-    resembling the following.
+    Adds a usage example for a ProvNode of action type `import`,
+    used when data is imported into a new QIIME2 artifact
+
     Returns nothing, modifying the passed usage instance in place.
+    Roughly resembles this:
 
     raw_seqs = use.init_format('raw_seqs', lambda: None, ext='fastq.gz')
     imported_seqs = use.import_from_format(
@@ -810,9 +818,12 @@ def replay_supplement(payload: Union[FileName, ProvDAG],
                   verbose=verbose)
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir_path = pathlib.Path(tmpdir)
+        # TODO: This is coupled to _usage_drivers.SUPPORTED_USAGE_DRIVERS
+        # and _might_ be worth factoring so there's a single data source.
         filenames = {
             'python3': 'python3_replay.py',
             'cli': 'cli_replay.sh',
+            'jn': 'jn_replay.ipynb',
         }
 
         for usage_driver in DRIVER_NAMES:

@@ -219,6 +219,7 @@ class ReproducibilitySupplementTests(CustomAssertions):
 
             exp = {'python3_replay.py',
                    'cli_replay.sh',
+                   'jn_replay.ipynb',
                    'citations.bib',
                    'recorded_metadata/',
                    'recorded_metadata/demux_emp_single_0/',

@@ -4,8 +4,10 @@ from importlib.metadata import version, metadata
 import pkg_resources
 import re
 import textwrap
-from typing import List, Literal
+from typing import List, Literal, Union
 
+import nbformat as nbf
+from nbformat import NotebookNode
 from q2cli.core.state import get_action_state
 from q2cli.core.usage import CLIUsage, CLIUsageVariable
 import q2cli.util
@@ -125,8 +127,10 @@ def action_patch(self,
 Usage.action = action_patch
 
 
+# TODO: This should be _private, unless it's used outside this module.
+# Which it prob shouldn't be.
 def build_header(shebang: str = '', boundary: str = '', copyright: str = '',
-                 extra_text: List = []) -> List:
+                 extra_text: List = []) -> List[str]:
     """
     Writes header copy for all replay outputs, with optional params allowing
     for general utility
@@ -417,10 +421,15 @@ class ReplayPythonUsage(ArtifactAPIUsage):
 
     def comment(self, line):
         LINE_LEN = 79
-        lines = textwrap.wrap(line, LINE_LEN, break_long_words=False,
-                              initial_indent='# ', subsequent_indent='# ')
-        lines.append('')
-        self._add(lines)
+        # wrap text at line endings while preserving line breaks
+        splitted = line.splitlines()
+        joined = ['\n'.join(
+                        textwrap.wrap(line, LINE_LEN, break_long_words=False,
+                                      initial_indent='# ',
+                                      subsequent_indent='# '))
+                  for line in splitted]
+        joined.append('')
+        self._add(joined)
 
     def render(self, flush: bool = False) -> str:
         """Return a newline-seperated string of Artifact API python code.
@@ -485,6 +494,156 @@ class ReplayCLIUsageVariable(CLIUsageVariable):
             cli_name = self.to_cli_name(cli_name)
 
         return cli_name
+
+
+class ReplayJupyterNotebookUsage(ReplayPythonUsage):
+    # TODO: This header info's probably going to have to change
+    shebang = ''
+    header_boundary = ''
+    copyright = pkg_resources.resource_string(
+        __package__, 'assets/copyright_note.txt').decode('utf-8').split('\n')
+    how_to = pkg_resources.resource_string(
+        __package__, 'assets/python_howto.txt').decode('utf-8').split('\n')
+
+    def __init__(self, enable_assertions: bool = False,
+                 action_collection_size: int = 2):
+        """
+        Creates a JupyterNotebookUsage instance, using ReplayPythonUsage
+        methods to generate cell contents
+        """
+        super().__init__()
+        self.enable_assertions = enable_assertions
+        self.action_collection_size = action_collection_size
+        self._reset_state(reset_global_imports=True)
+        self.nb_format = nbf.v4
+
+    def _add(self, lines: Union[NotebookNode, List[str]]):
+        """
+        Converts a list of strings into a notebookformat code cell
+        and adds to the recorder.
+
+        Passes code cell payloads into the recorder without modification,
+        which supports `comment` and any future methods that need to
+        write other cell types.
+        """
+        if isinstance(lines, NotebookNode):
+            cell = lines
+        else:
+            cell = self.nb_format.new_code_cell(lines)
+
+        self.recorder.append(cell)
+
+    def _reset_state(self, reset_global_imports=False):
+        self.local_imports = set()
+        self.header = []
+        self.recorder = []
+        self.footer = []
+        self.init_data_refs = dict()
+        if reset_global_imports:
+            self.global_imports = set()
+
+    def comment(self, line):
+        LINE_LEN = 79
+        # wrap text at line endings while preserving line breaks
+        splitted = line.splitlines()
+        joined = '\n'.join(['\n'.join(
+                        textwrap.wrap(line, LINE_LEN, break_long_words=False))
+                            for line in splitted])
+        lines_as_cell = self.nb_format.new_markdown_cell(joined)
+        self._add(lines_as_cell)
+
+    # TODO: If the default-to-code cell "add_" works, we can probably drop this
+    # def import_from_format(self, name, semantic_type, variable,
+    #                        view_type=None):
+    #     """
+    #     Identical to super.import_from_format, but writes <your data here>
+    #     instead of import_fp, saves the result, and writes a cell
+    #     """
+    #     # We need the super().super().super() here, so pass self to
+    #     # Usage.import_fr...
+    #     imported_var = Usage.import_from_format(
+    #         self, name, semantic_type, variable, view_type=view_type)
+
+    #     interface_name = imported_var.to_interface_name()
+    #     import_fp = self.repr_raw_variable_name('<your data here>')
+
+    #     lines = [
+    #         '%s = Artifact.import_data(' % (interface_name,),
+    #         self.INDENT + '%r,' % (semantic_type,),
+    #         self.INDENT + '%r,' % (import_fp,),
+    #     ]
+
+    #     if view_type is not None:  # pragma: no cover
+    #         if type(view_type) is not str:
+    #             # Show users where these formats come from when used in the
+    #             # Python API to make things less "magical".
+    #             import_path = super()._canonical_module(view_type)
+    #             view_type = view_type.__name__
+    #             if import_path is not None:
+    #                 self._update_imports(from_=import_path,
+    #                                      import_=view_type)
+    #             else:
+    #                # May be in scope already, but something is quite wrong at
+    #                # this point, so assume the plugin_manager is sufficiently
+    #                # informed.
+    #                 view_type = repr(view_type)
+    #         else:
+    #             view_type = repr(view_type)
+
+    #         lines.append(self.INDENT + '%s,' % (view_type,))
+
+    #     lines.extend([
+    #         ')',
+    #         '# SAVE: comment out the following with \'# \' to skip saving'
+    #         ' this Result to disk',
+    #         '%s.save(\'%s\')' % (interface_name, interface_name,),
+    #         ''])
+    #     joined = '\n'.join(lines)
+    #     lines_as_cell = self.nb_format.new_code_cell(joined)
+    #     self._update_imports(from_='qiime2', import_='Artifact')
+    #     self._add(lines_as_cell)
+    #     return imported_var
+
+    def render(self, flush=False):
+        """Return a string of Artifact API python code
+        formatted as a Jupyter Notebook
+
+        Warning
+        -------
+        For SDK use only. Do not use in a written usage example.
+
+        Parameters
+        ----------
+        flush : bool
+            Whether to 'flush' the current code. Importantly, this will clear
+            the top-line imports for future invocations.
+        """
+        nb = self.nb_format.new_notebook()
+        cells = []
+
+        sorted_imps = sorted(self.local_imports)
+        if self.header:
+            cells.append(self.nb_format.new_markdown_cell(self.header))
+
+        if sorted_imps:
+            cells.append(self.nb_format.new_code_cell(sorted_imps))
+
+        cells.extend(self.recorder)
+
+        if self.footer:
+            cells.append(self.nb_format.new_markdown_cell(self.footer))
+
+        if flush:
+            self.header = []
+            self.footer = []
+            # TODO: Do we need to flush this?
+            # nb = None
+            self.recorder = []
+            self.init_data = []
+
+        nb['cells'] = cells
+        rendered = nbf.writes(nb)
+        return rendered
 
 
 class ReplayCLIUsage(CLIUsage):
@@ -557,7 +716,6 @@ class ReplayCLIUsage(CLIUsage):
         imported_var = Usage.import_from_format(
             self, name, semantic_type, variable, view_type=view_type)
 
-        # in_fp = variable.to_interface_name()
         out_fp = imported_var.to_interface_name()
 
         lines = [
@@ -677,9 +835,10 @@ class ReplayCLIUsage(CLIUsage):
         self.footer.extend(build_footer(dag, self.header_boundary))
 
 
-DRIVER_CHOICES = Literal['python3', 'cli']
+DRIVER_CHOICES = Literal['python3', 'cli', 'jn']
 SUPPORTED_USAGE_DRIVERS = {
     'python3': ReplayPythonUsage,
     'cli': ReplayCLIUsage,
+    'jn': ReplayJupyterNotebookUsage,
 }
 DRIVER_NAMES = list(SUPPORTED_USAGE_DRIVERS.keys())

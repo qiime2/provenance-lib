@@ -668,7 +668,6 @@ class InitializerTests(unittest.TestCase):
         self.assertEqual(var.var_type, 'column')
 
         rendered = cfg.use.render()
-        print(rendered)
         self.assertRegex(rendered, 'from qiime2 import Metadata')
         exp = (r"barcodes_0_md = Metadata.load\('.*md_out/test_a/test_o.tsv'")
         self.assertRegex(rendered, exp)
@@ -786,18 +785,21 @@ class BuildNoProvenanceUsageTests(CustomAssertions):
             single_no_prov = ProvDAG(os.path.join(DATA_DIR,
                                      'v0_uu_emperor.qzv'))
         v0 = single_no_prov.get_node_data(v0_uuid)
-        build_no_provenance_node_usage(v0, v0_uuid, ns, cfg)
+
+        lines = build_no_provenance_node_usage(v0, v0_uuid, ns, cfg)
+        self.assertEqual(len(lines), 4)
+
         out_var_name = '<visualization_0>'
         self.assertEqual(ns.usg_var_namespace, {v0_uuid: out_var_name})
-        rendered = cfg.use.render()
         # Confirm the initial context comment is present once.
-        self.assertREAppearsOnlyOnce(rendered, 'nodes have no provenance')
-        header = '# Original Node ID                       String Description'
-        self.assertREAppearsOnlyOnce(rendered, header)
+        self.assertREAppearsOnlyOnce(lines[0], 'nodes have no provenance')
+        self.assertEqual(lines[1], '')
+        header = '^Original Node ID                       String Description'
+        self.assertREAppearsOnlyOnce(lines[2], header)
 
         # Confirm expected values have been rendered
-        exp_v0 = f'# {v0_uuid}   {out_var_name}'
-        self.assertRegex(rendered, exp_v0)
+        exp_v0 = f'^{v0_uuid}   {out_var_name}'
+        self.assertRegex(lines[3], exp_v0)
 
     def test_build_no_provenance_node_usage_uuid_only_node(self):
         ns = NamespaceCollections()
@@ -811,24 +813,27 @@ class BuildNoProvenanceUsageTests(CustomAssertions):
         # This node is only a parent UUID captured in the v1 node's action.yaml
         node = mixed.get_node_data(v0_uuid)
         self.assertEqual(node, None)
-        build_no_provenance_node_usage(node, v0_uuid, ns, cfg)
+
+        lines = build_no_provenance_node_usage(node, v0_uuid, ns, cfg)
+        self.assertEqual(len(lines), 4)
 
         out_var_name = '<no-provenance-node_0>'
         self.assertEqual(ns.usg_var_namespace, {v0_uuid: out_var_name})
 
-        rendered = cfg.use.render()
         # Confirm the initial context comment is present once.
-        self.assertREAppearsOnlyOnce(rendered, 'nodes have no provenance')
-        header = '# Original Node ID                       String Description'
-        self.assertREAppearsOnlyOnce(rendered, header)
+        self.assertREAppearsOnlyOnce(lines[0], 'nodes have no provenance')
+        header = 'Original Node ID                       String Description'
+        self.assertEqual(lines[1], '')
+        self.assertREAppearsOnlyOnce(lines[2], header)
 
         # Confirm expected values have been rendered
-        exp_v0 = f'# {v0_uuid}   {out_var_name.replace("-", "_")}'
-        self.assertRegex(rendered, exp_v0)
+        exp_v0 = f'{v0_uuid}   {out_var_name.replace("-", "_")}'
+        self.assertRegex(lines[3], exp_v0)
 
     def test_build_no_provenance_node_usage_many_x(self):
         """
-        Context should only be logged once.
+        Checks that no-provenance context help is only be logged when there
+        are many no-provenance nodes
         """
         ns = NamespaceCollections()
         cfg = ReplayConfig(use=SUPPORTED_USAGE_DRIVERS['python3'](),
@@ -851,9 +856,14 @@ class BuildNoProvenanceUsageTests(CustomAssertions):
                 UserWarning, f'(:?)Art.*{tbl_uuid}.*prior.*incomplete'):
             v0_tbl = ProvDAG(os.path.join(DATA_DIR, 'v0_table.qza'))
         tbl = v0_tbl.get_node_data(tbl_uuid)
-        build_no_provenance_node_usage(v0_viz, v0_uuid, ns, cfg)
-        build_no_provenance_node_usage(tbl, tbl_uuid, ns, cfg)
-        build_no_provenance_node_usage(dummy_viz, dummy_viz_uuid, ns, cfg)
+        lines_w_context = build_no_provenance_node_usage(
+            v0_viz, v0_uuid, ns, cfg)
+        lines_without_1 = build_no_provenance_node_usage(
+            tbl, tbl_uuid, ns, cfg)
+        lines_without_2 = build_no_provenance_node_usage(
+            dummy_viz, dummy_viz_uuid, ns, cfg)
+
+        # Confirms the usage variables are correctly created
         self.assertIn(v0_uuid, ns.usg_var_namespace)
         self.assertIn(tbl_uuid, ns.usg_var_namespace)
         self.assertIn(dummy_viz_uuid, ns.usg_var_namespace)
@@ -862,7 +872,12 @@ class BuildNoProvenanceUsageTests(CustomAssertions):
                          '<feature_table_frequency_0>')
         self.assertEqual(ns.usg_var_namespace[dummy_viz_uuid],
                          '<visualization_1>')
+
+        # Comment and render for simpler assertions
+        joined = '\n'.join(lines_w_context + lines_without_1 + lines_without_2)
+        cfg.use.comment(joined)
         rendered = cfg.use.render()
+
         # Confirm the initial context isn't repeated.
         self.assertREAppearsOnlyOnce(rendered, 'nodes have no provenance')
         header = '# Original Node ID                       String Description'

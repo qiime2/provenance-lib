@@ -329,11 +329,13 @@ class ReplayPythonUsage(ArtifactAPIUsage):
         if dumped_md_fn:
             lines = [f'{input_fp} = Metadata.load(\'{dumped_md_fn}.tsv\')']
         else:
-            self.comment(
-                'NOTE: You may substitute already-loaded Metadata for the '
-                'following, or cast a pandas.DataFrame to Metadata as needed.'
-            )
-            lines = [f'{input_fp} = Metadata.load(<your metadata filepath>)']
+            lines = [
+                '# NOTE: You may substitute already-loaded Metadata for the '
+                'following, or cast',
+                '# a pandas.DataFrame to Metadata as needed.\n'
+            ]
+            lines.append(
+                f'{input_fp} = Metadata.load(<your metadata filepath>)')
 
         self._add(lines)
         return var

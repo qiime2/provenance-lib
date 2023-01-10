@@ -640,16 +640,16 @@ class ReplayJupyterNotebookUsage(ReplayPythonUsage):
         if self.footer:
             cells.append(self.nb_format.new_markdown_cell(self.footer))
 
+        nb['cells'] = cells
+        rendered = nbf.writes(nb)
+
         if flush:
             self.header = []
             self.footer = []
-            # TODO: Do we need to flush this?
-            # nb = None
+            nb = None
             self.recorder = []
             self.init_data = []
 
-        nb['cells'] = cells
-        rendered = nbf.writes(nb)
         return rendered
 
     def build_header(self):

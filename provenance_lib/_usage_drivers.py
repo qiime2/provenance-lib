@@ -160,7 +160,7 @@ def build_header(shebang: str = '', boundary: str = '', copyright: str = '',
     header.extend([
         f"{pfx}For User Support, post to the Community Plugin Support channel"
         " of the QIIME 2",
-        f"{pfx}Forum: https://forum.qiime2.org",
+        f"{pfx}Forum: https://forum.qiime2.org  ",
         f"{pfx}Documentation/issues: {p_lib_md['Home-page']}",
         "",
         f"{pfx}UUIDs of all target QIIME 2 Results are shown at the end of "
@@ -177,7 +177,7 @@ def build_header(shebang: str = '', boundary: str = '', copyright: str = '',
 def build_footer(dag: ProvDAG, boundary: str, comment_prefix: str = '# '
                  ) -> List:
     """
-    Writes footer copy for all outputs
+    Writes footer copy for Python and CLI outputs (not JN)
     """
     footer = []
     pairs = []
@@ -653,13 +653,39 @@ class ReplayJupyterNotebookUsage(ReplayPythonUsage):
         return rendered
 
     def build_header(self):
-        self.header.extend(
-            build_header(self.shebang, self.header_boundary, self.copyright,
-                         self.comment_prefix, self.how_to))
+        """
+        Generates header content using the module-global build_header,
+        and adds explicit line breaks for jupyter notebook
+        """
+        header = [
+            line + '\n' for line in build_header(
+                self.shebang, self.header_boundary, self.copyright,
+                self.comment_prefix, self.how_to)
+        ]
+        self.header.extend(header)
 
     def build_footer(self, dag: ProvDAG):
-        self.footer.extend(build_footer(dag, self.header_boundary,
-                                        self.comment_prefix))
+        """
+        Generates footer content for jupyter notebook outputs
+        """
+        footer = []
+        pairs = []
+        uuids = sorted(dag._parsed_artifact_uuids)
+
+        # We can fit two UUIDs on a line, so pair em up
+        for idx in range(0, u_len := len(uuids), 2):
+            if idx == u_len - 1:
+                pairs.append(f"{uuids[idx]}\n")
+            else:
+                pairs.append(f"{uuids[idx]} \t {uuids[idx + 1]}\n")
+
+        footer.append(
+            "The following QIIME 2 Results were parsed to produce this"
+            " script:\n")
+        footer.append("```python\n")
+        footer.extend(pairs)
+        footer.append("```\n")
+        self.footer.extend(footer)
 
 
 class ReplayCLIUsage(CLIUsage):

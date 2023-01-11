@@ -17,6 +17,15 @@ run-py:
 	--o-metadata-out-fp './gerbils-time' \
 	--o-out-fp ./replay_scripts/sample_replay.py
 
+run-cli:
+	replay provenance \
+	--i-in-fp provenance_lib/tests/data/v5_uu_emperor.qzv \
+	--p-usage-driver cli \
+	--p-use-recorded-metadata \
+	--p-verbose \
+	--o-metadata-out-fp './replay_scripts/metadata' \
+	--o-out-fp ./replay_scripts/sample_replay.sh
+
 run-jn:
 	replay provenance \
 	--i-in-fp provenance_lib/tests/data/v5_uu_emperor.qzv \
@@ -42,6 +51,12 @@ cite-everything:
 repro-supp:
 	replay supplement \
 	--i-in-fp provenance_lib/tests/data/v5_uu_emperor.qzv \
+	--o-out-fp ./replay_scripts/supplement.zip
+
+repro-supp-dir:
+	replay supplement \
+	--i-in-fp provenance_lib/tests/data/parse_dir_test \
+	--p-recurse \
 	--o-out-fp ./replay_scripts/supplement.zip
 
 # TODO: install and dev targets

@@ -529,58 +529,6 @@ class ReplayJupyterNotebookUsage(ReplayPythonUsage):
         lines_as_cell = self.nb_format.new_markdown_cell(joined)
         self._add(lines_as_cell)
 
-    # TODO: If the default-to-code cell "add_" works, we can probably drop this
-    # def import_from_format(self, name, semantic_type, variable,
-    #                        view_type=None):
-    #     """
-    #     Identical to super.import_from_format, but writes <your data here>
-    #     instead of import_fp, saves the result, and writes a cell
-    #     """
-    #     # We need the super().super().super() here, so pass self to
-    #     # Usage.import_fr...
-    #     imported_var = Usage.import_from_format(
-    #         self, name, semantic_type, variable, view_type=view_type)
-
-    #     interface_name = imported_var.to_interface_name()
-    #     import_fp = self.repr_raw_variable_name('<your data here>')
-
-    #     lines = [
-    #         '%s = Artifact.import_data(' % (interface_name,),
-    #         self.INDENT + '%r,' % (semantic_type,),
-    #         self.INDENT + '%r,' % (import_fp,),
-    #     ]
-
-    #     if view_type is not None:  # pragma: no cover
-    #         if type(view_type) is not str:
-    #             # Show users where these formats come from when used in the
-    #             # Python API to make things less "magical".
-    #             import_path = super()._canonical_module(view_type)
-    #             view_type = view_type.__name__
-    #             if import_path is not None:
-    #                 self._update_imports(from_=import_path,
-    #                                      import_=view_type)
-    #             else:
-    #                # May be in scope already, but something is quite wrong at
-    #                # this point, so assume the plugin_manager is sufficiently
-    #                # informed.
-    #                 view_type = repr(view_type)
-    #         else:
-    #             view_type = repr(view_type)
-
-    #         lines.append(self.INDENT + '%s,' % (view_type,))
-
-    #     lines.extend([
-    #         ')',
-    #         '# SAVE: comment out the following with \'# \' to skip saving'
-    #         ' this Result to disk',
-    #         '%s.save(\'%s\')' % (interface_name, interface_name,),
-    #         ''])
-    #     joined = '\n'.join(lines)
-    #     lines_as_cell = self.nb_format.new_code_cell(joined)
-    #     self._update_imports(from_='qiime2', import_='Artifact')
-    #     self._add(lines_as_cell)
-    #     return imported_var
-
     def render(self, flush=False):
         """Return a string of Artifact API python code
         formatted as a Jupyter Notebook
@@ -598,10 +546,10 @@ class ReplayJupyterNotebookUsage(ReplayPythonUsage):
         nb = self.nb_format.new_notebook()
         cells = []
 
-        sorted_imps = sorted(self.local_imports)
         if self.header:
             cells.append(self.nb_format.new_markdown_cell(self.header))
 
+        sorted_imps = sorted(self.local_imports)
         if sorted_imps:
             cells.append(self.nb_format.new_code_cell(sorted_imps))
 

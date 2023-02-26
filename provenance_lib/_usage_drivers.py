@@ -494,6 +494,15 @@ class ReplayJupyterNotebookUsage(ReplayPythonUsage):
         self._reset_state(reset_global_imports=True)
         self.nb_format = nbf.v4
 
+    def _reset_state(self, reset_global_imports=False):
+        self.local_imports = set()
+        self.header = []
+        self.recorder = []
+        self.footer = []
+        self.init_data_refs = dict()
+        if reset_global_imports:
+            self.global_imports = set()
+
     def _add(self, lines: Union[NotebookNode, List[str]]):
         """
         Converts a list of strings into a notebookformat code cell
@@ -509,15 +518,6 @@ class ReplayJupyterNotebookUsage(ReplayPythonUsage):
             cell = self.nb_format.new_code_cell(lines)
 
         self.recorder.append(cell)
-
-    def _reset_state(self, reset_global_imports=False):
-        self.local_imports = set()
-        self.header = []
-        self.recorder = []
-        self.footer = []
-        self.init_data_refs = dict()
-        if reset_global_imports:
-            self.global_imports = set()
 
     def comment(self, line):
         LINE_LEN = 79

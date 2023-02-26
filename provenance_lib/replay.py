@@ -271,7 +271,8 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
         no_prov_msg.extend(
             build_no_provenance_node_usage(n_data, node_id, usg_ns, cfg)
         )
-    cfg.use.comment('\n'.join(no_prov_msg))
+    if no_prov_msg:
+        cfg.use.comment('\n'.join(no_prov_msg))
 
     # Record usage examples for all nodes with provenance
     for action_id in (std_actions := actions.std_actions):

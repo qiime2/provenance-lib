@@ -472,36 +472,6 @@ class ReplayPythonUsage(ArtifactAPIUsage):
         self.footer.extend(build_footer(dag, self.header_boundary))
 
 
-class ReplayCLIUsageVariable(CLIUsageVariable):
-    EXT = {
-        'artifact': '.qza',
-        'visualization': '.qzv',
-        'metadata': '',
-        'column': '',
-        'format': '',
-    }
-
-    @property
-    def ext(self):
-        return self.EXT[self.var_type]
-
-    def to_interface_name(self):
-        """
-        Like parent, but does not kebab-case metadata. Filepaths are preserved.
-        """
-        if hasattr(self, '_q2cli_ref'):
-            return self._q2cli_ref
-
-        cli_name = '%s%s' % (self.name, self.ext)
-
-        # don't disturb file names, this will break importing where QIIME 2
-        # relies on specific filenames being present in a dir
-        if self.var_type not in ('format', 'column', 'metadata'):
-            cli_name = self.to_cli_name(cli_name)
-
-        return cli_name
-
-
 class ReplayJupyterNotebookUsage(ReplayPythonUsage):
     shebang = ''
     header_boundary = ''
@@ -686,6 +656,36 @@ class ReplayJupyterNotebookUsage(ReplayPythonUsage):
         footer.extend(pairs)
         footer.append("```\n")
         self.footer.extend(footer)
+
+
+class ReplayCLIUsageVariable(CLIUsageVariable):
+    EXT = {
+        'artifact': '.qza',
+        'visualization': '.qzv',
+        'metadata': '',
+        'column': '',
+        'format': '',
+    }
+
+    @property
+    def ext(self):
+        return self.EXT[self.var_type]
+
+    def to_interface_name(self):
+        """
+        Like parent, but does not kebab-case metadata. Filepaths are preserved.
+        """
+        if hasattr(self, '_q2cli_ref'):
+            return self._q2cli_ref
+
+        cli_name = '%s%s' % (self.name, self.ext)
+
+        # don't disturb file names, this will break importing where QIIME 2
+        # relies on specific filenames being present in a dir
+        if self.var_type not in ('format', 'column', 'metadata'):
+            cli_name = self.to_cli_name(cli_name)
+
+        return cli_name
 
 
 class ReplayCLIUsage(CLIUsage):

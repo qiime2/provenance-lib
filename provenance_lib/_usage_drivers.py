@@ -605,7 +605,7 @@ class ReplayJupyterNotebookUsage(ReplayPythonUsage):
         footer.append(
             "The following QIIME 2 Results were parsed to produce this"
             " script:\n")
-        footer.append("```python\n")
+        footer.append("```sh\n")
         footer.extend(pairs)
         footer.append("```\n")
         self.footer.extend(footer)

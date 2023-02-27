@@ -515,6 +515,11 @@ class ReplayJupyterNotebookUsage(ReplayPythonUsage):
         if isinstance(lines, NotebookNode):
             cell = lines
         else:
+            # Strip empty lines from the end of the collection.
+            # These are used by the Python driver to create whitespace between
+            # code blocks, and are not needed in the context of notebook cells.
+            while len(lines[-1]) == 0:
+                lines = lines[0:-1]
             cell = self.nb_format.new_code_cell(lines)
 
         self.recorder.append(cell)

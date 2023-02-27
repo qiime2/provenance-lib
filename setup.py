@@ -22,7 +22,8 @@ setup(
     package_data={'': ['assets/*.txt', '*.bib']},
     python_requires='>=3.8',
     install_requires=['bibtexparser>=1.0', 'Click', 'flake8', 'mypy',
-                      'networkx', 'pandas', 'pyyaml>=5.3', 'types-setuptools',
+                      'networkx', 'notebookformat>=5.6', 'pandas',
+                      'pyyaml>=5.3', 'types-setuptools',
                       ],
     extras_require={
          'dev': ['pytest>=6', 'pytest-cov>=2.0'],

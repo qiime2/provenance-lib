@@ -520,6 +520,9 @@ class ReplayJupyterNotebookUsage(ReplayPythonUsage):
             # code blocks, and are not needed in the context of notebook cells.
             while len(lines[-1]) == 0:
                 lines = lines[0:-1]
+            # Explicitly add newlines to force JN to recognize line breaks
+            *lines_to_break, last_line = lines
+            lines = [line+'\n' for line in lines_to_break] + [last_line]
             cell = self.nb_format.new_code_cell(lines)
 
         self.recorder.append(cell)
@@ -556,6 +559,9 @@ class ReplayJupyterNotebookUsage(ReplayPythonUsage):
 
         sorted_imps = sorted(self.local_imports)
         if sorted_imps:
+            # Explicitly add newlines to force JN to recognize line breaks
+            *lines_to_break, last_line = sorted_imps
+            sorted_imps = [line+'\n' for line in lines_to_break] + [last_line]
             cells.append(self.nb_format.new_code_cell(sorted_imps))
 
         cells.extend(self.recorder)

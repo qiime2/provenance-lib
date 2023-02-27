@@ -224,6 +224,7 @@ class ReplayPythonUsageVariable(ArtifactAPIUsageVariable):
 
 class ReplayPythonUsage(ArtifactAPIUsage):
     shebang = '#!/usr/bin/env python'
+    comment_prefix = '# '
     header_boundary = '# ' + ('-' * 77)
     copyright = pkg_resources.resource_string(
         __package__, 'assets/copyright_note.txt').decode('utf-8').split('\n')
@@ -465,8 +466,13 @@ class ReplayPythonUsage(ArtifactAPIUsage):
 
     def build_header(self):
         self.header.extend(
-            build_header(self.shebang, self.header_boundary, self.copyright,
-                         self.how_to))
+            build_header(
+                shebang=self.shebang,
+                boundary=self.header_boundary,
+                copyright=self.copyright,
+                comment_prefix=self.comment_prefix,
+                extra_text=self.how_to
+                ))
 
     def build_footer(self, dag: ProvDAG):
         self.footer.extend(build_footer(dag, self.header_boundary))
@@ -588,8 +594,12 @@ class ReplayJupyterNotebookUsage(ReplayPythonUsage):
         """
         header = [
             line + '\n' for line in build_header(
-                self.shebang, self.header_boundary, self.copyright,
-                self.comment_prefix, self.how_to)
+                shebang=self.shebang,
+                boundary=self.header_boundary,
+                copyright=self.copyright,
+                comment_prefix=self.comment_prefix,
+                extra_text=self.how_to
+                )
         ]
         self.header.extend(header)
 
@@ -650,6 +660,7 @@ class ReplayCLIUsageVariable(CLIUsageVariable):
 class ReplayCLIUsage(CLIUsage):
     shebang = '#!/usr/bin/env bash'
     header_boundary = ('#' * 79)
+    comment_prefix = "# "
     copyright = pkg_resources.resource_string(
         __package__, 'assets/copyright_note.txt').decode('utf-8').split('\n')
     set_ex = [
@@ -829,8 +840,12 @@ class ReplayCLIUsage(CLIUsage):
 
     def build_header(self):
         self.header.extend(
-            build_header(self.shebang, self.header_boundary, self.copyright,
-                         self.how_to))
+            build_header(
+                shebang=self.shebang,
+                boundary=self.header_boundary,
+                copyright=self.copyright,
+                comment_prefix=self.comment_prefix,
+                extra_text=self.how_to))
 
     def build_footer(self, dag: ProvDAG):
         self.footer.extend(build_footer(dag, self.header_boundary))

@@ -447,8 +447,8 @@ class ReplayPythonUsage(ArtifactAPIUsage):
         splitted = line.splitlines()
         joined = ['\n'.join(
                         textwrap.wrap(line, LINE_LEN, break_long_words=False,
-                                      initial_indent='# ',
-                                      subsequent_indent='# '))
+                                      initial_indent=self.comment_prefix,
+                                      subsequent_indent=self.comment_prefix))
                   for line in splitted]
         joined.append('')
         self._add(joined)
@@ -497,6 +497,7 @@ class ReplayJupyterNotebookUsage(ReplayPythonUsage):
     shebang = ''
     header_boundary = ''
     comment_prefix = ''
+    preformatted_marker = '```'
     copyright = pkg_resources.resource_string(
         __package__,
         'assets/jn_copyright_note.txt').decode('utf-8').split('\n')
@@ -849,10 +850,18 @@ class ReplayCLIUsage(CLIUsage):
 
     def comment(self, text):
         """
-        Identical to parent, but pads comments with an extra newline
+        Writes a single- or multi-line comment to the recorder for rendering
         """
-        super().comment(text)
-        self.recorder.append('')
+        LINE_LEN = 79
+        # wrap text at line endings while preserving line breaks
+        splitted = text.splitlines()
+        joined = ['\n'.join(
+                        textwrap.wrap(line, LINE_LEN, break_long_words=False,
+                                      initial_indent=self.comment_prefix,
+                                      subsequent_indent=self.comment_prefix))
+                  for line in splitted]
+        joined.append('')
+        self.recorder.extend(joined)
 
     def action(self, action, inputs, outputs):
         """

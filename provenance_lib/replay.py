@@ -271,6 +271,10 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
         no_prov_msg.extend(
             build_no_provenance_node_usage(n_data, node_id, usg_ns, cfg)
         )
+    # Close preformatted text if required by usage driver
+    if hasattr(cfg.use, 'preformatted_marker'):
+        no_prov_msg.append(cfg.use.preformatted_marker)
+
     if no_prov_msg:
         cfg.use.comment('\n'.join(no_prov_msg))
 
@@ -302,6 +306,9 @@ def build_no_provenance_node_usage(node: Optional[ProvNode],
             "rendered, with the string descriptions below replacing actual "
             "inputs.")
         lines.append("")
+        # Open preformatted text if required by usage driver
+        if hasattr(cfg.use, 'preformatted_marker'):
+            lines.append(cfg.use.preformatted_marker)
         lines.append(
             "Original Node ID                       String Description")
 
@@ -318,7 +325,7 @@ def build_no_provenance_node_usage(node: Optional[ProvNode],
         ns.usg_var_namespace[uuid], lambda: None, 'artifact')
     ns.usg_vars.update({uuid: empty_var})
 
-    # Log the no-prov node
+    # Template out the no-prov node details
     lines.append(f"{uuid}   {ns.usg_vars[uuid].to_interface_name()}")
     return lines
 

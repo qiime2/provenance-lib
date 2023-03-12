@@ -250,11 +250,20 @@ class ReplayPythonUsage(ArtifactAPIUsage):
         if reset_global_imports:
             self.global_imports = set()
 
-    def _template_action(self, action, input_opts, variables):
+    def _template_action(
+            self, action, input_opts, variables, preceding_lines=[]):
         """
+        Templates the lines of code that will be rendered for one action
+
         Identical to super, but lumps results into `action_results` if
         there are just too many results, and saves results
+
+        preceding_lines is a collection of lines of context to be rendered
+        above the lines templated here. Provides support for Jupyter cells
         """
+        lines = []
+        if preceding_lines:
+            lines = preceding_lines
         action_f = action.get_action()
         if len(variables) > self.action_collection_size or \
                 len(action_f.signature.outputs) > 5:
@@ -264,9 +273,9 @@ class ReplayPythonUsage(ArtifactAPIUsage):
 
         plugin_id = action.plugin_id
         action_id = action.action_id
-        lines = [
+        lines.extend([
             '%s = %s_actions.%s(' % (output_vars, plugin_id, action_id),
-        ]
+        ])
 
         all_inputs = (list(action_f.signature.inputs.keys()) +
                       list(action_f.signature.parameters.keys()))
@@ -328,7 +337,9 @@ class ReplayPythonUsage(ArtifactAPIUsage):
 
     def init_metadata(self, name, factory, dumped_md_fn: str = ''):
         """
-        ArtifactAPIUsage doesn't render Metadata loading, so we do it here.
+        Creates a Metadata usage variable, updates the required imports,
+        templates out the appropriate lines - ArtifactAPIUsage doesn't render
+        Metadata loading, so we must do it here.
 
         dumped_md_fn is an optional parameter used only by
         init_md_from_recorded_md. It allows us to produce scripts that pass
@@ -413,6 +424,10 @@ class ReplayPythonUsage(ArtifactAPIUsage):
             return self.value
 
     def get_metadata_column(self, name, column_name, variable):
+        """
+        Creates a metadata column usage variable, and templates the lines
+        required to `get_column`
+        """
         col_variable = Usage.get_metadata_column(
             self, name, column_name, variable)
 
@@ -503,6 +518,10 @@ class ReplayJupyterNotebookUsage(ReplayPythonUsage):
     def _reset_state(self, reset_global_imports=False):
         self.local_imports = set()
         self.header = []
+        # All lines that must be included when an action is ._add-ed as a cell
+        # Filled in init_metadata, get_metadata_column, and _template_action,
+        # flushed in ._add
+        self.action_buffer = []
         self.recorder = []
         self.footer = []
         self.init_data_refs = dict()
@@ -542,6 +561,70 @@ class ReplayJupyterNotebookUsage(ReplayPythonUsage):
                             for line in splitted])
         lines_as_cell = self.nb_format.new_markdown_cell(joined)
         self._add(lines_as_cell)
+
+    def init_metadata(self, name, factory, dumped_md_fn: str = ''):
+        """
+        Creates a Metadata usage variable, updates the required imports,
+        templates out the appropriate lines - ArtifactAPIUsage doesn't render
+        Metadata loading, so we must do it here.
+
+        Overrides ReplayPythonUsage to delay ._add-ing these lines to a cell
+        until it is possible to ._add all related cell contents in one cell
+
+        dumped_md_fn is an optional parameter used only by
+        init_md_from_recorded_md. It allows us to produce scripts that pass
+        metadata dumped from provenance to dumped_md_fn
+        """
+        var = ArtifactAPIUsage.init_metadata(self, name, factory)
+        self._update_imports(from_='qiime2', import_='Metadata')
+        input_fp = var.to_interface_name()
+        if dumped_md_fn:
+            lines = [f'{input_fp} = Metadata.load(\'{dumped_md_fn}.tsv\')']
+        else:
+            lines = [
+                '# NOTE: You may substitute already-loaded Metadata for the '
+                'following, or cast',
+                '# a pandas.DataFrame to Metadata as needed.\n'
+            ]
+            lines.append(
+                f'{input_fp} = Metadata.load(<your metadata filepath>)')
+
+        self.action_buffer.extend(lines)
+        return var
+
+    def get_metadata_column(self, name, column_name, variable):
+        """
+        Creates a metadata column usage variable, and templates the lines
+        required to `get_column`
+
+        Overrides ReplayPythonUsage to delay ._add-ing these lines to a cell
+        until it is possible to ._add all related cell contents in one cell
+        """
+        col_variable = Usage.get_metadata_column(
+            self, name, column_name, variable)
+
+        to_name = col_variable.to_interface_name()
+        from_name = variable.to_interface_name()
+
+        column_name = self.repr_raw_variable_name(column_name)
+        lines = ['%s = %s.get_column(%r)' % (to_name, from_name, column_name)]
+
+        self.action_buffer.extend(lines)
+        return col_variable
+
+    def _template_action(self, action, input_opts, variables):
+        """
+        Templates the lines of code that will be rendered for one Action,
+        including lines previously written to the action_buffer. Then clears
+        the action buffer.
+
+        Lines in the action buffer are lines related to this action, e.g. those
+        involved in loading metadata.
+        """
+        action = super()._template_action(
+            action, input_opts, variables, preceding_lines=self.action_buffer)
+        self.action_buffer = []
+        return action
 
     def render(self, flush=False):
         """Return a string of Artifact API python code

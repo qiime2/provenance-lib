@@ -772,6 +772,13 @@ def replay_citations(dag: ProvDAG, out_fp: FileName, deduplicate: bool = True,
         "formatting"
     ]
     if not suppress_header:
+        # TODO: build_header use here is atypical. All other build_header calls
+        # pass through a class-defined build_header method, and have no args
+        # In addition to being easier to reason about, consistency in this
+        # behavior will allow us to improve readability where cls.build_header
+        # is currently calling module-global _usage_drivers.build_header.
+        # It should be clearer what we're calling. Consider a HeaderMixin
+        # or similar class
         header = build_header(boundary=boundary, extra_text=extra) + ['\n']
         footer = build_footer(dag=dag, boundary=boundary)
     if bib_db.entries_dict == {}:

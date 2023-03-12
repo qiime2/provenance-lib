@@ -271,11 +271,11 @@ def build_usage_examples(dag: ProvDAG, cfg: ReplayConfig):
         no_prov_msg.extend(
             build_no_provenance_node_usage(n_data, node_id, usg_ns, cfg)
         )
-    # Close preformatted text if required by usage driver
-    if hasattr(cfg.use, 'preformatted_marker'):
-        no_prov_msg.append(cfg.use.preformatted_marker)
 
     if no_prov_msg:
+        # Close preformatted text block if usage driver needs preformatted text
+        if hasattr(cfg.use, 'preformatted_marker'):
+            no_prov_msg.append(cfg.use.preformatted_marker)
         cfg.use.comment('\n'.join(no_prov_msg))
 
     # Record usage examples for all nodes with provenance

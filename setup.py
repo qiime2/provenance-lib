@@ -9,13 +9,13 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name='provenance_lib',
+    name='provenance-lib',
     version=versioneer.get_version(),
     cmdclass=versioneer.get_cmdclass(),
     description=short_descr,
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/qiime2/provenance_lib',
+    url='https://github.com/qiime2/provenance-lib',
     author='Chris Keefe',
     author_email='crk239@nau.edu',
     license='BSD-3-clause',

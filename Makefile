@@ -73,3 +73,6 @@ dev:
 
 clean:
 	rm -r recorded_metadata replay_scripts
+
+install:
+	python setup.py install

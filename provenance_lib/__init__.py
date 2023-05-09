@@ -29,3 +29,6 @@ __all__ = [
     'replay_provenance', 'replay_citations', 'replay_supplement',
     'parse_version_from_fp', 'parse_version',
 ]
+
+from . import _version
+__version__ = _version.get_versions()['version']

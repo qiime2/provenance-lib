@@ -1,4 +1,5 @@
 from setuptools import setup, find_packages
+import versioneer
 
 short_descr = ("Tools for parsing, manipulating, and replaying QIIME 2 "
                "analyses leveraging the framework's decentralized provenance "
@@ -9,7 +10,8 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name='provenance_lib',
-    version='0.2.0',
+    version=versioneer.get_version(),
+    cmdclass=versioneer.get_cmdclass(),
     description=short_descr,
     long_description=long_description,
     long_description_content_type='text/markdown',

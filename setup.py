@@ -21,7 +21,17 @@ setup(
     license='BSD-3-clause',
     scripts=['scripts/tab-replay', 'scripts/always-tab-complete.py'],
     packages=find_packages(),
-    package_data={'': ['assets/*.txt', '*.bib']},
+    package_data={
+        'provenance_lib': ['assets/*.txt', '*.bib'],
+        'provenance_lib.tests': [
+            'data/*',
+            'data/lump_three_vars_test/*',
+            'data/multiple_imports_test/*',
+            'data/multiple_imports_test/duplicated_inner/*',
+            'data/parse_dir_test/*',
+            'data/parse_dir_test/inner/*'
+        ]
+    },
     python_requires='>=3.8',
     extras_require={
          'dev': ['pytest>=6', 'pytest-cov>=2.0'],

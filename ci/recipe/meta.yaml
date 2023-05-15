@@ -1,0 +1,52 @@
+{% set data = load_setup_py_data() %}
+{% set version = data.get('version') %}
+
+package:
+  name: provenance-lib
+  version: {{ version }}
+
+source:
+  path: ../..
+
+build:
+  script: make install
+
+requirements:
+  host:
+    - python {{ python }}
+    - setuptools
+
+  run:
+    - python {{ python }}
+    - bibtexparser>=1.0
+    - click
+    - mypy
+    - networkx
+    - pandas {{ pandas }}
+    - pyyaml
+    - qiime2 {{ qiime2_epoch }}.*
+    - q2cli {{ qiime2_epoch }}.*
+      # Not real dependencies
+    - q2-dada2 {{ qiime2_epoch }}.*
+    - q2-demux {{ qiime2_epoch }}.*
+    - q2-feature-classifier {{ qiime2_epoch }}.*
+    - q2-phylogeny {{ qiime2_epoch }}.*
+    - q2-diversity {{ qiime2_epoch }}.*
+    - q2-sample-classifier {{ qiime2_epoch }}.*
+
+test:
+  requires:
+    - pytest>=6
+    - pytest-cov>=2.0
+    - flake8
+
+  imports:
+    - provenance_lib
+
+  commands:
+    - pytest --pyargs provenance_lib
+
+about:
+  home: https://qiime2.org
+  license: BSD-3-Clause
+  license_family: BSD

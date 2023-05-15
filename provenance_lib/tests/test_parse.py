@@ -27,6 +27,9 @@ from .testing_utilities import (
     is_root_provnode_data, generate_archive_with_file_removed,
 )
 
+import pytest
+
+
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 TEST_DATA = {
     '0': {'parser': ParserV0,
@@ -160,6 +163,9 @@ class ProvDAGTests(unittest.TestCase):
                 f'FileNotFoundError.*ArchiveParser.*{fn}'):
             ProvDAG(fp)
 
+    # TODO/HACK: should use a mock instead.
+    @pytest.mark.skipif(os.geteuid() == 0,
+                        reason="root can always read")
     def test_insufficient_permissions(self):
         fn = 'not_a_zip.txt'
         fp = os.path.join(DATA_DIR, fn)

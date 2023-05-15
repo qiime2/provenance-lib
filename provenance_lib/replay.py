@@ -670,7 +670,7 @@ class BibContent():
         self.pages = entry.get('pages')
 
     def __eq__(self, other):
-        return(
+        return (
             type(self) == type(other) and
             self.title == other.title and
             self.author == other.author and

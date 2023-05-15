@@ -664,7 +664,7 @@ class ParserV1(ParserV0):
                                 f"misplaced or nonexistent in {zf.filename}.\n"
                                 )
 
-                    if(files_are_missing):
+                    if files_are_missing:
                         error_contents += (
                             f"Archive {root_uuid} may be corrupt "
                             "or provenance may be false.")

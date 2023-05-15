@@ -20,6 +20,8 @@ from .._archive_parser import (
 from .._yaml_constructors import MetadataInfo
 from .testing_utilities import ReallyEqualMixin
 
+import pytest
+
 
 class ParserVxTests(unittest.TestCase):
     def test_parse_root_md(self):
@@ -124,6 +126,9 @@ class ArchiveParserTests(unittest.TestCase):
                 FileNotFoundError, f'ArchiveParser.*{fp}'):
             ArchiveParser.get_parser(fp)
 
+    # TODO/HACK: should use a mock instead.
+    @pytest.mark.skipif(os.geteuid() == 0,
+                        reason="root can always read")
     def test_get_parser_insufficient_permissions(self):
         fn = 'not_a_zip.txt'
         fp = os.path.join(DATA_DIR, fn)

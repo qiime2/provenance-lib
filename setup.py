@@ -1,4 +1,5 @@
 from setuptools import setup, find_packages
+import versioneer
 
 short_descr = ("Tools for parsing, manipulating, and replaying QIIME 2 "
                "analyses leveraging the framework's decentralized provenance "
@@ -8,22 +9,30 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name='provenance_lib',
-    version='0.2.0',
+    name='provenance-lib',
+    version=versioneer.get_version(),
+    cmdclass=versioneer.get_cmdclass(),
     description=short_descr,
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/qiime2/provenance_lib',
+    url='https://github.com/qiime2/provenance-lib',
     author='Chris Keefe',
     author_email='crk239@nau.edu',
     license='BSD-3-clause',
     scripts=['scripts/tab-replay', 'scripts/always-tab-complete.py'],
     packages=find_packages(),
-    package_data={'': ['assets/*.txt', '*.bib']},
+    package_data={
+        'provenance_lib': ['assets/*.txt', '*.bib'],
+        'provenance_lib.tests': [
+            'data/*',
+            'data/lump_three_vars_test/*',
+            'data/multiple_imports_test/*',
+            'data/multiple_imports_test/duplicated_inner/*',
+            'data/parse_dir_test/*',
+            'data/parse_dir_test/inner/*'
+        ]
+    },
     python_requires='>=3.8',
-    install_requires=['bibtexparser>=1.0', 'Click', 'flake8', 'mypy',
-                      'networkx', 'pandas', 'pyyaml>=5.3', 'types-setuptools',
-                      ],
     extras_require={
          'dev': ['pytest>=6', 'pytest-cov>=2.0'],
      },

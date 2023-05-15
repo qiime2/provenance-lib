@@ -26,15 +26,15 @@ requirements:
     - pyyaml
     - qiime2 {{ qiime2_epoch }}.*
     - q2cli {{ qiime2_epoch }}.*
+      # Not real dependencies
+    - q2-dada2 {{ qiime2_epoch }}.*
+    - q2-demux {{ qiime2_epoch }}.*
 
 test:
   requires:
     - pytest>=6
     - pytest-cov>=2.0
     - flake8
-      # We need to rework these tests
-    - q2-dada2 {{ qiime2_epoch }}.*
-    - q2-demux {{ qiime2_epoch }}.*
 
   imports:
     - provenance_lib

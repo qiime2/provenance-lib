@@ -18,16 +18,13 @@ requirements:
 
   run:
     - python {{ python }}
-    - setuptools
     - bibtexparser>=1.0
-    - Click
+    - click
     - mypy
     - networkx
     - pandas {{ pandas }}
-    - pyyaml>=5.3
-    - types-setuptools
+    - pyyaml
     - qiime2 {{ qiime2_epoch }}.*
-    - q2-types {{ qiime2_epoch }}.*
     - q2cli {{ qiime2_epoch }}.*
 
 test:
@@ -39,6 +36,9 @@ test:
 
   imports:
     - provenance_lib
+
+  commands:
+    - pytest --pyargs provenance_lib
 
 about:
   home: https://qiime2.org

@@ -31,6 +31,7 @@ requirements:
     - q2-demux {{ qiime2_epoch }}.*
     - q2-feature-classifier {{ qiime2_epoch }}.*
     - q2-phylogeny {{ qiime2_epoch }}.*
+    - q2-diversity {{ qiime2_epoch }}.*
 
 test:
   requires:

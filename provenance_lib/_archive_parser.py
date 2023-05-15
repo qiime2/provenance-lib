@@ -777,7 +777,7 @@ class ParserV5(ParserV4):
 
 class ParserV6(ParserV5):
     """
-    Parser for V6 archives. 
+    Parser for V6 archives.
     """
     # These are files we expect will be present in every QIIME2 archive with
     # this format. "Optional" filenames should not be included here.

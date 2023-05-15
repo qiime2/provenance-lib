@@ -32,6 +32,7 @@ requirements:
     - q2-feature-classifier {{ qiime2_epoch }}.*
     - q2-phylogeny {{ qiime2_epoch }}.*
     - q2-diversity {{ qiime2_epoch }}.*
+    - q2-sample-classifier {{ qiime2_epoch }}.*
 
 test:
   requires:

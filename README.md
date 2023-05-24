@@ -14,14 +14,6 @@ provenance-lib lets you:
 ## Installation
 As of QIIME 2 2023.5, provenance-lib is installed as part of the QIIME 2 core distribution. If you have installed QIIME 2 2023.5 or later, provenance-lib is already installed. If you're using an earlier version of QIIME 2, we recommend upgrading to QIIME 2 2023.5 or later to use provenance-lib.
 
-## BASH tab completion
-To activate tab-completion automatically whenever you activate your conda environment,
-run `activate-replay-completion.py` while the environment is active. You should only have to do this once.
-
-To activate tab-completion for one session only, `source tab-replay` from your active conda env.
-
-Other shells (zsh, fish) are not supported at this time. Please raise an issue if this matters to you.
-
 ## Usage
 
 We are currently planning changes to how users can access provenance-lib to make this more similar to how other QIIME 2 tools are used. The following usage guidelines will be changing slightly in a future release.
@@ -50,27 +42,27 @@ See the help text for complete details, including information on which parameter
 ### Use - Python API
 Basic example:
 ```python
-import provenance-lib
+import provenance_lib
 
 # helptext for the package
-help(provenance-lib)
+help(provenance_lib)
 
 # command-specific helptext
-help(provenance-lib.replay_supplement)
+help(provenance_lib.replay_supplement)
 
 # help alternative for iPython and Jupyter Notebook only
-? provenance-lib.replay_supplement
+? provenance_lib.replay_supplement
 
 # Generate a reproducibility supplement for the current directory's
 # Results including all of its subdirectories recursively
-provenance-lib.replay_supplement(
+provenance_lib.replay_supplement(
     '.', './reproducibility-supplement.zip', recurse=True)
 ```
 
 More power and flexibility are available to users of the Python API, through the direct creation and manipulation of provenance digraphs (`ProvDAG` objects).
 
 The basic workflow proceeds as follows:
-- `import provenance-lib`
+- `import provenance_lib`
 - create ProvDAG objects from QIIME 2 archives
 - combine or manipulate these ProvDAGs as needed
 - Pass your ProvDAG to tools from the `replay` module
@@ -83,7 +75,6 @@ Running the notebook commands as is will write files to `docs`, and will have no
 ## Additional documentation
 - [A tutorial](https://forum.qiime2.org/t/provenance-replay-alpha-release-and-tutorial/23279) is available on the QIIME 2 forum.
 - A video walkthrough is available on the [QIIME 2 YouTube channel](https://youtu.be/KMsacdbQ8hA).
-- This tool can be found on the [QIIME 2 Library](https://library.qiime2.org/plugins/provenance-lib/43/)
 
 ## Questions/User Support?
 Please raise user support questions on the [QIIME 2 Forum](https://forum.qiime2.org/).

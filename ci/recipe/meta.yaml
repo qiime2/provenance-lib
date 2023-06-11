@@ -22,7 +22,7 @@ requirements:
     - click
     - mypy
     - networkx
-    - notebookformat
+    - nbformat
     - pandas {{ pandas }}
     - pyyaml
     - qiime2 {{ qiime2_epoch }}.*

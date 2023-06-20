@@ -83,7 +83,7 @@ Running the notebook commands as is will write files to `docs`, and will have no
 
    ```
    wget https://docs.qiime2.org/2023.5/data/tutorials/moving-pictures/core-metrics-results/unweighted_unifrac_emperor.qzv
-   wget https://docs.qiime2.org/2023.5/data/tutorials/moving-pictures/taxa-bar-plots.qzv
+   wget https://docs.qiime2.org/2023.5/data/tutorials/moving-pictures/alpha-rarefaction.qzv
    ```
 
 3. Run the following command from the directory containing your QIIME 2 results. It will produce a zip archive called `reproducibility-supplement.zip`
@@ -110,7 +110,7 @@ If your QIIME 2 Results are organized in a folder with many subfolders, you can 
 replay supplement \
   --i-in-fp . \
   --p-recurse \
-  --o-out-fp ./reproducibility_supplement.zip
+  --o-out-fp ./reproducibility-supplement.zip
 ```
 
 Without `--p-recurse`, you will report on only the Results in the current directory.

@@ -14,6 +14,8 @@ provenance-lib lets you:
 ## Installation
 As of QIIME 2 2023.5, provenance-lib is installed as part of the QIIME 2 core distribution. If you have installed QIIME 2 2023.5 or later, provenance-lib is already installed. If you're using an earlier version of QIIME 2, we recommend upgrading to QIIME 2 2023.5 or later to use provenance-lib.
 
+Instructions for installing the latest version of QIIME 2 can be found by navigating to https://docs.qiime2.org, and following the link to _Installing QIIME 2_.
+
 ## Usage
 
 We are currently planning changes to how users can access provenance-lib to make this more similar to how other QIIME 2 tools are used. The following usage guidelines will be changing slightly in a future release.

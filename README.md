@@ -1,8 +1,8 @@
-# provenance-lib
+# QIIME 2 Provenance Replay
 Software to support scientific reproducibility, attribution, and collaboration on the QIIME 2 platform.
 
 ## About
-provenance-lib parses the computational history ( or "provenance") of QIIME 2 results into a directed graph structure, supporting study validation and automation, and improving collaboration on and reporting of QIIME 2 analyses.
+The provenance-lib software provides the QIIME 2 Provenance Replay functionality, which parses the computational history ( or "provenance") of QIIME 2 results into a directed graph structure, and generates new executable code that can be used for reproducing or replicating an analysis. This supports study validation and automation, and is intended to improve collaboration on and reporting of QIIME 2 analyses.
 
 provenance-lib lets you:
 - generate executable scripts for your preferred QIIME 2 interface,
@@ -18,7 +18,7 @@ As of QIIME 2 2023.5, provenance-lib is installed as part of the QIIME 2 core di
 
 We are currently planning changes to how users can access provenance-lib to make this more similar to how other QIIME 2 tools are used. The following usage guidelines will be changing slightly in a future release.
 
-### Use - CLI
+### Command line interface
 provenance-lib offers tools for the command line under the name `replay`.
 
 `replay --help` renders a list of available commands.
@@ -39,7 +39,7 @@ replay citations \
 
 See the help text for complete details, including information on which parameters are required and which are optional and/or have default values.
 
-### Use - Python API
+### Python 3 API
 Basic example:
 ```python
 import provenance_lib
@@ -72,8 +72,51 @@ A Jupyter Notebook containing additional examples of Python API usage is include
 
 Running the notebook commands as is will write files to `docs`, and will have no impact on the functionality of the software itself.
 
+## Brief tutorial: using the command line to replay provenance
+
+### Running provenance replay
+
+1. First, activate your QIIME 2 2023.5 or later conda environment (e.g., using `conda activate qiime2-2023.5`).
+2. Navigate into a directory with some QIIME 2 Results in it (i.e. `.qza` and `.qzv` files).
+
+   If you don't have any of your own QIIME 2 results, you can download some from the QIIME 2 [_Moving Pictures_ tutorial](https://docs.qiime2.org/2023.5/tutorials/moving-pictures/). The following commands will download a couple of the final visualizations generated in that tutorial:
+
+   ```
+   wget https://docs.qiime2.org/2023.5/data/tutorials/moving-pictures/core-metrics-results/unweighted_unifrac_emperor.qzv
+   wget https://docs.qiime2.org/2023.5/data/tutorials/moving-pictures/taxa-bar-plots.qzv
+   ```
+
+3. Run the following command from the directory containing your QIIME 2 results. It will produce a zip archive called `reproducibility-supplement.zip`
+
+   ```
+   replay supplement \
+     --i-in-fp . \
+     --o-out-fp ./reproducibility-supplement.zip
+   ```
+
+   Note that parsing many QIIME 2 Results can take a long time. Expect ~10 minutes for 500 Results on a decent contemporary laptop.
+
+### Inspecting provenance replay results
+The command above will generate reproducibility documentation you can include as supplemental material alongside the paper. Unzip it to find the following:
+1. a directory of metadata `.tsv` files called `recorded_metadata`
+2. a python3 replay script written to `python3_replay.py`
+3. a bash (i.e., command line) replay script written to `cli_replay.sh`
+4. a citations bibtex file written to `citations.bib` including citations for all QIIME 2 steps that were applied.
+
+### Use --p-recurse to include subdirectories
+If your QIIME 2 Results are organized in a folder with many subfolders, you can use the `--p-recurse` flag to have `replay` generate a reproducibility supplement for all of the files in the current working directory (`./`) and its sub-folders:
+
+```
+replay supplement \
+  --i-in-fp . \
+  --p-recurse \
+  --o-out-fp ./reproducibility_supplement.zip
+```
+
+Without `--p-recurse`, you will report on only the Results in the current directory.
+
 ## Additional documentation
-- [A tutorial](https://forum.qiime2.org/t/provenance-replay-alpha-release-and-tutorial/23279) is available on the QIIME 2 forum.
+- [A detailed tutorial](https://forum.qiime2.org/t/provenance-replay-alpha-release-and-tutorial/23279) is available on the QIIME 2 forum, and can be run using the same results that were downloaded for the _Brief Tutorial_ above.
 - A video walkthrough is available on the [QIIME 2 YouTube channel](https://youtu.be/KMsacdbQ8hA).
 
 ## Questions/User Support?

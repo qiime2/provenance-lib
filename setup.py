@@ -5,15 +5,12 @@ short_descr = ("Tools for parsing, manipulating, and replaying QIIME 2 "
                "analyses leveraging the framework's decentralized provenance "
                "data tracking.")
 
-with open("README.md", "r", encoding="utf-8") as fh:
-    long_description = fh.read()
-
 setup(
     name='provenance-lib',
     version=versioneer.get_version(),
     cmdclass=versioneer.get_cmdclass(),
     description=short_descr,
-    long_description=long_description,
+    long_description=short_descr,
     long_description_content_type='text/markdown',
     url='https://github.com/qiime2/provenance-lib',
     author='Chris Keefe',

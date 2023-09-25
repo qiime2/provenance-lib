@@ -832,7 +832,7 @@ class BuildNoProvenanceUsageTests(CustomAssertions):
 
     def test_build_no_provenance_node_usage_many_x(self):
         """
-        Checks that no-provenance context help is only be logged when there
+        Checks that no-provenance context help is only logged once when there
         are many no-provenance nodes
         """
         ns = NamespaceCollections()
@@ -1369,6 +1369,7 @@ class WriteReproducibilitySupplementTests(CustomAssertions):
 
             exp = {'python3_replay.py',
                    'cli_replay.sh',
+                   'jn_replay.ipynb',
                    'citations.bib',
                    'recorded_metadata/',
                    'recorded_metadata/demux_emp_single_0/barcodes_0.tsv',
@@ -1402,6 +1403,7 @@ class WriteReproducibilitySupplementTests(CustomAssertions):
 
             exp = {'python3_replay.py',
                    'cli_replay.sh',
+                   'jn_replay.ipynb',
                    'citations.bib',
                    'recorded_metadata/',
                    'recorded_metadata/demux_emp_single_0/barcodes_0.tsv',

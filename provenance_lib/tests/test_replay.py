@@ -198,7 +198,7 @@ class ReplayProvenanceTests(unittest.TestCase):
         we're not uniquifying variable names properly.
         """
         dag = ProvDAG(os.path.join(DATA_DIR, 'ns_collisions.qza'))
-        drivers = ['python3', 'cli']
+        drivers = ['python3', 'cli', 'jn']
         exp = ['filtered_table_0', 'filtered_table_1', 'filtered_table_2']
         for driver in drivers:
             with tempfile.TemporaryDirectory() as tmpdir:
@@ -223,15 +223,17 @@ class ReplayProvenanceTests(unittest.TestCase):
         build_action_usage needs to deal with that appropriately.
         """
         dag = ProvDAG(os.path.join(DATA_DIR, 'heatmap2.qzv'))
-        drivers = ['python3', 'cli']
+        drivers = ['python3', 'cli', 'jn']
         exp = {
             'python3':
+                'heatmap_0_viz.*sample_classifier_actions.heatmap',
+            'jn':
                 'heatmap_0_viz.*sample_classifier_actions.heatmap',
             'cli': '(?s)qiime sample-classifier heatmap.*'
                    '--o-heatmap heatmap-0.qzv'}
         for driver in drivers:
             with tempfile.TemporaryDirectory() as tmpdir:
-                out_path = pathlib.Path(tmpdir) / 'ns_coll.txt'
+                out_path = pathlib.Path(tmpdir) / 'out.txt'
                 replay_provenance(dag, out_path, driver)
 
                 with open(out_path, 'r') as fp:
@@ -240,24 +242,28 @@ class ReplayProvenanceTests(unittest.TestCase):
 
     def test_replay_untracked_output_names(self):
         """
-        In this artifact, the first three nodes don't track output names. As
-        a result, replay could fail when Usage.action tries to look up the
-        output-name for those results in the plugin manager's record of the
-        actual action's signature. We've monkeypatched Usage.action here to
-        allow replay to proceed.
+        Usage.action attempts to look up the output-name for all results in the
+        plugin manager's record of the action's signature. In this test
+        artifact, no output names were recorded for the first three dag nodes.
+
+        This test confirms that the monkeypatch we've applied to Usage.action
+        allows replay to proceed despite the "missing" data.
         """
         dag = ProvDAG(os.path.join(DATA_DIR, 'heatmap.qzv'))
-        drivers = ['python3', 'cli']
+        drivers = ['python3', 'cli', 'jn']
         # If we rendered the final action correctly, then nothing blew up.
         exp = {
             'python3':
+                '(?s)action_results.*classifier_actions.classify_samples.*'
+                'heatmap_0_viz = action_results.heatmap',
+            'jn':
                 '(?s)action_results.*classifier_actions.classify_samples.*'
                 'heatmap_0_viz = action_results.heatmap',
             'cli': '(?s)qiime sample-classifier classify-samples.*'
                    '--o-heatmap heatmap-0.qzv'}
         for driver in drivers:
             with tempfile.TemporaryDirectory() as tmpdir:
-                out_path = pathlib.Path(tmpdir) / 'ns_coll.txt'
+                out_path = pathlib.Path(tmpdir) / 'out.txt'
                 replay_provenance(dag, out_path, driver)
 
                 with open(out_path, 'r') as fp:

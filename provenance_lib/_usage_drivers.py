@@ -121,9 +121,9 @@ def action_patch(self,
     return results
 
 
-# NOTE: True monkeypatching happening here. Gross, but the alternative is
-# overriding more methods from ReplayCLIUsage and ReplayPythonUsage to point
-# to a ReplayUsage subclass
+# NOTE: True monkeypatching happening here. Gross, but allowed for fewer
+# method overrides in ReplayCLIUsage and ReplayPythonUsage. Consider a
+# ReplayUsage parent class between Usage and these implementations.
 Usage.action = action_patch
 
 

@@ -827,7 +827,7 @@ def replay_supplement(payload: Union[FileName, ProvDAG],
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir_path = pathlib.Path(tmpdir)
         # TODO: This is coupled to _usage_drivers.SUPPORTED_USAGE_DRIVERS
-        # and _might_ be worth factoring so there's a single data source.
+        # and _might_ be worth factoring so there's a single source of truth.
         filenames = {
             'python3': 'python3_replay.py',
             'cli': 'cli_replay.sh',

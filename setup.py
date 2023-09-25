@@ -15,7 +15,7 @@ setup(
     url='https://github.com/qiime2/provenance-lib',
     author='Chris Keefe',
     author_email='crk239@nau.edu',
-    license='BSD-3-clause',
+    license='BSD-3-Clause',
     scripts=['scripts/tab-replay', 'scripts/always-tab-complete.py'],
     packages=find_packages(),
     package_data={

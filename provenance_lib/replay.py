@@ -687,9 +687,7 @@ class BibContent():
 
     def __eq__(self, other):
         return (
-            # Uses strict equality rather than the recommended isinstance
-            # because simpler. Change this if BibContent is subclassed
-            type(self) == type(other) and  # noqa: E721
+            type(self) is type(other) and
             self.title == other.title and
             self.author == other.author and
             self.journal == other.journal and

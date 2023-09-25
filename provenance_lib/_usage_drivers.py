@@ -494,6 +494,7 @@ class ReplayPythonUsage(ArtifactAPIUsage):
 
 
 class ReplayJupyterNotebookUsage(ReplayPythonUsage):
+    NBFORMAT_VERSION = nbf.v4
     shebang = ''
     header_boundary = ''
     comment_prefix = ''
@@ -514,7 +515,7 @@ class ReplayJupyterNotebookUsage(ReplayPythonUsage):
         self.enable_assertions = enable_assertions
         self.action_collection_size = action_collection_size
         self._reset_state(reset_global_imports=True)
-        self.nb_format = nbf.v4
+        self.nb_format = ReplayJupyterNotebookUsage.NBFORMAT_VERSION
 
     def _reset_state(self, reset_global_imports=False):
         self.local_imports = set()

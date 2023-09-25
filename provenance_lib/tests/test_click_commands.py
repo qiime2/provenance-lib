@@ -4,6 +4,8 @@ import pathlib
 import tempfile
 import zipfile
 
+import nbformat as nbf
+
 from ..click_commands import citations, provenance, supplement
 from .test_parse import DATA_DIR, TEST_DATA
 from .testing_utilities import CustomAssertions
@@ -58,6 +60,36 @@ class ReplayTests(CustomAssertions):
                       "--p-usage-driver python3"))
             self.assertEqual(res.exit_code, 0)
             self.assertTrue(out_fp.is_file())
+            with open(out_fn, 'r') as fp:
+                rendered = fp.read()
+                self.assertIn('from qiime2 import Artifact', rendered)
+                self.assertIn('import_data', rendered)
+                self.assertIn('demux_actions.emp_single', rendered)
+                self.assertIn('dada2_actions.denoise_single', rendered)
+                self.assertIn('phylogeny_actions.align_to_tree_maf', rendered)
+                self.assertIn('diversity_actions.core_metrics_phylogenetic',
+                              rendered)
+
+    def test_provenance_ipynb(self):
+        """High-level confirmation that the CLI can build a jupyter notebook"""
+        in_fp = TEST_DATA['5']['qzv_fp']
+        in_fn = str(in_fp)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_fp = pathlib.Path(tmpdir) / 'rendered.txt'
+            out_fn = str(out_fp)
+            res = CliRunner().invoke(
+                cli=provenance,
+                args=(f"--i-in-fp {in_fn} --o-out-fp {out_fn} "
+                      "--p-usage-driver jn"))
+            self.assertEqual(res.exit_code, 0)
+            self.assertTrue(out_fp.is_file())
+
+            # First validate using the NBFORMAT_VERSION in _usage_drivers.py
+            nb = nbf.read(out_fp, as_version=4)
+            nbf.validate(nb)
+
+            # HACK: check whether expected strings are present in the raw
+            # notebook file without interacting with the dict-like
             with open(out_fn, 'r') as fp:
                 rendered = fp.read()
                 self.assertIn('from qiime2 import Artifact', rendered)
